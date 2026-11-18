@@ -3,7 +3,14 @@
 {% block classe_body %}borne{% endblock %}
 {% block barre %}{% endblock %}
 {% block contenu %}
-<div class="ticket-imprime">
+{% if impression == "serveur" %}
+    <h1 style="margin-bottom:4px">Votre ticket s'imprime</h1>
+    <p style="font-size:1.3rem;opacity:.9">Récupérez-le sous la tablette.</p>
+{% elif impression == "echec" %}
+    <h1 style="margin-bottom:4px">Notez votre numéro</h1>
+    <p style="font-size:1.3rem;opacity:.9">L'imprimante ne répond pas. Votre ticket est bien enregistré.</p>
+{% endif %}
+<div class="ticket-imprime" style="margin-top:16px">
     <div>{{ centre.nom }}</div>
     <div class="numero">{{ ticket.numero }}</div>
     <div><strong>{% if ticket.parcours %}{{ ticket.parcours.libelle_borne }}{% else %}{{ ticket.demande.motif|default:"Autre demande" }}{% endif %}</strong> · {{ ticket.get_mode_display }}</div>
@@ -11,15 +18,24 @@
     <div style="margin-top:3mm">Présentez-vous à l'accueil.<br>{{ devant }} personne(s) avant vous.</div>
     <div style="margin-top:2mm;font-size:9pt">Surveillez l'écran d'appel.</div>
 </div>
-<p class="non-imprime" style="margin-top:24px">
+<div class="non-imprime ligne" style="margin-top:24px;justify-content:center">
+    {% if peut_reessayer %}
+    <form method="post" action="{% url 'circuit:borne_reimprimer' ticket.pk %}">{% csrf_token %}
+        <button class="grand" type="submit">Réessayer l'impression</button>
+    </form>
+    {% endif %}
     <a class="bouton grand" href="{% url 'circuit:borne' %}">Terminé</a>
-</p>
+</div>
 {% endblock %}
 {% block scripts %}
 <script>
 window.addEventListener("load", function () {
+    {% if impression == "navigateur" %}
+    // Pas d'imprimante réseau configurée : impression par le navigateur.
     window.print();
-    setTimeout(function () { window.location.href = "{% url 'circuit:borne' %}"; }, 8000);
+    {% endif %}
+    // Retour à l'écran d'accueil de la borne (plus long si le patient doit noter son numéro).
+    setTimeout(function () { window.location.href = "{% url 'circuit:borne' %}"; }, {% if impression == "echec" %}20000{% else %}8000{% endif %});
 });
 </script>
 {% endblock %}

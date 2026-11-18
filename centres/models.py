@@ -358,6 +358,41 @@ class FileAttente(ModeleCentre):
         return f"{self.nom} ({self.service})"
 
 
+class ImprimanteTicket(ModeleCentre):
+    """
+    Imprimante thermique réseau (Ethernet ou Wi-Fi) d'une borne.
+    Le serveur lui envoie directement le ticket (ESC/POS, port 9100) :
+    aucune boîte d'impression sur la tablette.
+    """
+
+    class PageCodes(models.TextChoices):
+        CP858 = "cp858", "PC858 (Europe de l'Ouest, avec €)"
+        CP850 = "cp850", "PC850 (Europe de l'Ouest)"
+        ASCII = "ascii", "Sans accents (compatibilité maximale)"
+
+    libelle = models.CharField(max_length=100)
+    adresse_ip = models.GenericIPAddressField(
+        help_text="Adresse IP fixe de l'imprimante sur le réseau local.",
+    )
+    port = models.PositiveIntegerField(default=9100, validators=[MinValueValidator(1)])
+    largeur_caracteres = models.PositiveSmallIntegerField(
+        default=48,
+        validators=[MinValueValidator(16)],
+        help_text="Caractères par ligne : 48 pour du papier 80 mm, 32 pour du 58 mm.",
+    )
+    page_codes = models.CharField(max_length=10, choices=PageCodes.choices, default=PageCodes.CP858)
+    actif = models.BooleanField(default=True)
+    date_creation = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["centre", "libelle"]
+        verbose_name = "Imprimante de tickets"
+        verbose_name_plural = "Imprimantes de tickets"
+
+    def __str__(self):
+        return f"{self.libelle} ({self.adresse_ip}:{self.port})"
+
+
 class Borne(ModeleCentre):
     """
     Poste de libre-service émettant les tickets.
@@ -370,6 +405,15 @@ class Borne(ModeleCentre):
     cle_hash = models.CharField(
         max_length=128,
         editable=False,
+    )
+
+    imprimante = models.ForeignKey(
+        ImprimanteTicket,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bornes",
+        help_text="Imprimante réseau de cette borne. Vide : impression par le navigateur.",
     )
 
     actif = models.BooleanField(default=True)

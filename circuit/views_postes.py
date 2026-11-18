@@ -24,6 +24,7 @@ from core.timeutils import fuseau_horaire_centre
 from parcours.models import Parcours
 
 from . import services
+from .impression import imprimer_ticket
 from .models import Appel, MotifDemande, Ticket
 from .services import ErreurCircuit
 
@@ -140,19 +141,73 @@ def borne_emettre(request):
     except ErreurCircuit as erreur:
         messages.error(request, " ".join(erreur.messages))
         return redirect("circuit:borne")
+    # Option A : le serveur imprime directement sur l'imprimante réseau de la
+    # borne (après l'enregistrement du ticket, qui reste valable même si
+    # l'impression échoue).
+    imprimer_ticket(ticket, poste, _personnes_devant(ticket))
     return redirect("circuit:borne_ticket", ticket.pk)
+
+
+def _personnes_devant(ticket):
+    entree = ticket.passages.first().entrees.first()
+    if entree is None:
+        return 0
+    return entree.file.entrees.filter(statut="EN_ATTENTE", rang__lt=entree.rang).count()
+
+
+def _etat_impression(ticket, poste):
+    """« serveur » (imprimé), « echec », ou « navigateur » (pas d'imprimante réseau)."""
+    from .models import Evenement
+
+    if poste.imprimante_id is None or not poste.imprimante.actif:
+        return "navigateur"
+    dernier = (
+        ticket.evenements.filter(type__in=[Evenement.Type.IMPRESSION, Evenement.Type.ECHEC_IMPRESSION])
+        .order_by("-date", "-id")
+        .first()
+    )
+    if dernier is not None and dernier.type == Evenement.Type.IMPRESSION:
+        return "serveur"
+    return "echec"
+
+
+def _ticket_de_la_borne(poste, ticket_id):
+    return get_object_or_404(Ticket.objects.filter(centre=poste.centre, borne=poste), pk=ticket_id)
 
 
 def borne_ticket(request, ticket_id):
     poste = _poste_connecte(request, Borne, SESSION_BORNE)
     if poste is None:
         return redirect("circuit:borne")
-    ticket = get_object_or_404(Ticket.objects.filter(centre=poste.centre, borne=poste), pk=ticket_id)
-    en_attente = ticket.passages.first().entrees.first()
-    devant = 0
-    if en_attente is not None:
-        devant = en_attente.file.entrees.filter(statut="EN_ATTENTE", rang__lt=en_attente.rang).count()
-    return render(request, "circuit/borne_ticket.html", {"ticket": ticket, "centre": poste.centre, "devant": devant})
+    ticket = _ticket_de_la_borne(poste, ticket_id)
+    etat = _etat_impression(ticket, poste)
+    recent = timezone.now() - ticket.date_emission < timedelta(minutes=3)
+    return render(
+        request,
+        "circuit/borne_ticket.html",
+        {
+            "ticket": ticket,
+            "centre": poste.centre,
+            "devant": _personnes_devant(ticket),
+            "impression": etat,
+            "peut_reessayer": etat == "echec" and recent,
+        },
+    )
+
+
+@require_POST
+def borne_reimprimer(request, ticket_id):
+    """Nouvelle tentative d'impression, seulement juste après l'émission."""
+    poste = _poste_connecte(request, Borne, SESSION_BORNE)
+    if poste is None:
+        return redirect("circuit:borne")
+    ticket = _ticket_de_la_borne(poste, ticket_id)
+    if (
+        _etat_impression(ticket, poste) == "echec"
+        and timezone.now() - ticket.date_emission < timedelta(minutes=3)
+    ):
+        imprimer_ticket(ticket, poste, _personnes_devant(ticket))
+    return redirect("circuit:borne_ticket", ticket.pk)
 
 
 # ---------------------------------------------------------------------------

@@ -649,6 +649,8 @@ class Evenement(ModeleCentre):
         FIN_TICKET = "FIN_TICKET", "Fin du ticket"
         ANNULATION = "ANNULATION", "Annulation"
         CLOTURE = "CLOTURE", "Clôture automatique"
+        IMPRESSION = "IMPRESSION", "Impression du ticket"
+        ECHEC_IMPRESSION = "ECHEC_IMPRESSION", "Échec d'impression du ticket"
 
     ticket = models.ForeignKey(
         Ticket, on_delete=models.DO_NOTHING, related_name="evenements"

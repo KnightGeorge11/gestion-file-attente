@@ -152,6 +152,9 @@ def _contexte_guichet(request, service, file):
             contexte["peut_deroger"] = a_droit(agent, "parcours.deroger_quota", request.centre_actif, service)
 
     if service.est_accueil:
+        from .impression import etat_imprimantes
+
+        contexte["alertes_imprimante"] = etat_imprimantes(request.centre_actif)
         contexte["nb_demandes_nouvelles"] = DemandeAutre.objects.filter(
             centre=request.centre_actif, statut=DemandeAutre.Statut.NOUVELLE
         ).count()

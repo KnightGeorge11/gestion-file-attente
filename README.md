@@ -145,10 +145,30 @@ Serveur d'application : à choisir avec le serveur matériel (carte Trello « Sa
 
 Sur un réseau local en HTTP simple, `check --deploy` signale 4 avertissements liés à HTTPS (HSTS, redirection SSL, cookies sécurisés) : ils sont attendus et disparaissent avec `DJANGO_HTTPS=True` derrière un certificat.
 
+## Impression des tickets (option A : imprimante réseau)
+
+La tablette Android affiche seulement les choix. Quand le patient prend son ticket, **le serveur l'envoie directement à l'imprimante thermique** de la borne, par le réseau local : aucune fenêtre d'impression sur la tablette, quel que soit son modèle.
+
+**Imprimante à acheter** (critères) :
+- thermique **80 mm** avec **coupe automatique** ;
+- connexion **Ethernet** (recommandé) ou **Wi-Fi** sur le réseau local ; le Bluetooth n'est pas utilisé (il imposerait une application Android) ;
+- compatible **ESC/POS** avec « impression brute » sur le **port TCP 9100** (cas de la plupart des imprimantes de caisse) ;
+- page de codes PC858 ou PC850 pour les accents (sinon choisir « Sans accents ») ;
+- **adresse IP fixe** (réglée sur l'imprimante ou réservée sur la box/le routeur).
+
+**Mise en service** :
+1. Administration → *Imprimantes de tickets* → ajouter (adresse IP, port 9100, 48 caractères pour du 80 mm).
+2. Action « Imprimer un ticket de test ».
+3. Administration → *Bornes* → choisir cette imprimante pour la borne.
+
+Si l'imprimante ne répond pas, le ticket reste valable : la tablette affiche le numéro en grand (« Notez votre numéro ») avec un bouton « Réessayer l'impression », et l'accueil voit une alerte jusqu'à la prochaine impression réussie. Une borne sans imprimante réseau utilise l'impression du navigateur.
+
+**Tester sans matériel** : `python manage.py imprimante_simulee` (écoute sur 127.0.0.1:9100 et affiche les tickets reçus), puis créer l'imprimante 127.0.0.1:9100 dans l'administration.
+
 ## Postes
 
 - **Borne** : `http://<serveur>/circuit/borne/`. Activer une fois (code centre + code borne + clé). Ne pas se connecter comme agent sur le navigateur de la borne : la déconnexion d'un agent désactiverait aussi la borne.
-- **Impression** : la page du ticket appelle l'impression du navigateur (format 80 mm). Pour imprimer sans boîte de dialogue sur une imprimante thermique, lancer Chrome en mode kiosque : `chrome --kiosk --kiosk-printing http://<serveur>/circuit/borne/` avec l'imprimante thermique définie par défaut. **Non testé sur imprimante réelle** : à valider sur site.
+- **Impression** : par le serveur sur l'imprimante réseau de la borne (voir « Impression des tickets »). **Testé avec une imprimante simulée ; à valider avec l'imprimante réelle.** Tablette Android : épingler l'écran ou utiliser un navigateur en mode kiosque pour que le patient ne quitte pas la page.
 - **Écran principal (TV)** : `http://<serveur>/circuit/ecran/`, activé avec la clé de l'écran. Pour un même ticket, seul le dernier appel est affiché. Cliquer une fois sur « Activer le son » (les navigateurs bloquent le son sans action de l'utilisateur) : carillon et annonce vocale si une voix française est installée sur l'appareil. **Son non vérifié sur la TV réelle.**
 - **Agents** : `http://<serveur>/` → connexion individuelle → choix du centre → interface commune du service.
 

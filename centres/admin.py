@@ -3,7 +3,7 @@ from django.contrib import admin, messages
 
 from core.admin import CentreAdminMixin
 
-from .models import Borne, Centre, EcranAffichage, FileAttente, HoraireService, Service
+from .models import Borne, Centre, EcranAffichage, FileAttente, HoraireService, ImprimanteTicket, Service
 
 
 @admin.register(Centre)
@@ -149,6 +149,7 @@ class BorneAdmin(CentreAdminMixin, admin.ModelAdmin):
         "code",
         "libelle",
         "centre",
+        "imprimante",
         "actif",
         "derniere_activite",
     )
@@ -210,3 +211,24 @@ class EcranAffichageAdmin(CentreAdminMixin, admin.ModelAdmin):
     @admin.action(description="Régénérer la clé des écrans sélectionnés")
     def regenerer_cle(self, request, queryset):
         BorneAdmin.regenerer_cle(self, request, queryset)
+
+
+@admin.register(ImprimanteTicket)
+class ImprimanteTicketAdmin(CentreAdminMixin, admin.ModelAdmin):
+    list_display = ("libelle", "centre", "adresse_ip", "port", "largeur_caracteres", "page_codes", "actif")
+    list_filter = ("centre", "actif")
+    readonly_fields = ("date_creation",)
+    actions = ("imprimer_test",)
+
+    @admin.action(description="Imprimer un ticket de test")
+    def imprimer_test(self, request, queryset):
+        from circuit.impression import ErreurImpression, imprimer_test
+
+        for imprimante in queryset:
+            try:
+                imprimer_test(imprimante)
+            except ErreurImpression as erreur:
+                messages.error(request, str(erreur))
+            else:
+                messages.success(request, f"Ticket de test envoyé à {imprimante}.")
+
