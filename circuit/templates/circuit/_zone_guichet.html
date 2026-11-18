@@ -5,7 +5,7 @@
             {% if tenue %}<span class="etiquette {% if tenue.statut == 'APPELE' %}attention{% else %}ok{% endif %}">{{ tenue.get_statut_display }}</span>{% endif %}
         </h2>
         {% if autre_service %}
-            <p class="etiquette attention">Vous avez un patient en cours dans le service {{ autre_service.nom }}.</p>
+            <p class="etiquette attention">Vous avez déjà un ticket en cours : service {{ autre_service.nom }}{% if autre_service.centre_id != service.centre_id %} du {{ autre_service.centre.nom }}{% endif %}. Terminez-le avant d'en appeler un autre.</p>
         {% endif %}
         {% if tenue %}
             <div class="patient-en-cours">

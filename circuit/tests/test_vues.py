@@ -716,3 +716,66 @@ class AucuneInformationPatientTests(BaseVues):
         self.assertTrue(reservation.derogation)
         self.assertEqual(reservation.motif_derogation, "Urgence")
         self.assertEqual(self.d.entree(ticket).file.service.code, "DEN")
+
+
+@override_settings(RESEAU_LOCAL_UNIQUEMENT=True, BORNE_DELAI_MIN_SECONDES=0)
+class ScenarioTabletteAccueilServiceTests(BaseVues):
+    """
+    Scénario demandé par l'utilisateur (18/11/2026) :
+    1. le patient choisit son mode puis son service sur la tablette ;
+    2. l'accueil voit le ticket tout de suite sur son écran ;
+    3. l'accueil l'appelle, le valide et l'oriente vers le service choisi ;
+    4. le service concerné le voit et l'appelle.
+    """
+
+    def test_scenario_complet(self):
+        borne = Borne(centre=self.d.centre, code="TAB", libelle="Tablette")
+        cle = borne.generer_cle()
+        borne.save()
+        echographe = self.d.agent("echo_s", "Échographie", ["ECH"])
+        acc, ech = self.d.svc["ACC"].pk, self.d.svc["ECH"].pk
+
+        # 1. Tablette : mode Externe puis service Échographie.
+        tablette = self.client_class()
+        tablette.post(reverse("circuit:borne"), {"centre": "TAM", "code": "TAB", "cle": cle})
+        accueil_borne = tablette.get(reverse("circuit:borne"))
+        self.assertContains(accueil_borne, "Externe")
+        self.assertContains(accueil_borne, "Échographie")
+        tablette.post(reverse("circuit:borne_emettre"),
+                      {"mode": "EXTERNE", "parcours": self.d.parcours["E"].pk})
+        ticket = Ticket.objects.get()
+        self.assertEqual((ticket.numero, ticket.mode), ("E001", "EXTERNE"))
+
+        # 2. L'accueil voit le ticket aussitôt (et le fragment rafraîchi toutes les 5 s aussi).
+        self.connecter(self.accueil, self.d.centre)
+        self.assertContains(self.client.get(reverse("circuit:guichet", args=[acc])), "E001")
+        self.assertContains(self.client.get(reverse("circuit:guichet_liste", args=[acc])), "E001")
+        # Le service choisi le voit déjà « à venir », sans pouvoir l'appeler.
+        self.connecter(echographe, self.d.centre)
+        page = self.client.get(reverse("circuit:guichet", args=[ech]))
+        self.assertContains(page, "À venir")
+        self.assertContains(page, "actuellement : Accueil")
+        self.client.post(reverse("circuit:guichet_action", args=[ech, "appeler"]))
+        self.assertFalse(Appel.objects.filter(service__code="ECH").exists())
+
+        # 3. L'accueil appelle, prend en charge, valide et oriente vers Échographie.
+        self.connecter(self.accueil, self.d.centre)
+        self.client.post(reverse("circuit:guichet_action", args=[acc, "appeler"]), {"poste": "Guichet 1"})
+        entree = self.d.entree(ticket)
+        self.client.post(reverse("circuit:guichet_action", args=[acc, "prendre"]), {"entree": entree.pk})
+        self.assertContains(self.client.get(reverse("circuit:guichet", args=[acc])),
+                            "Valider le ticket et orienter vers Échographie")
+        self.client.post(reverse("circuit:guichet_action", args=[acc, "terminer"]), {"entree": entree.pk})
+
+        # 4. Échographie le voit dans sa file et l'appelle ; l'écran principal l'affiche.
+        self.connecter(echographe, self.d.centre)
+        page = self.client.get(reverse("circuit:guichet", args=[ech]))
+        self.assertContains(page, "1 en attente")
+        self.client.post(reverse("circuit:guichet_action", args=[ech, "appeler"]), {"poste": "Salle 1"})
+        appel = Appel.objects.get(service__code="ECH")
+        self.assertEqual((appel.numero_ticket, appel.poste, appel.agent), ("E001", "Salle 1", echographe))
+        ecran = self.client.get(reverse("circuit:ecran_appels"))
+        self.assertContains(ecran, "E001")
+        self.assertContains(ecran, "Salle 1")
+        ticket.refresh_from_db()
+        self.assertIsNone(ticket.patient)
