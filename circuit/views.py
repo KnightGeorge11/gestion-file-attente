@@ -36,6 +36,7 @@ from .models import (
     Ticket,
 )
 from .services import ErreurCircuit
+from .visibilite import services_operationnels, tickets_visibles
 
 
 def _est_htmx(request):
@@ -81,7 +82,11 @@ def guichets(request):
                 file__service=service, statut=EntreeFile.Statut.EN_ATTENTE
             ).count()
             liste.append((service, en_attente))
-    return render(request, "circuit/guichets.html", {"services": liste})
+    return render(
+        request,
+        "circuit/guichets.html",
+        {"services": liste, "voit_tickets": bool(services_operationnels(request.user, centre))},
+    )
 
 
 def _contexte_guichet(request, service, file):
@@ -337,7 +342,8 @@ def identifier(request, ticket_id):
 
 @centre_actif_requis
 def ticket_detail(request, ticket_id):
-    ticket = _ticket_du_centre(request, ticket_id)
+    # Un agent ne consulte que les patients passés par ses services.
+    ticket = get_object_or_404(tickets_visibles(request.user, request.centre_actif), pk=ticket_id)
     centre = request.centre_actif
     service = _service_accueil_du_ticket(ticket)
     accueil = Service.objects.filter(centre=centre, est_accueil=True).first()
@@ -385,7 +391,11 @@ def tickets_du_jour(request):
     """Recherche d'un ticket du jour (accueil)."""
     centre = request.centre_actif
     jour = maintenant_centre(centre).date()
-    tickets = Ticket.objects.filter(centre=centre, jour=jour).select_related("patient", "parcours")
+    tickets = (
+        tickets_visibles(request.user, centre)
+        .filter(jour=jour)
+        .select_related("patient", "parcours")
+    )
     numero = request.GET.get("numero", "").strip().upper()
     if numero:
         tickets = tickets.filter(numero__icontains=numero)

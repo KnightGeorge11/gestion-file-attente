@@ -1,3 +1,6 @@
+from django.contrib.auth.models import Group
+
+from comptes.management.commands.initialiser_roles import initialiser_roles
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
@@ -111,10 +114,14 @@ class RecherchePatientTests(TestCase):
             type_compte="AGENT",
         )
 
+        # Rôle Accueil : la recherche de patients est réservée aux rôles
+        # qui identifient les patients.
+        initialiser_roles()
         AffectationUtilisateur.objects.create(
             utilisateur=self.agent,
             centre=self.centre_a,
             role="AGENT",
+            groupe=Group.objects.get(name="Accueil"),
         )
 
         self.patient_a = Patient.objects.create(

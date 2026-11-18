@@ -18,6 +18,7 @@ def navigation(request):
         {
             "peut_statistiques": a_droit(utilisateur, "circuit.voir_statistiques", centre),
             "peut_fusionner": a_droit(utilisateur, "patients.add_fusionpatient", centre),
+            "peut_voir_patients": a_droit(utilisateur, "patients.view_patient", centre),
             "nb_notifications": Notification.objects.filter(
                 centre=centre, destinataire=utilisateur, date_lecture__isnull=True
             ).count(),

@@ -20,7 +20,7 @@
             <a href="{% url 'circuit:guichets' %}">Services</a>
             <a href="{% url 'circuit:notifications' %}">Notifications
                 <span hx-get="{% url 'circuit:badge_notifications' %}" hx-trigger="every 15s" hx-swap="innerHTML">{% if nb_notifications %}<span class="pastille">{{ nb_notifications }}</span>{% endif %}</span></a>
-            <a href="{% url 'patients:recherche' %}">Patients</a>
+            {% if peut_voir_patients %}<a href="{% url 'patients:recherche' %}">Patients</a>{% endif %}
             {% if peut_fusionner %}<a href="{% url 'patients:doublons' %}">Doublons</a>{% endif %}
             {% if peut_statistiques %}<a href="{% url 'statistiques:tableau' %}">Statistiques</a>{% endif %}
             <a href="{% url 'circuit:ecran' %}" target="_blank">Écran</a>

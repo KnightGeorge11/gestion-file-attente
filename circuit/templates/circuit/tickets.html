@@ -2,6 +2,7 @@
 {% block titre %}Tickets du jour{% endblock %}
 {% block contenu %}
 <h1>Tickets du {{ jour|date:"d/m/Y" }}</h1>
+<p class="discret">Seuls les tickets passés par vos services sont affichés.</p>
 <form method="get" class="ligne" style="margin-bottom:12px">
     <input name="numero" value="{{ numero }}" placeholder="Numéro (ex. M012)" style="max-width:200px">
     <select name="statut" style="max-width:220px">

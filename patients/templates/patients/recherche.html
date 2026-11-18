@@ -4,7 +4,7 @@
 <div class="ligne" style="justify-content:space-between">
     <h1>Recherche des patients</h1>
     <p class="ligne">
-        <a class="bouton principal" href="{% url 'patients:creer' %}">+ Ajouter un patient</a>
+        {% if perms.patients.add_patient %}<a class="bouton principal" href="{% url 'patients:creer' %}">+ Ajouter un patient</a>{% endif %}
         {% if peut_fusionner %}<a class="bouton" href="{% url 'patients:doublons' %}">Doublons</a>{% endif %}
     </p>
 </div>

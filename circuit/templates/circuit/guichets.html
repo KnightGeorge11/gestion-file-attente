@@ -16,7 +16,7 @@
     {% endfor %}
 </div>
 <p style="margin-top:20px" class="ligne">
-    <a class="bouton" href="{% url 'circuit:tickets' %}">Tickets du jour</a>
+    {% if voit_tickets %}<a class="bouton" href="{% url 'circuit:tickets' %}">Tickets du jour</a>{% endif %}
     <a class="bouton" href="{% url 'circuit:notifications' %}">Mes notifications</a>
 </p>
 {% endblock %}

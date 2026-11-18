@@ -580,8 +580,11 @@ class CorrectionsAmeliorationsTests(BaseVues):
             reponse = self.client.get(url)
             self.assertContains(reponse, "Déconnexion")
             self.assertContains(reponse, reverse("patients:doublons"))
-        self.connecter(self.medecin, self.d.centre)
+        # L'accueil voit le fichier patients mais pas le lien Doublons ; un médecin n'y a pas accès.
+        self.connecter(self.accueil, self.d.centre)
         self.assertNotContains(self.client.get(reverse("patients:recherche")), reverse("patients:doublons"))
+        self.connecter(self.medecin, self.d.centre)
+        self.assertEqual(self.client.get(reverse("patients:recherche")).status_code, 403)
 
     def test_messages_remplaces_lors_d_une_action_htmx(self):
         self.d.ticket("M")
@@ -626,3 +629,83 @@ class BlocageConnexionTests(BaseVues):
         for _ in range(5):
             self._connexion("faux", "ACCUEIL1")
         self.assertContains(self._connexion("mot-de-passe-1", "accueil1"), "Trop de tentatives")
+
+
+class VisibiliteParServiceTests(BaseVues):
+    """Chaque agent ne voit que les patients passés par ses services."""
+
+    def setUp(self):
+        super().setUp()
+        self.infirmier = self.d.agent("inf_v", "Infirmerie", ["INF"])
+        self.dentiste = self.d.agent("den_v", "Dentiste", ["DEN"])
+        self.echo = self.d.agent("ech_v", "Échographie", ["ECH"])
+        self.directeur = self.d.agent("dir_v", "Direction")
+        self.responsable = self.d.agent("resp_v", "Responsable")
+        with a_heure(LUNDI_MATIN):
+            # M arrivé chez les médecins, puis transféré à la pharmacie.
+            self.m_pharmacie = self.d.ticket("M")
+            self.d.accueillir(self.m_pharmacie, self.accueil, patient=self.d.patient("MEDECIN", "Pharma"))
+            self.d.traiter(self.m_pharmacie, "INF", self.infirmier)
+            self.d.traiter(self.m_pharmacie, "MED", self.medecin, transferer=True)
+            # M encore à l'infirmerie (pas encore chez les médecins).
+            self.m_infirmerie = self.d.ticket("M")
+            self.d.accueillir(self.m_infirmerie, self.accueil, patient=self.d.patient("ENCORE", "Infirmerie"))
+            # D chez le dentiste ; E encore à l'accueil.
+            self.dent = self.d.ticket("D")
+            self.d.accueillir(self.dent, self.accueil, patient=self.d.patient("DENT", "Seul"))
+            self.echo_accueil = self.d.ticket("E")
+        self.tous = {self.m_pharmacie, self.m_infirmerie, self.dent, self.echo_accueil}
+
+    def _visibles(self, agent):
+        self.connecter(agent, self.d.centre)
+        with a_heure(LUNDI_MATIN):
+            liste = set(self.client.get(reverse("circuit:tickets")).context["tickets"])
+            detail = {t for t in self.tous
+                      if self.client.get(reverse("circuit:ticket", args=[t.pk])).status_code == 200}
+        self.assertEqual(liste, detail, "liste et accès direct doivent concorder")
+        return liste
+
+    def test_medecin(self):
+        self.assertEqual(self._visibles(self.medecin), {self.m_pharmacie})
+
+    def test_infirmerie(self):
+        self.assertEqual(self._visibles(self.infirmier), {self.m_pharmacie, self.m_infirmerie})
+
+    def test_dentiste_et_echographie(self):
+        self.assertEqual(self._visibles(self.dentiste), {self.dent})
+        self.assertEqual(self._visibles(self.echo), set())
+
+    def test_pharmacie_seulement_les_patients_transferes(self):
+        self.assertEqual(self._visibles(self.pharma), {self.m_pharmacie})
+
+    def test_accueil_responsable_voient_tout(self):
+        self.assertEqual(self._visibles(self.accueil), self.tous)
+        self.assertEqual(self._visibles(self.responsable), self.tous)
+
+    def test_direction_ne_voit_aucun_patient(self):
+        self.assertEqual(self._visibles(self.directeur), set())
+        self.assertEqual(self.client.get(reverse("patients:recherche")).status_code, 403)
+        self.assertNotContains(self.client.get(reverse("circuit:guichets")), "Tickets du jour")
+
+    def test_fichier_patients_reserve_a_l_accueil_et_aux_responsables(self):
+        for agent, attendu in ((self.medecin, 403), (self.pharma, 403), (self.infirmier, 403),
+                               (self.accueil, 200), (self.responsable, 200)):
+            self.connecter(agent, self.d.centre)
+            self.assertEqual(self.client.get(reverse("patients:recherche"), {"q": "DENT"}).status_code,
+                             attendu, agent.username)
+            self.assertEqual(self.client.get(reverse("patients:creer")).status_code, attendu, agent.username)
+        self.connecter(self.medecin, self.d.centre)
+        menu = self.client.get(reverse("circuit:guichets"))
+        self.assertNotContains(menu, reverse("patients:recherche"))
+
+    def test_medecin_voit_le_patient_des_son_arrivee_dans_sa_file(self):
+        with a_heure(LUNDI_MATIN):
+            self.d.traiter(self.m_infirmerie, "INF", self.infirmier)
+        self.assertIn(self.m_infirmerie, self._visibles(self.medecin))
+        # Et la page de son service affiche bien ce patient en attente.
+        reponse = self.client.get(reverse("circuit:guichet", args=[self.d.svc["MED"].pk]))
+        self.assertContains(reponse, self.m_infirmerie.numero)
+
+    def test_administrateur_central_voit_tout(self):
+        admin = Utilisateur.objects.create_user("central_v", password="x", type_compte="ADMIN")
+        self.assertEqual(self._visibles(admin), self.tous)

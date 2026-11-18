@@ -18,8 +18,19 @@ from .models import (
 )
 
 
+def _exiger_droit_patients(request, permission):
+    """Fichier patients réservé aux rôles qui identifient les patients (accueil, responsable)."""
+    from django.core.exceptions import PermissionDenied
+
+    from comptes.permissions import a_droit
+
+    if not a_droit(request.user, permission, request.centre_actif):
+        raise PermissionDenied
+
+
 @centre_actif_requis
 def recherche_patients(request):
+    _exiger_droit_patients(request, "patients.view_patient")
     terme = request.GET.get("q", "").strip()[:100]
 
     rattachements = PatientCentre.objects.none()
@@ -149,6 +160,7 @@ def rattacher_patient(patient, centre):
 
 @centre_actif_requis
 def creer_patient(request):
+    _exiger_droit_patients(request, "patients.add_patient")
     form = PatientForm(request.POST or None)
     doublons = []
 

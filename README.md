@@ -41,6 +41,7 @@ Le module `salles` n'a pas été créé : il reste optionnel et non validé (Tre
 - **Mode Autre** (rendez-vous, cotisations, rencontre d'une personne…) : notification à l'accueil ; l'accueil oriente vers une **personne précise** ou un **service** (dans ce cas, un **agent désigné** du service est notifié, pas tous les agents) ; le destinataire répond par un **statut prédéfini** (demande reçue, prise en compte, en cours de traitement, patient attendu, traitée, non réalisable) **et un message libre facultatif**. Le ticket est clôturé après l'orientation ; la demande reste suivie indépendamment.
 - **Dossier patient unique partagé** entre centres ; matricule propre à chaque centre `CODECENTRE-000001` ; tickets, passages et activités isolés par centre.
 - Le concept de « visite » n'existe pas.
+- **Confidentialité par service** (décision du 18/11/2026) : un agent ne voit que les patients qui viennent dans son service. Un ticket devient visible pour un service dès que le patient arrive dans sa file, et le reste pour l'historique. L'accueil voit tous les tickets (tous les patients y passent) ; la pharmacie ne voit que les patients qui lui sont transférés ; la direction ne voit aucun patient (statistiques uniquement). Le fichier patients (recherche, création) est réservé à l'accueil et aux responsables. Contrôle côté serveur : liste des tickets du jour et accès direct par adresse (404 sinon).
 
 ### Paramètres configurables (administration)
 
