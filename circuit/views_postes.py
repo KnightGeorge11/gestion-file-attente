@@ -7,13 +7,15 @@ Chaque poste est identifié par un code et une clé secrète enregistrés en
 session. Accès limité au réseau local. La sécurité n'intervient pas.
 """
 
+import base64
 import ipaddress
 from datetime import timedelta
+from types import SimpleNamespace
 
 from django.conf import settings
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -24,7 +26,7 @@ from core.timeutils import fuseau_horaire_centre
 from parcours.models import Parcours
 
 from . import services
-from .impression import imprimer_ticket
+from .impression import contenu_ticket, imprimer_ticket
 from .models import Appel, MotifDemande, Ticket
 from .services import ErreurCircuit
 
@@ -208,6 +210,28 @@ def borne_reimprimer(request, ticket_id):
     ):
         imprimer_ticket(ticket, poste, _personnes_devant(ticket))
     return redirect("circuit:borne_ticket", ticket.pk)
+
+
+def borne_ticket_escpos(request, ticket_id):
+    """
+    Dernier recours (application Android de la borne, imprimante Bluetooth) :
+    octets ESC/POS du ticket, en base64, que l'application envoie elle-même à
+    l'imprimante appairée. Seulement juste après l'émission, et seulement quand
+    aucune imprimante réseau n'est rattachée à la borne.
+    """
+    poste = _poste_connecte(request, Borne, SESSION_BORNE)
+    if poste is None:
+        raise PermissionDenied
+    ticket = _ticket_de_la_borne(poste, ticket_id)
+    if _etat_impression(ticket, poste) != "navigateur" or (
+        timezone.now() - ticket.date_emission >= timedelta(minutes=3)
+    ):
+        raise PermissionDenied
+    largeur = 32 if request.GET.get("largeur") == "32" else 48
+    page = request.GET.get("page") if request.GET.get("page") in ("cp858", "cp850", "ascii") else "ascii"
+    imprimante = SimpleNamespace(page_codes=page, largeur_caracteres=largeur)
+    donnees = contenu_ticket(ticket, imprimante, _personnes_devant(ticket))
+    return JsonResponse({"numero": ticket.numero, "escpos": base64.b64encode(donnees).decode("ascii")})
 
 
 # ---------------------------------------------------------------------------

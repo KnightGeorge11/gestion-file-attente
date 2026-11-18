@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mêmes couleurs que l'application web (static/css/app.css) -->
+<resources>
+    <color name="primaire">#0F766E</color>
+    <color name="primaire_fonce">#115E59</color>
+    <color name="fond">#F4F6F9</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="texte">#0F172A</color>
+    <color name="discret">#64748B</color>
+    <color name="bordure">#E2E8F0</color>
+    <color name="alerte">#B91C1C</color>
+</resources>

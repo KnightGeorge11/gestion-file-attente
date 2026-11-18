@@ -23,6 +23,7 @@ urlpatterns = [
     path("borne/emettre/", views_postes.borne_emettre, name="borne_emettre"),
     path("borne/ticket/<int:ticket_id>/", views_postes.borne_ticket, name="borne_ticket"),
     path("borne/ticket/<int:ticket_id>/reimprimer/", views_postes.borne_reimprimer, name="borne_reimprimer"),
+    path("borne/ticket/<int:ticket_id>/escpos/", views_postes.borne_ticket_escpos, name="borne_ticket_escpos"),
     path("ecran/", views_postes.ecran, name="ecran"),
     path("ecran/appels/", views_postes.ecran_appels, name="ecran_appels"),
     path("poste/deconnexion/", views_postes.poste_deconnexion, name="poste_deconnexion"),

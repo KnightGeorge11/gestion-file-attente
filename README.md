@@ -163,7 +163,7 @@ La tablette Android affiche seulement les choix. Quand le patient prend son tick
 
 **Imprimante à acheter** (critères) :
 - thermique **80 mm** avec **coupe automatique** ;
-- connexion **Ethernet** (recommandé) ou **Wi-Fi** sur le réseau local ; le Bluetooth n'est pas utilisé (il imposerait une application Android) ;
+- connexion **Ethernet** (recommandé) ou **Wi-Fi** sur le réseau local. Une imprimante Bluetooth n'est possible qu'avec l'application Android de dernier recours (voir ci-dessous) ;
 - compatible **ESC/POS** avec « impression brute » sur le **port TCP 9100** (cas de la plupart des imprimantes de caisse) ;
 - page de codes PC858 ou PC850 pour les accents (sinon choisir « Sans accents ») ;
 - **adresse IP fixe** (réglée sur l'imprimante ou réservée sur la box/le routeur).
@@ -176,6 +176,8 @@ La tablette Android affiche seulement les choix. Quand le patient prend son tick
 Si l'imprimante ne répond pas, le ticket reste valable : la tablette affiche le numéro en grand (« Notez votre numéro ») avec un bouton « Réessayer l'impression », et l'accueil voit une alerte jusqu'à la prochaine impression réussie. Une borne sans imprimante réseau utilise l'impression du navigateur.
 
 **Tester sans matériel** : `python manage.py imprimante_simulee` (écoute sur 127.0.0.1:9100 et affiche les tickets reçus), puis créer l'imprimante 127.0.0.1:9100 dans l'administration.
+
+**Dernier recours, imprimante Bluetooth** : une petite application Android ([`borne_android/`](borne_android/README.md)) affiche la même page de borne et envoie le ticket, préparé par le serveur, à une imprimante Bluetooth appairée. L'APK est compilé automatiquement par GitHub Actions. **Non testé sur du matériel réel.**
 
 ## Postes
 

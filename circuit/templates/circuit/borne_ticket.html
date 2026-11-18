@@ -9,6 +9,12 @@
 {% elif impression == "echec" %}
     <h1 style="margin-bottom:4px">Notez votre numéro</h1>
     <p style="font-size:1.3rem;opacity:.9">L'imprimante ne répond pas. Votre ticket est bien enregistré.</p>
+{% else %}
+    <div id="etat-android" class="non-imprime" hidden>
+        <h1 id="etat-android-titre" style="margin-bottom:4px">Impression en cours…</h1>
+        <p id="etat-android-texte" style="font-size:1.3rem;opacity:.9">Récupérez votre ticket sous la tablette.</p>
+        <button id="etat-android-reessayer" class="grand" type="button" hidden>Réessayer l'impression</button>
+    </div>
 {% endif %}
 <div class="ticket-imprime" style="margin-top:16px">
     <div>{{ centre.nom }}</div>
@@ -30,12 +36,62 @@
 {% block scripts %}
 <script>
 window.addEventListener("load", function () {
+    var retour = {% if impression == "echec" %}20000{% else %}8000{% endif %};
     {% if impression == "navigateur" %}
-    // Pas d'imprimante réseau configurée : impression par le navigateur.
-    window.print();
+    if (window.BorneAndroid) {
+        // Dernier recours : application Android de la borne + imprimante Bluetooth.
+        imprimerViaAndroid();
+    } else {
+        // Pas d'imprimante réseau configurée : impression par le navigateur.
+        window.print();
+    }
     {% endif %}
     // Retour à l'écran d'accueil de la borne (plus long si le patient doit noter son numéro).
-    setTimeout(function () { window.location.href = "{% url 'circuit:borne' %}"; }, {% if impression == "echec" %}20000{% else %}8000{% endif %});
+    planifierRetour(retour);
+});
+
+var minuterieRetour = null;
+function planifierRetour(delai) {
+    clearTimeout(minuterieRetour);
+    minuterieRetour = setTimeout(function () { window.location.href = "{% url 'circuit:borne' %}"; }, delai);
+}
+
+{% if impression == "navigateur" %}
+function afficherEtatAndroid(titre, texte, reessayer) {
+    document.getElementById("etat-android").hidden = false;
+    document.getElementById("etat-android-titre").textContent = titre;
+    document.getElementById("etat-android-texte").textContent = texte;
+    document.getElementById("etat-android-reessayer").hidden = !reessayer;
+}
+
+function imprimerViaAndroid() {
+    var reglages = {};
+    try { reglages = JSON.parse(window.BorneAndroid.reglages()); } catch (e) {}
+    afficherEtatAndroid("Impression en cours…", "Récupérez votre ticket sous la tablette.", false);
+    var url = "{% url 'circuit:borne_ticket_escpos' ticket.pk %}?largeur=" + encodeURIComponent(reglages.largeur || "48")
+        + "&page=" + encodeURIComponent(reglages.page || "ascii");
+    fetch(url, {credentials: "same-origin"})
+        .then(function (r) { if (!r.ok) { throw new Error("HTTP " + r.status); } return r.json(); })
+        .then(function (d) { window.BorneAndroid.imprimer(d.escpos); })
+        .catch(function () { window.borneImpressionTerminee(false, "Ticket indisponible"); });
+}
+
+// Appelée par l'application Android quand l'imprimante a répondu.
+window.borneImpressionTerminee = function (ok, message) {
+    if (ok) {
+        afficherEtatAndroid("Votre ticket s'imprime", "Récupérez-le sous la tablette.", false);
+        planifierRetour(8000);
+    } else {
+        afficherEtatAndroid("Notez votre numéro", "L'imprimante ne répond pas. Votre ticket est bien enregistré.", true);
+        planifierRetour(20000);
+    }
+};
+
+document.addEventListener("DOMContentLoaded", function () {
+    var bouton = document.getElementById("etat-android-reessayer");
+    if (bouton) { bouton.addEventListener("click", imprimerViaAndroid); }
+});
+{% endif %}
 });
 </script>
 {% endblock %}

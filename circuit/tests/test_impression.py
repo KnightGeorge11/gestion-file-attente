@@ -3,10 +3,12 @@ Impression réseau des tickets (option A) : une vraie connexion TCP est
 ouverte vers une imprimante simulée lancée dans le test.
 """
 
+import base64
 import socket
 import socketserver
 import threading
 import time
+from datetime import timedelta
 
 from django.contrib.auth.models import Permission
 from django.test import TestCase, override_settings
@@ -137,6 +139,34 @@ class ImpressionReseauTests(TestCase):
         reponse = self._prendre_ticket()
         self.assertContains(reponse, "window.print()")
         self.assertEqual(self.imprimante_reelle.attendre(1, delai=0.5), [])
+
+    def test_application_android_imprimante_bluetooth(self):
+        """Dernier recours : l'application Android récupère les octets ESC/POS du ticket."""
+        self.borne.imprimante = None
+        self.borne.save()
+        reponse = self._prendre_ticket()
+        self.assertContains(reponse, "window.BorneAndroid")
+        ticket = Ticket.objects.get()
+        url = reverse("circuit:borne_ticket_escpos", args=[ticket.pk])
+        donnees = self.client.get(url, {"largeur": "32"}).json()
+        self.assertEqual(donnees["numero"], ticket.numero)
+        octets = base64.b64decode(donnees["escpos"])
+        self.assertIn(ticket.numero.encode(), octets)
+        self.assertIn(b"Echographie", octets)                   # sans accents par défaut
+        self.assertIn(b"-" * 32 + b"\n", octets)
+        self.assertNotIn(b"-" * 33, octets)
+        self.assertIn("Échographie".encode("cp858"), base64.b64decode(self.client.get(url, {"page": "cp858"}).json()["escpos"]))
+        # Pas pour une autre session (agent ou visiteur sans borne activée).
+        self.assertEqual(self.client_class().get(url).status_code, 403)
+        # Pas une fois le ticket ancien (pas de réimpression à volonté).
+        Ticket.objects.filter(pk=ticket.pk).update(date_emission=ticket.date_emission - timedelta(minutes=5))
+        self.assertEqual(self.client.get(url).status_code, 403)
+
+    def test_application_android_inutile_avec_imprimante_reseau(self):
+        self._prendre_ticket()
+        self.imprimante_reelle.attendre(1)
+        ticket = Ticket.objects.get()
+        self.assertEqual(self.client.get(reverse("circuit:borne_ticket_escpos", args=[ticket.pk])).status_code, 403)
 
     def test_accents_et_pages_de_codes(self):
         self._prendre_ticket()

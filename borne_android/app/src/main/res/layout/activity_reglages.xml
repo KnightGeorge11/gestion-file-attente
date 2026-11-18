@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/fond">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <!-- En-tête -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Réglages de la borne"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <TextView
+            style="@style/Aide"
+            android:layout_marginBottom="16dp"
+            android:text="SMIE FUNTOA · files d'attente. Ces réglages restent sur cette tablette." />
+
+        <!-- Serveur -->
+        <LinearLayout style="@style/Carte">
+            <TextView style="@style/TitreCarte" android:text="Adresse du serveur" />
+            <EditText
+                android:id="@+id/url"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="http://192.168.1.10:8000/circuit/borne/"
+                android:inputType="textUri"
+                android:singleLine="true" />
+            <TextView
+                style="@style/Aide"
+                android:text="Page « borne » du serveur, sur le réseau local. La borne s'active ensuite avec son code et sa clé, comme dans un navigateur." />
+        </LinearLayout>
+
+        <!-- Imprimante -->
+        <LinearLayout style="@style/Carte">
+            <TextView style="@style/TitreCarte" android:text="Imprimante Bluetooth (dernier recours)" />
+            <TextView
+                style="@style/Aide"
+                android:layout_marginBottom="8dp"
+                android:text="Utilisée seulement si aucune imprimante réseau n'est rattachée à la borne sur le serveur. Appairez-la d'abord dans les paramètres Bluetooth d'Android." />
+            <Spinner
+                android:id="@+id/imprimantes"
+                android:layout_width="match_parent"
+                android:layout_height="48dp" />
+
+            <TextView
+                style="@style/Aide"
+                android:layout_marginTop="10dp"
+                android:text="Largeur du papier" />
+            <RadioGroup
+                android:id="@+id/largeur"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+                <RadioButton android:id="@+id/largeur_80" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:layout_marginEnd="20dp" android:text="80 mm" />
+                <RadioButton android:id="@+id/largeur_58" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:text="58 mm" />
+            </RadioGroup>
+
+            <TextView
+                style="@style/Aide"
+                android:layout_marginTop="6dp"
+                android:text="Accents" />
+            <RadioGroup
+                android:id="@+id/page"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+                <RadioButton android:id="@+id/page_ascii" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:layout_marginEnd="20dp" android:text="Sans accents" />
+                <RadioButton android:id="@+id/page_cp858" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:layout_marginEnd="20dp" android:text="PC858" />
+                <RadioButton android:id="@+id/page_cp850" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:text="PC850" />
+            </RadioGroup>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="horizontal">
+                <Button android:id="@+id/actualiser" style="@style/Bouton"
+                    android:layout_marginEnd="10dp" android:text="Actualiser la liste" />
+                <Button android:id="@+id/tester" style="@style/Bouton"
+                    android:text="Imprimer un test" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/etat"
+                style="@style/Aide"
+                android:layout_marginTop="8dp"
+                android:textColor="@color/primaire_fonce" />
+        </LinearLayout>
+
+        <!-- Sécurité -->
+        <LinearLayout style="@style/Carte">
+            <TextView style="@style/TitreCarte" android:text="Verrouillage" />
+            <Switch
+                android:id="@+id/epingler"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="48dp"
+                android:text="Épingler l'écran (le public ne peut pas quitter la borne)" />
+            <EditText
+                android:id="@+id/code"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Code des réglages (4 chiffres ou plus)"
+                android:inputType="numberPassword"
+                android:singleLine="true" />
+            <TextView
+                style="@style/Aide"
+                android:text="Pour revenir ici : toucher 5 fois le coin haut-gauche de l'écran, puis saisir ce code." />
+        </LinearLayout>
+
+        <!-- Actions -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:orientation="horizontal">
+            <Button android:id="@+id/enregistrer" style="@style/BoutonPrincipal"
+                android:layout_marginEnd="10dp" android:text="Enregistrer et ouvrir la borne" />
+            <Button android:id="@+id/quitter" style="@style/Bouton"
+                android:textColor="@color/alerte" android:text="Quitter la borne" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>
