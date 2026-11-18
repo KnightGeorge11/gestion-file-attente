@@ -99,6 +99,31 @@ Le compte PostgreSQL doit pouvoir créer les extensions `pg_trgm` et `btree_gist
 
 Pour une recette : `python manage.py preparer_demo <CODE> --mot-de-passe "..."` (un compte par rôle `<role>_<code>`, une borne `BORNE1`, un écran `ECRAN1`).
 
+## Comptes de test et simulation de patients
+
+**Uniquement sur une base de développement ou de test** (les deux commandes refusent de s'exécuter si `DEBUG` est désactivé, sauf `--force`).
+
+```bash
+python manage.py creer_comptes_test              # 2 comptes par service, tous les centres actifs
+python manage.py simuler_patients 001            # 30 patients fictifs, 15 tickets, 10 étapes
+python manage.py simuler_patients 001 --continu --intervalle 15 --duree 30   # démonstration en direct
+```
+
+Comptes créés, mot de passe par défaut **1234** (modifiable avec `--mot-de-passe`), affectés à chaque centre :
+
+| Service / rôle | Identifiants |
+|---|---|
+| Accueil | `accueiltest1`, `accueiltest2` |
+| Infirmerie | `infirmiertest1`, `infirmiertest2` |
+| Médecins | `medecintest1`, `medecintest2` |
+| Dentiste | `dentistetest1`, `dentistetest2` |
+| Échographie | `echographietest1`, `echographietest2` |
+| Pharmacie | `pharmacietest1`, `pharmacietest2` |
+| Direction (statistiques) | `directiontest1`, `directiontest2` |
+| Responsable (dérogations, fusions) | `responsabletest1`, `responsabletest2` |
+
+La simulation passe par le moteur réel (toutes les règles s'appliquent). Elle émet ses tickets par une borne dédiée « SIMULATION », n'agit que sur ses propres tickets et uniquement au nom des comptes de test ; elle n'appelle jamais une file dont le premier patient est un vrai patient. Les patients simulés sont rattachés à l'entreprise « ENTREPRISE SIMULATION ». Les tickets simulés restent dans l'historique et les statistiques (rien n'est supprimé).
+
 ## Production sur le réseau local
 
 Paramètres (voir `.env.exemple`) :
