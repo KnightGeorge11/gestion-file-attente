@@ -30,7 +30,7 @@ Le module `salles` n'a pas été créé : il reste optionnel et non validé (Tre
 - Tickets **M, D, I, E** à compteurs indépendants, format lettre + 3 chiffres (M001), **remise à zéro à minuit** (heure du centre) ; un numéro annulé n'est jamais réutilisé.
 - **Tous les patients passent par l'accueil** après le ticket.
 - Parcours : **M** accueil → infirmerie → file commune des médecins → consultation ; **D** accueil → dentiste ; **E** accueil → échographie ; **I** accueil → infirmerie → fin. Marche avant.
-- **Pharmacie : jamais automatique ni obligatoire.** Le service de soins qui prend en charge le patient (médecin, dentiste, échographie, infirmerie) peut décider explicitement, à la fin de sa prise en charge, de l'envoyer à la pharmacie (case « Transférer à la pharmacie »). Aucune version de parcours ne contient la pharmacie.
+- **Pharmacie : jamais automatique ni obligatoire.** Le service de soins qui prend en charge le patient (médecin, dentiste, échographie, infirmerie) peut décider explicitement, à la fin de sa prise en charge, de l'envoyer à la pharmacie (case « Transférer à la pharmacie »). Aucune version de parcours ne contient la pharmacie. **L'accueil ne transfère pas à la pharmacie** (décision du 18/11/2026).
 - Chaque service appelle ses patients ; **un écran principal unique affiche simultanément les appels de plusieurs services** ; la pharmacie peut appeler sur l'écran ou oralement.
 - File commune des médecins : le patient appelé est attribué au médecin connecté qui l'appelle (verrou, pas de double prise).
 - Comptes individuels pour chaque agent ; interface commune par service.
@@ -66,7 +66,7 @@ Le module `salles` n'a pas été créé : il reste optionnel et non validé (Tre
 | Identification obligatoire avant le premier service | Exigée pour les tickets de soins |
 | Heure de clôture des tickets restés ouverts | Commande nocturne : tickets des jours précédents clôturés, passages en cours annulés |
 | Transfert pharmacie depuis l'infirmerie du parcours M (étape intermédiaire) | Autorisé avec motif obligatoire ; la consultation n'est pas réalisée ; le ticket se termine après la pharmacie |
-| Transfert depuis l'**accueil**, ou vers un autre service que la pharmacie | Non proposé. **Décision à prendre** : Trello indique que « chaque service » peut envoyer à la pharmacie, mais la carte des points ouverts liste encore le transfert depuis l'accueil comme non tranché |
+| Transfert vers un autre service que la pharmacie | Non proposé |
 | Fin du ticket après un transfert | Le ticket se termine après la pharmacie |
 | Délai entre appels, position après réintégration | 60 s ; réintégration en fin de file |
 | Pharmacie, appel oral | Bouton « Appel oral » = prise en charge directe, puis « Terminer » (horaires enregistrés) |
