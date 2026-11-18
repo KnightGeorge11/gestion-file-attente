@@ -62,3 +62,13 @@
     {% endfor %}
 </ul>
 {% endif %}
+
+{% if a_venir %}
+<h2 style="margin-top:16px">À venir · {{ a_venir|length }}</h2>
+<p class="discret">Patients dont le parcours passe ensuite par ce service.</p>
+<ul class="chronologie">
+    {% for t in a_venir %}
+    <li><strong>{{ t.numero }}</strong> {{ t.patient|default:"(non identifié)" }} <span class="etiquette">actuellement : {{ t.service_actuel }}</span></li>
+    {% endfor %}
+</ul>
+{% endif %}

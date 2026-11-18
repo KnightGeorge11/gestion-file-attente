@@ -665,15 +665,17 @@ class VisibiliteParServiceTests(BaseVues):
         self.assertEqual(liste, detail, "liste et accès direct doivent concorder")
         return liste
 
-    def test_medecin(self):
-        self.assertEqual(self._visibles(self.medecin), {self.m_pharmacie})
+    def test_medecin_voit_aussi_les_patients_a_venir(self):
+        # m_infirmerie est à l'infirmerie : son parcours passe ensuite par les médecins.
+        self.assertEqual(self._visibles(self.medecin), {self.m_pharmacie, self.m_infirmerie})
 
     def test_infirmerie(self):
         self.assertEqual(self._visibles(self.infirmier), {self.m_pharmacie, self.m_infirmerie})
 
     def test_dentiste_et_echographie(self):
         self.assertEqual(self._visibles(self.dentiste), {self.dent})
-        self.assertEqual(self._visibles(self.echo), set())
+        # Le patient E est encore à l'accueil : visible à l'avance par l'échographie.
+        self.assertEqual(self._visibles(self.echo), {self.echo_accueil})
 
     def test_pharmacie_seulement_les_patients_transferes(self):
         self.assertEqual(self._visibles(self.pharma), {self.m_pharmacie})
@@ -698,13 +700,33 @@ class VisibiliteParServiceTests(BaseVues):
         menu = self.client.get(reverse("circuit:guichets"))
         self.assertNotContains(menu, reverse("patients:recherche"))
 
-    def test_medecin_voit_le_patient_des_son_arrivee_dans_sa_file(self):
+    def test_section_a_venir_dans_l_interface_des_medecins(self):
+        self.connecter(self.medecin, self.d.centre)
+        with a_heure(LUNDI_MATIN):
+            reponse = self.client.get(reverse("circuit:guichet", args=[self.d.svc["MED"].pk]))
+        self.assertContains(reponse, "À venir")
+        self.assertContains(reponse, "ENCORE Infirmerie")
+        self.assertContains(reponse, "actuellement : Infirmerie")
+        # Une fois arrivé chez les médecins, il passe de « à venir » à la file d'attente.
         with a_heure(LUNDI_MATIN):
             self.d.traiter(self.m_infirmerie, "INF", self.infirmier)
-        self.assertIn(self.m_infirmerie, self._visibles(self.medecin))
-        # Et la page de son service affiche bien ce patient en attente.
-        reponse = self.client.get(reverse("circuit:guichet", args=[self.d.svc["MED"].pk]))
+            reponse = self.client.get(reverse("circuit:guichet", args=[self.d.svc["MED"].pk]))
+        self.assertNotContains(reponse, "actuellement : Infirmerie")
         self.assertContains(reponse, self.m_infirmerie.numero)
+        self.assertIn(self.m_infirmerie, self._visibles(self.medecin))
+
+    def test_transfert_pharmacie_depuis_l_infirmerie_n_est_plus_a_venir_pour_les_medecins(self):
+        with a_heure(LUNDI_MATIN):
+            self.d.traiter(self.m_infirmerie, "INF", self.infirmier, transferer=True, motif="Renouvellement")
+        self.assertNotIn(self.m_infirmerie, self._visibles(self.medecin))
+        self.assertIn(self.m_infirmerie, self._visibles(self.pharma))
+
+    def test_ticket_annule_avant_d_arriver_n_est_plus_visible(self):
+        from circuit import services
+
+        with a_heure(LUNDI_MATIN):
+            services.annuler_ticket(self.echo_accueil, self.accueil, "Patient reparti")
+        self.assertEqual(self._visibles(self.echo), set())
 
     def test_administrateur_central_voit_tout(self):
         admin = Utilisateur.objects.create_user("central_v", password="x", type_compte="ADMIN")

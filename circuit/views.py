@@ -36,7 +36,7 @@ from .models import (
     Ticket,
 )
 from .services import ErreurCircuit
-from .visibilite import services_operationnels, tickets_visibles
+from .visibilite import services_operationnels, tickets_a_venir, tickets_visibles
 
 
 def _est_htmx(request):
@@ -127,6 +127,8 @@ def _contexte_guichet(request, service, file):
         "peut_annuler": a_droit(agent, "circuit.annuler_ticket", request.centre_actif, service),
         "peut_orienter": a_droit(agent, "circuit.orienter_demande", request.centre_actif, service),
         "maintenant": timezone.now(),
+        # Patients qui viendront dans ce service (vus à l'avance).
+        "a_venir": list(tickets_a_venir(service)[:30]),
     }
 
     if tenue is not None:
