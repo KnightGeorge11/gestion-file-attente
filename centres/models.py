@@ -311,10 +311,12 @@ class FileAttente(ModeleCentre):
         help_text="Délai minimal entre deux appels du même patient (10 s, décision du 18/11/2026).",
     )
 
+    # Décision du 18/11/2026 : toujours au moins 2 agents par service ;
+    # chaque agent ne tient qu'un patient à la fois.
     nb_appels_simultanes = models.PositiveSmallIntegerField(
-        default=1,
-        validators=[MinValueValidator(1)],
-        help_text="Plusieurs uniquement pour une file partagée (médecins).",
+        default=2,
+        validators=[MinValueValidator(2)],
+        help_text="Nombre d'agents pouvant appeler en même temps dans cette file (2 minimum).",
     )
 
     ordre_strict = models.BooleanField(

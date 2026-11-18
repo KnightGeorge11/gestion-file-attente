@@ -35,7 +35,7 @@ class ServiceEtFileTests(TestCase):
         self.assertTrue(files[0].par_defaut)
         self.assertEqual(files[0].centre, self.centre)
         self.assertEqual(files[0].nb_appels_avant_absence, 3)
-        self.assertEqual(files[0].nb_appels_simultanes, 1)
+        self.assertEqual(files[0].nb_appels_simultanes, 2)  # décision du 18/11/2026 : 2 agents minimum
         self.assertEqual(service.file_par_defaut(), files[0])
 
     def test_modification_service_ne_cree_pas_de_seconde_file(self):

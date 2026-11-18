@@ -34,6 +34,7 @@ Le module `salles` n'a pas été créé : il reste optionnel et non validé (Tre
 - **Pharmacie : jamais automatique ni obligatoire.** Le service de soins qui termine le parcours (médecin, dentiste, échographie, infirmerie pour le parcours I) peut décider explicitement de l'envoyer à la pharmacie (« Transférer à la pharmacie ») ; le ticket se termine après la pharmacie. Pas de pharmacie depuis une étape intermédiaire (infirmerie du parcours M) ni depuis l'accueil (décisions du 18/11/2026). Aucune version de parcours ne contient la pharmacie.
 - **Clôture** à **20 h 00** des tickets restés ouverts (commande `cloturer_tickets`, heure réglable par centre).
 - **10 secondes** minimum entre deux appels du même patient ; absence après 3 appels.
+- **2 agents minimum par service** (décision du 18/11/2026) : chaque file accepte au moins 2 appels simultanés ; chaque agent ne tient qu'un patient à la fois.
 - Tickets « Autre » : préfixe **A** avec leur propre compteur.
 - Chaque service appelle ses patients ; **un écran principal unique affiche simultanément les appels de plusieurs services** ; la pharmacie peut appeler sur l'écran ou oralement.
 - File commune des médecins : le patient appelé est attribué au médecin connecté qui l'appelle (verrou, pas de double prise).
@@ -53,7 +54,7 @@ Le module `salles` n'a pas été créé : il reste optionnel et non validé (Tre
 |---|---|---|
 | Délai entre deux appels | File d'attente | 10 s |
 | Appels avant absence | File d'attente | 3 |
-| Appels simultanés | File d'attente | 1 ; file des médecins = nombre de médecins |
+| Appels simultanés | File d'attente | **2 minimum** (2 agents par service) ; file des médecins = nombre de médecins |
 | Ordre strict | File d'attente | oui |
 | Réintégrations maximum | Centre | 1 |
 | Heure de bascule matin / après-midi | Centre | 12 h 00 |
@@ -71,7 +72,7 @@ Le module `salles` n'a pas été créé : il reste optionnel et non validé (Tre
 | Transfert vers un autre service que la pharmacie | Non proposé |
 | Position après réintégration | En fin de file |
 | Pharmacie, appel oral | Bouton « Appel oral » = prise en charge directe, puis « Terminer » (horaires enregistrés) |
-| File des médecins : ordre strict ou libre ; guichets d'accueil | Ordre strict ; 1 guichet d'accueil (paramétrable) |
+| File des médecins : ordre strict ou libre | Ordre strict |
 | Droits de la direction | Statistiques uniquement |
 | Priorités, durée de conservation des historiques, module salles | Non implémentés |
 

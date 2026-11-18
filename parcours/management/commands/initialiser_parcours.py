@@ -61,8 +61,8 @@ class Command(BaseCommand):
         code = options["code_centre"].upper()
         medecins = options["medecins"]
 
-        if medecins < 1:
-            raise CommandError("--medecins doit être supérieur ou égal à 1.")
+        if medecins < 2:
+            raise CommandError("--medecins doit être supérieur ou égal à 2 (2 agents minimum par service).")
 
         try:
             centre = Centre.objects.get(code=code)
@@ -100,7 +100,7 @@ class Command(BaseCommand):
         # File commune des médecins : plusieurs médecins en parallèle.
         file_medecins = services["MED"].file_par_defaut()
 
-        if file_medecins.nb_appels_simultanes == 1 and medecins > 1:
+        if file_medecins.nb_appels_simultanes < medecins:
             file_medecins.nb_appels_simultanes = medecins
             file_medecins.save(update_fields=["nb_appels_simultanes", "date_modification"])
             self.stdout.write(f"  File commune des médecins : {medecins} appels simultanés")

@@ -560,3 +560,26 @@ class DelaiEntreAppelsTests(BaseCircuit):
             appel = services.rappeler(entree, self.accueil)
         self.assertEqual(appel.numero_appel, 2)
 
+
+
+class DeuxAgentsParServiceTests(BaseCircuit):
+    """Décision du 18/11/2026 : toujours au moins 2 agents par service."""
+
+    def test_deux_agents_du_meme_service_appellent_en_meme_temps(self):
+        from django.core.exceptions import ValidationError
+
+        accueil2 = self.d.agent("accueil2", "Accueil", ["ACC"])
+        accueil3 = self.d.agent("accueil3", "Accueil", ["ACC"])
+        t1, t2 = self.d.ticket("M"), self.d.ticket("E")
+        self.d.ticket("I")
+        for code in ("ACC", "INF", "MED", "DEN", "ECH", "PHA"):
+            self.assertGreaterEqual(self.d.file(code).nb_appels_simultanes, 2, code)
+        a1 = services.appeler(self.d.file("ACC"), self.accueil, poste="Guichet 1")
+        a2 = services.appeler(self.d.file("ACC"), accueil2, poste="Guichet 2")
+        self.assertEqual({a1.ticket, a2.ticket}, {t1, t2})
+        with self.assertRaises(ErreurCircuit):
+            services.appeler(self.d.file("ACC"), accueil3)   # 2 guichets occupés
+        file = self.d.file("ACC")
+        file.nb_appels_simultanes = 1
+        with self.assertRaises(ValidationError):
+            file.full_clean()
