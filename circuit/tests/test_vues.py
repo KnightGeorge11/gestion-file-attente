@@ -9,7 +9,6 @@ from centres.models import Borne, EcranAffichage
 from circuit import services
 from circuit.models import Appel, EntreeFile, Ticket
 from comptes.models import AffectationUtilisateur, Utilisateur
-from patients.models import FusionPatient, Patient, PatientCentre, SignalementDoublon
 
 from .base import LUNDI_MATIN, Donnees, a_heure
 
@@ -35,7 +34,6 @@ class IsolationCentresTests(BaseVues):
         ticket = self.d.ticket("M")
         self.connecter(self.agent_b, self.b.centre)
         self.assertEqual(self.client.get(reverse("circuit:ticket", args=[ticket.pk])).status_code, 404)
-        self.assertEqual(self.client.get(reverse("circuit:identifier", args=[ticket.pk])).status_code, 404)
         self.assertEqual(
             self.client.get(reverse("circuit:guichet", args=[self.d.svc["ACC"].pk])).status_code, 404
         )
@@ -132,17 +130,15 @@ class InterfaceServiceTests(BaseVues):
         self.assertEqual(Appel.objects.get().poste, "Guichet 1")
         self.client.post(reverse("circuit:guichet_action", args=[acc, "prendre"]), {"entree": entree.pk})
 
-        reponse = self.client.post(
-            reverse("circuit:identifier", args=[ticket.pk]),
-            {"nouveau": "1", "nom": "RAZAFY", "prenom": "Lova"},
-        )
-        self.assertEqual(reponse.status_code, 302)
-        ticket.refresh_from_db()
-        self.assertEqual(ticket.patient.nom, "RAZAFY")
-
+        # Aucune identification : l'accueil valide le ticket et l'oriente.
+        page = self.client.get(reverse("circuit:guichet", args=[acc]))
+        self.assertContains(page, "Valider le ticket et orienter vers Infirmerie")
+        self.assertNotContains(page, "Identifier le patient")
         reponse = self.client.post(reverse("circuit:guichet_action", args=[acc, "terminer"]),
                                    {"entree": entree.pk}, HTTP_HX_REQUEST="true")
         self.assertContains(reponse, "Infirmerie")
+        ticket.refresh_from_db()
+        self.assertIsNone(ticket.patient)
 
         self.connecter(infirmier, self.d.centre)
         inf = self.d.svc["INF"].pk
@@ -182,6 +178,7 @@ class InterfaceServiceTests(BaseVues):
         self.assertContains(reponse, "Aucun patient en attente")
 
     def test_quota_atteint_signale_a_l_accueil(self):
+        acc = self.d.svc["ACC"].pk
         with a_heure(LUNDI_MATIN):
             quota = self.d.parcours["D"].quotas.get(jour_semaine=0, periode="MATIN")
             quota.nombre_places = 0
@@ -191,11 +188,19 @@ class InterfaceServiceTests(BaseVues):
             services.appeler(self.d.file("ACC"), self.accueil)
             services.prendre_en_charge(entree, self.accueil)
             self.connecter(self.accueil, self.d.centre)
-            reponse = self.client.post(reverse("circuit:identifier", args=[ticket.pk]),
-                                       {"nouveau": "1", "nom": "RABE"}, follow=True)
-        self.assertContains(reponse, "Quota atteint")
-        ticket.refresh_from_db()
-        self.assertIsNone(ticket.patient)
+            page = self.client.get(reverse("circuit:guichet", args=[acc]))
+            self.assertContains(page, "Quota atteint")
+            self.assertContains(page, "Seul un responsable peut accorder une dérogation")
+            # L'accueil ne peut ni valider, ni forcer une dérogation sans le droit.
+            reponse = self.client.post(reverse("circuit:guichet_action", args=[acc, "terminer"]),
+                                       {"entree": entree.pk}, follow=True)
+            self.assertContains(reponse, "Quota atteint")
+            refus = self.client.post(reverse("circuit:guichet_action", args=[acc, "terminer"]),
+                                     {"entree": entree.pk, "derogation": "1", "motif_derogation": "x"})
+            self.assertEqual(refus.status_code, 403)
+        entree.refresh_from_db()
+        self.assertEqual(entree.statut, "EN_COURS")
+        self.assertIsNone(ticket.reservation_active())
 
     def test_demandes_et_notifications(self):
         self.d.svc["MED"].destinataire_demandes = self.medecin
@@ -257,7 +262,6 @@ class BorneEcranTests(BaseVues):
         t2 = self.d.ticket("M")
         services.appeler(self.d.file("ACC"), self.accueil, poste="Guichet 1")
         services.prendre_en_charge(self.d.entree(t1), self.accueil)
-        services.identifier_patient(t1, self.d.patient("A"), self.accueil)
         services.terminer(self.d.entree(t1), self.accueil)
         services.appeler(self.d.file("INF"), infirmier, poste="Salle 2")
         accueil2 = self.d.agent("acc2", "Accueil", ["ACC"])
@@ -276,7 +280,6 @@ class BorneEcranTests(BaseVues):
         ticket = self.d.ticket("I")
         services.appeler(self.d.file("ACC"), self.accueil)
         services.prendre_en_charge(self.d.entree(ticket), self.accueil)
-        services.identifier_patient(ticket, self.d.patient(), self.accueil)
         services.terminer(self.d.entree(ticket), self.accueil)
         infirmier = self.d.agent("inf", "Infirmerie", ["INF"])
         services.appeler(self.d.file("INF"), infirmier)
@@ -330,45 +333,8 @@ class StatistiquesEtAuditTests(BaseVues):
         self.assertEqual(entree.details["apres"]["nombre_places"], 9)
 
 
-class FusionPatientsTests(BaseVues):
-    def test_fusion_reversible_sans_reattribution(self):
-        responsable = self.d.agent("resp", "Responsable")
-        p1 = Patient.objects.create(nom="RAKOTO", prenom="Jean")
-        p2 = Patient.objects.create(nom="RAKOTOO", prenom="Jean")
-        PatientCentre.objects.create(patient=p1, centre=self.d.centre)
-        PatientCentre.objects.create(patient=p2, centre=self.d.centre)
-        ticket = self.d.ticket("I")
-        self.d.accueillir(ticket, self.accueil, patient=p2)
-        signalement = SignalementDoublon.objects.create(patient_1=p1, patient_2=p2)
-        self.connecter(responsable, self.d.centre)
-        self.client.post(reverse("patients:doublons"),
-                         {"signalement": signalement.pk, "action": "fusionner", "garder": p1.pk, "motif": "Même personne"})
-        p2.refresh_from_db()
-        self.assertEqual(p2.fusionne_dans, p1)
-        ticket.refresh_from_db()
-        self.assertEqual(ticket.patient, p2)  # aucun ticket réattribué
-        fusion = FusionPatient.objects.get()
-        self.client.post(reverse("patients:doublons"), {"fusion": fusion.pk, "action": "annuler_fusion"})
-        p2.refresh_from_db()
-        self.assertIsNone(p2.fusionne_dans)
-        self.assertEqual(JournalAudit.objects.filter(action__in=["FUSION", "ANNULATION_FUSION"]).count(), 2)
-
-    def test_agent_sans_permission_ne_peut_pas_fusionner(self):
-        self.connecter(self.medecin, self.d.centre)
-        self.assertEqual(self.client.get(reverse("patients:doublons")).status_code, 403)
-
-
 class IsolationCompleteTests(BaseVues):
     """Un agent du centre B ne lit ni ne modifie rien du centre A."""
-
-    def test_recherche_patient_limitee_au_centre(self):
-        patient = Patient.objects.create(nom="RANDRIA", prenom="Tiana")
-        PatientCentre.objects.create(patient=patient, centre=self.d.centre)
-        self.connecter(self.agent_b, self.b.centre)
-        reponse = self.client.get(reverse("patients:recherche"), {"q": "RANDRIA"})
-        self.assertNotContains(reponse, "Tiana")
-        reponse = self.client.get(reverse("patients:recherche"), {"q": "TAM-000001"})
-        self.assertNotContains(reponse, "Tiana")
 
     def test_demandes_et_notifications_d_un_autre_centre(self):
         ticket = services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE, motif=self.d.motif)
@@ -475,7 +441,6 @@ class RecetteParcoursInterfacesTests(BaseVues):
     """Scénarios de recette par les interfaces : borne → accueil → service(s) → [pharmacie] → fin."""
 
     ETAPES = {"M": ["INF", "MED"], "D": ["DEN"], "E": ["ECH"], "I": ["INF"]}
-    NOMS = iter(["RAKOTO", "BEZARA", "NOMENJANAHARY", "FALY", "ANDRIAMIHAJA", "SOA", "TSIRY", "VOLOLONA"])
     ROLES = {"INF": "Infirmerie", "MED": "Médecin", "DEN": "Dentiste", "ECH": "Échographie"}
 
     def setUp(self):
@@ -505,11 +470,6 @@ class RecetteParcoursInterfacesTests(BaseVues):
             self.client.post(reverse("circuit:guichet_action", args=[service, "appeler"]))
             entree = self.d.entree(ticket)
             self.client.post(reverse("circuit:guichet_action", args=[service, "prendre"]), {"entree": entree.pk})
-        if code == "ACC":
-            self.client.post(reverse("circuit:identifier", args=[ticket.pk]),
-                             {"nouveau": "1", "nom": next(self.NOMS)})
-            ticket.refresh_from_db()
-            self.assertIsNotNone(ticket.patient, "identification à l'accueil")
         self.client.post(reverse("circuit:guichet_action", args=[service, "terminer"]),
                          {"entree": entree.pk, **donnees})
 
@@ -549,7 +509,6 @@ class EcranPrincipalTests(BaseVues):
         t2 = self.d.ticket("D")
         services.appeler(self.d.file("ACC"), self.accueil, poste="Guichet 1")
         services.prendre_en_charge(self.d.entree(t1), self.accueil)
-        services.identifier_patient(t1, self.d.patient("UN"), self.accueil)
         services.terminer(self.d.entree(t1), self.accueil)
         services.appeler(self.d.file("INF"), infirmier, poste="Salle 2")
         accueil2 = self.d.agent("acc_e", "Accueil", ["ACC"])
@@ -572,19 +531,6 @@ class CorrectionsAmeliorationsTests(BaseVues):
         self.assertEqual(reponse.status_code, 200)
         self.assertContains(reponse, "vient d")
         self.assertContains(reponse, "Vous êtes")  # écran d'accueil de la borne
-
-    def test_pages_patients_dans_la_mise_en_page_commune(self):
-        responsable = self.d.agent("resp_p", "Responsable")
-        self.connecter(responsable, self.d.centre)
-        for url in (reverse("patients:recherche") + "?q=x", reverse("patients:creer")):
-            reponse = self.client.get(url)
-            self.assertContains(reponse, "Déconnexion")
-            self.assertContains(reponse, reverse("patients:doublons"))
-        # L'accueil voit le fichier patients mais pas le lien Doublons ; un médecin n'y a pas accès.
-        self.connecter(self.accueil, self.d.centre)
-        self.assertNotContains(self.client.get(reverse("patients:recherche")), reverse("patients:doublons"))
-        self.connecter(self.medecin, self.d.centre)
-        self.assertEqual(self.client.get(reverse("patients:recherche")).status_code, 403)
 
     def test_messages_remplaces_lors_d_une_action_htmx(self):
         self.d.ticket("M")
@@ -644,15 +590,15 @@ class VisibiliteParServiceTests(BaseVues):
         with a_heure(LUNDI_MATIN):
             # M arrivé chez les médecins, puis transféré à la pharmacie.
             self.m_pharmacie = self.d.ticket("M")
-            self.d.accueillir(self.m_pharmacie, self.accueil, patient=self.d.patient("MEDECIN", "Pharma"))
+            self.d.accueillir(self.m_pharmacie, self.accueil)
             self.d.traiter(self.m_pharmacie, "INF", self.infirmier)
             self.d.traiter(self.m_pharmacie, "MED", self.medecin, transferer=True)
             # M encore à l'infirmerie (pas encore chez les médecins).
             self.m_infirmerie = self.d.ticket("M")
-            self.d.accueillir(self.m_infirmerie, self.accueil, patient=self.d.patient("ENCORE", "Infirmerie"))
+            self.d.accueillir(self.m_infirmerie, self.accueil)
             # D chez le dentiste ; E encore à l'accueil.
             self.dent = self.d.ticket("D")
-            self.d.accueillir(self.dent, self.accueil, patient=self.d.patient("DENT", "Seul"))
+            self.d.accueillir(self.dent, self.accueil)
             self.echo_accueil = self.d.ticket("E")
         self.tous = {self.m_pharmacie, self.m_infirmerie, self.dent, self.echo_accueil}
 
@@ -686,26 +632,14 @@ class VisibiliteParServiceTests(BaseVues):
 
     def test_direction_ne_voit_aucun_patient(self):
         self.assertEqual(self._visibles(self.directeur), set())
-        self.assertEqual(self.client.get(reverse("patients:recherche")).status_code, 403)
         self.assertNotContains(self.client.get(reverse("circuit:guichets")), "Tickets du jour")
-
-    def test_fichier_patients_reserve_a_l_accueil_et_aux_responsables(self):
-        for agent, attendu in ((self.medecin, 403), (self.pharma, 403), (self.infirmier, 403),
-                               (self.accueil, 200), (self.responsable, 200)):
-            self.connecter(agent, self.d.centre)
-            self.assertEqual(self.client.get(reverse("patients:recherche"), {"q": "DENT"}).status_code,
-                             attendu, agent.username)
-            self.assertEqual(self.client.get(reverse("patients:creer")).status_code, attendu, agent.username)
-        self.connecter(self.medecin, self.d.centre)
-        menu = self.client.get(reverse("circuit:guichets"))
-        self.assertNotContains(menu, reverse("patients:recherche"))
 
     def test_section_a_venir_dans_l_interface_des_medecins(self):
         self.connecter(self.medecin, self.d.centre)
         with a_heure(LUNDI_MATIN):
             reponse = self.client.get(reverse("circuit:guichet", args=[self.d.svc["MED"].pk]))
         self.assertContains(reponse, "À venir")
-        self.assertContains(reponse, "ENCORE Infirmerie")
+        self.assertContains(reponse, self.m_infirmerie.numero)
         self.assertContains(reponse, "actuellement : Infirmerie")
         # Une fois arrivé chez les médecins, il passe de « à venir » à la file d'attente.
         with a_heure(LUNDI_MATIN):
@@ -731,3 +665,54 @@ class VisibiliteParServiceTests(BaseVues):
     def test_administrateur_central_voit_tout(self):
         admin = Utilisateur.objects.create_user("central_v", password="x", type_compte="ADMIN")
         self.assertEqual(self._visibles(admin), self.tous)
+
+class AucuneInformationPatientTests(BaseVues):
+    """Décision du 18/11/2026 : aucune information patient n'est collectée."""
+
+    def test_pages_patients_retirees(self):
+        responsable = self.d.agent("resp_x", "Responsable")
+        self.connecter(responsable, self.d.centre)
+        for url in ("/patients/recherche/", "/patients/nouveau/", "/patients/doublons/",
+                    "/circuit/tickets/1/identifier/"):
+            self.assertEqual(self.client.get(url).status_code, 404, url)
+        menu = self.client.get(reverse("circuit:guichets"))
+        self.assertNotContains(menu, "/patients/")
+        self.assertNotContains(menu, ">Patients<")
+
+    def test_aucune_mention_patient_dans_les_interfaces(self):
+        ticket = self.d.ticket("I")
+        self.d.accueillir(ticket, self.accueil)
+        self.connecter(self.accueil, self.d.centre)
+        for url in (reverse("circuit:tickets"), reverse("circuit:ticket", args=[ticket.pk])):
+            reponse = self.client.get(url)
+            self.assertNotContains(reponse, "non identifié")
+            self.assertNotContains(reponse, "<th>Patient</th>")
+
+    def test_roles_sans_permission_patients(self):
+        from django.contrib.auth.models import Group
+
+        for groupe in Group.objects.all():
+            self.assertFalse(groupe.permissions.filter(content_type__app_label="patients").exists(),
+                             groupe.name)
+            self.assertFalse(groupe.permissions.filter(codename="identifier_patient").exists(), groupe.name)
+
+    def test_responsable_peut_deroger_au_quota_a_la_validation(self):
+        responsable = self.d.agent("resp_q", "Responsable")
+        acc = self.d.svc["ACC"].pk
+        with a_heure(LUNDI_MATIN):
+            quota = self.d.parcours["D"].quotas.get(jour_semaine=0, periode="MATIN")
+            quota.nombre_places = 0
+            quota.save()
+            ticket = self.d.ticket("D")
+            entree = self.d.entree(ticket)
+            services.appeler(self.d.file("ACC"), responsable)
+            services.prendre_en_charge(entree, responsable)
+            self.connecter(responsable, self.d.centre)
+            page = self.client.get(reverse("circuit:guichet", args=[acc]))
+            self.assertContains(page, "Dérogation exceptionnelle")
+            self.client.post(reverse("circuit:guichet_action", args=[acc, "terminer"]),
+                             {"entree": entree.pk, "derogation": "1", "motif_derogation": "Urgence"})
+        reservation = ticket.reservation_active()
+        self.assertTrue(reservation.derogation)
+        self.assertEqual(reservation.motif_derogation, "Urgence")
+        self.assertEqual(self.d.entree(ticket).file.service.code, "DEN")

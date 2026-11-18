@@ -1,10 +1,11 @@
 """
-Simule l'arrivée et le parcours de patients (« clients ») dans un centre.
+Simule l'arrivée et le parcours de tickets (patients anonymes) dans un centre.
+Aucune information patient n'est créée (décision du 18/11/2026).
 
 Prérequis : python manage.py creer_comptes_test
 
 Exemples :
-    # 30 patients fictifs, 15 tickets, 10 étapes immédiates (files remplies à divers stades)
+    # 15 tickets, 10 étapes immédiates (files remplies à divers stades)
     python manage.py simuler_patients 001
 
     # Démonstration en direct (écran principal) : nouveaux tickets et avancée
@@ -30,7 +31,6 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("code_centre")
-        parser.add_argument("--patients", type=int, default=30, help="Patients fictifs à créer (défaut 30).")
         parser.add_argument("--tickets", type=int, default=15, help="Tickets émis au départ (défaut 15).")
         parser.add_argument("--etapes", type=int, default=10, help="Étapes immédiates (défaut 10).")
         parser.add_argument("--continu", action="store_true", help="Simulation en direct.")
@@ -57,8 +57,7 @@ class Command(BaseCommand):
         except ErreurCircuit as erreur:
             raise CommandError(" ".join(erreur.messages))
 
-        if options["patients"]:
-            self.stdout.write(f"{simulateur.creer_patients(options['patients'])} patients fictifs créés.")
+        simulateur.preparer()
         simulateur.emettre(options["tickets"])
         for _ in range(options["etapes"]):
             simulateur.etape()

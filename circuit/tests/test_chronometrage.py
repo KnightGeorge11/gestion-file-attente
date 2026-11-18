@@ -55,7 +55,6 @@ class ChronometrageTests(TestCase):
             ticket = self.d.ticket("M")                       # 0 : arrivée accueil
             h.a(5); services.appeler(self.d.file("ACC"), self.accueil)
             h.a(6); services.prendre_en_charge(self.d.entree(ticket), self.accueil)
-            services.identifier_patient(ticket, self.d.patient(), self.accueil)
             h.a(10); services.terminer(self.d.entree(ticket), self.accueil)   # arrivée infirmerie
             h.a(25); services.appeler(self.d.file("INF"), self.infirmier)
             h.a(26); services.prendre_en_charge(self.d.entree(ticket), self.infirmier)
@@ -96,7 +95,6 @@ class ChronometrageTests(TestCase):
             h.a(20); nouvelle = services.reintegrer(premiere.passage, self.accueil)
             h.a(30); services.appeler(self.d.file("ACC"), self.accueil)
             h.a(31); services.prendre_en_charge(self.d.entree(ticket), self.accueil)
-            services.identifier_patient(ticket, self.d.patient(), self.accueil)
             h.a(35); services.terminer(self.d.entree(ticket), self.accueil)
 
         passage = self._passage(ticket, "ACC")
@@ -124,12 +122,10 @@ class ChronometrageTests(TestCase):
             t1 = self.d.ticket("I")
             h.a(10); services.appeler(self.d.file("ACC"), self.accueil)
             services.prendre_en_charge(self.d.entree(t1), self.accueil)
-            services.identifier_patient(t1, self.d.patient("A"), self.accueil)
             h.a(12); services.terminer(self.d.entree(t1), self.accueil)
             t2 = self.d.ticket("I")
             h.a(32); services.appeler(self.d.file("ACC"), self.accueil)
             services.prendre_en_charge(self.d.entree(t2), self.accueil)
-            services.identifier_patient(t2, self.d.patient("B"), self.accueil)
             h.a(36); services.terminer(self.d.entree(t2), self.accueil)
             h.a(40); services.appeler(self.d.file("INF"), self.infirmier)
             services.prendre_en_charge(self.d.entree(t1), self.infirmier)

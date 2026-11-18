@@ -64,7 +64,7 @@ class ConcurrenceTests(TransactionTestCase):
         inf = self.d.agent("inf", "Infirmerie", ["INF"])
         for nom in ("A", "B"):
             ticket = self.d.ticket("M")
-            self.d.accueillir(ticket, accueil, patient=self.d.patient(nom))
+            self.d.accueillir(ticket, accueil)
             self.d.traiter(ticket, "INF", inf)
         medecins = [self.d.agent(f"med{i}", "Médecin", ["MED"]) for i in range(2)]
         file = self.d.file("MED")

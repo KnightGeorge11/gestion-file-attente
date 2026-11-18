@@ -13,7 +13,6 @@ urlpatterns = [
     # Tickets
     path("tickets/", views.tickets_du_jour, name="tickets"),
     path("tickets/<int:ticket_id>/", views.ticket_detail, name="ticket"),
-    path("tickets/<int:ticket_id>/identifier/", views.identifier, name="identifier"),
     path("tickets/<int:ticket_id>/action/<slug:action>/", views.ticket_action, name="ticket_action"),
     # Mode Autre
     path("demandes/", views.demandes, name="demandes"),

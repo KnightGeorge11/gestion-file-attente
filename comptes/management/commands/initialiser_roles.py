@@ -15,12 +15,9 @@ SOINS = APPEL + ["circuit.transferer"]
 
 ROLES = {
     "Accueil": APPEL + [
-        "circuit.identifier_patient",
         "circuit.annuler_ticket",
         "circuit.orienter_demande",
         "parcours.liberer_quota",
-        "patients.add_patient",
-        "patients.view_patient",
     ],
     "Infirmerie": SOINS,
     "Médecin": SOINS,
@@ -29,15 +26,11 @@ ROLES = {
     "Pharmacie": APPEL,
     "Direction": ["circuit.voir_statistiques"],
     "Responsable": APPEL + [
-        "circuit.identifier_patient",
         "circuit.annuler_ticket",
         "circuit.orienter_demande",
         "circuit.voir_statistiques",
         "parcours.liberer_quota",
         "parcours.deroger_quota",
-        "patients.add_patient",
-        "patients.view_patient",
-        "patients.add_fusionpatient",
     ],
 }
 

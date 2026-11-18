@@ -14,7 +14,6 @@ urlpatterns = [
     path("deconnexion/", auth_views.LogoutView.as_view(), name="deconnexion"),
     path("admin/", admin.site.urls),
     path("centres/", include("centres.urls")),
-    path("patients/", include("patients.urls")),
     path("circuit/", include("circuit.urls")),
     path("statistiques/", include("statistiques.urls")),
 ]

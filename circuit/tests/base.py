@@ -10,7 +10,6 @@ from centres.models import Centre, Service
 from comptes.management.commands.initialiser_roles import initialiser_roles
 from comptes.models import AffectationService, AffectationUtilisateur, Utilisateur
 from parcours.models import Parcours
-from patients.models import Patient
 
 from circuit import services
 from circuit.models import EntreeFile, MotifDemande, Ticket
@@ -45,9 +44,6 @@ class Donnees:
             )
         return utilisateur
 
-    def patient(self, nom="RAKOTO", prenom="Jean"):
-        return Patient.objects.create(nom=nom, prenom=prenom)
-
     def file(self, code):
         return self.svc[code].file_par_defaut()
 
@@ -68,13 +64,13 @@ class Donnees:
         services.prendre_en_charge(entree, agent)
         return services.terminer(entree, agent, transferer_pharmacie=transferer, motif=motif)
 
-    def accueillir(self, ticket, agent, patient=None, **kwargs):
+    def accueillir(self, ticket, agent, **kwargs):
+        """Accueil : appel, prise en charge, validation du ticket (aucune info patient)."""
         file = self.file("ACC")
         entree = self.entree(ticket)
         services.appeler(file, agent, entree=entree)
         services.prendre_en_charge(entree, agent)
-        services.identifier_patient(ticket, patient or self.patient(), agent, **kwargs)
-        return services.terminer(entree, agent)
+        return services.terminer(entree, agent, **kwargs)
 
 
 def a_heure(date_heure):

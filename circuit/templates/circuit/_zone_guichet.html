@@ -11,11 +11,7 @@
             <div class="patient-en-cours">
                 <span class="numero enorme">{{ ticket.numero }}</span>
                 <div>
-                    <div class="nom-patient">
-                        {% if ticket.patient %}{{ ticket.patient }}
-                        {% elif ticket.est_autre %}Demande « Autre » : {{ ticket.demande.motif|default:"motif non précisé" }}
-                        {% else %}<span class="etiquette alerte">Patient non identifié</span>{% endif %}
-                    </div>
+                    {% if ticket.est_autre %}<div class="nom-patient">Demande « Autre » : {{ ticket.demande.motif|default:"motif non précisé" }}</div>{% endif %}
                     <div class="ligne" style="gap:4px;margin-top:4px">
                         <span class="etiquette">{{ ticket.get_mode_display }}</span>
                         {% if ticket.parcours %}<span class="etiquette info">{{ ticket.parcours.libelle_borne }}</span>{% endif %}
@@ -54,16 +50,14 @@
                     <p>Demande : <span class="etiquette {% if ticket.demande.statut == 'NOUVELLE' %}alerte{% else %}ok{% endif %}">{{ ticket.demande.get_statut_display }}</span></p>
                 {% endif %}
                 <div class="actions">
-                    {% if service.est_accueil and not ticket.est_autre and not ticket.patient and peut_identifier %}
-                        <a class="bouton principal grand" href="{% url 'circuit:identifier' ticket.pk %}">Identifier le patient</a>
-                    {% endif %}
                     {% if service.est_accueil and ticket.est_autre and ticket.demande.statut == 'NOUVELLE' and peut_orienter %}
                         <a class="bouton principal grand" href="{% url 'circuit:demandes' %}">Orienter la demande</a>
                     {% endif %}
                     <form hx-post="{% url 'circuit:guichet_action' service.pk 'terminer' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'terminer' %}">
                         {% csrf_token %}<input type="hidden" name="entree" value="{{ tenue.pk }}"><input type="hidden" name="file" value="{{ file.pk }}">
-                        <button class="{% if not service.est_accueil or ticket.patient or ticket.est_autre and ticket.demande.statut != 'NOUVELLE' %}principal {% endif %}grand" {% if service.est_accueil and not ticket.est_autre and not ticket.patient %}disabled{% endif %}{% if service.est_accueil and ticket.est_autre and ticket.demande.statut == 'NOUVELLE' %}disabled{% endif %}>
-                            Terminer{% if suivante %} et orienter vers {{ suivante.service.nom }}{% else %} (fin du parcours){% endif %}
+                        {% include "circuit/_derogation.html" %}
+                        <button class="{% if not service.est_accueil or not ticket.est_autre or ticket.demande.statut != 'NOUVELLE' %}principal {% endif %}grand" {% if service.est_accueil and ticket.est_autre and ticket.demande.statut == 'NOUVELLE' %}disabled{% endif %}{% if etat_quota and not etat_quota.2 and not peut_deroger %}disabled{% endif %}>
+                            {% if service.est_accueil and not ticket.est_autre %}Valider le ticket{% else %}Terminer{% endif %}{% if suivante %} et orienter vers {{ suivante.service.nom }}{% else %} (fin du parcours){% endif %}
                         </button>
                     </form>
                 </div>

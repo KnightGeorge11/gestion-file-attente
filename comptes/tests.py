@@ -93,7 +93,7 @@ class RolesEtPermissionsTests(BaseComptes):
         # Service hors de la liste de l'affectation.
         self.assertFalse(a_droit(agent, "circuit.appeler", self.a, self.acc_a))
         # Permission absente du rôle.
-        self.assertFalse(a_droit(agent, "circuit.identifier_patient", self.a, self.inf_a))
+        self.assertFalse(a_droit(agent, "circuit.annuler_ticket", self.a, self.inf_a))
         self.assertFalse(a_droit(agent, "parcours.deroger_quota", self.a, self.inf_a))
 
     def test_affectation_sans_liste_couvre_tous_les_services_du_centre(self):
@@ -135,7 +135,7 @@ class RolesEtPermissionsTests(BaseComptes):
         directeur = self.utilisateur("dir")
         self.affecter(directeur, self.a, "Direction")
         self.assertTrue(a_droit(directeur, "circuit.voir_statistiques", self.a))
-        for action in ("circuit.appeler", "circuit.transferer", "circuit.identifier_patient",
+        for action in ("circuit.appeler", "circuit.transferer", "circuit.orienter_demande",
                        "circuit.annuler_ticket", "parcours.liberer_quota"):
             self.assertFalse(a_droit(directeur, action, self.a, self.acc_a), action)
 
@@ -165,8 +165,8 @@ class MultiCentresTests(BaseComptes):
         self.affecter(self.agent, self.b, "Infirmerie")
 
     def test_roles_differents_selon_le_centre(self):
-        self.assertTrue(a_droit(self.agent, "circuit.identifier_patient", self.a, self.acc_a))
-        self.assertFalse(a_droit(self.agent, "circuit.identifier_patient", self.b, self.acc_b))
+        self.assertTrue(a_droit(self.agent, "circuit.annuler_ticket", self.a, self.acc_a))
+        self.assertFalse(a_droit(self.agent, "circuit.annuler_ticket", self.b, self.acc_b))
         self.assertTrue(a_droit(self.agent, "circuit.transferer", self.b, self.acc_b))
 
     def test_selection_et_changement_du_centre_actif(self):

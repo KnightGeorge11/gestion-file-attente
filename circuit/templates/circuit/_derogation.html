@@ -1,8 +1,23 @@
-{% if peut_deroger and etat_quota and etat_quota.0 and not etat_quota.2 %}
-<details>
-    <summary>Dérogation exceptionnelle (responsable)</summary>
-    <label><input type="checkbox" name="derogation" value="1" style="width:auto"> Autoriser au-delà du quota</label>
-    <label>Motif obligatoire</label>
-    <input name="motif_derogation" maxlength="500">
-</details>
+{# Accueil : état du quota (dentiste) au moment de valider le ticket. #}
+{% if etat_quota %}
+{% with quota=etat_quota.0 reservees=etat_quota.1 restantes=etat_quota.2 %}
+<div class="carte" style="padding:10px 12px;margin-bottom:10px;width:100%">
+    {% if quota %}
+        <strong>Quota {{ ticket.parcours.libelle_borne }}</strong> ({{ quota.get_periode_display|lower }}) :
+        {{ reservees }} réservée(s) sur {{ quota.nombre_places }} · <strong>{{ restantes }} restante(s)</strong>
+        {% if not restantes %}<span class="etiquette alerte">Quota atteint</span>{% endif %}
+    {% else %}
+        <span class="etiquette alerte">Service fermé pendant cette période : le ticket ne peut pas être orienté.</span>
+    {% endif %}
+    {% if quota and not restantes %}
+        {% if peut_deroger %}
+        <label><input type="checkbox" name="derogation" value="1"> Dérogation exceptionnelle (au-delà du quota)</label>
+        <label for="motif-derogation">Motif de la dérogation (obligatoire)</label>
+        <input id="motif-derogation" name="motif_derogation" maxlength="500">
+        {% else %}
+        <p class="discret" style="margin:6px 0 0">Seul un responsable peut accorder une dérogation. Sinon, annulez le ticket.</p>
+        {% endif %}
+    {% endif %}
+</div>
+{% endwith %}
 {% endif %}

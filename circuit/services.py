@@ -261,7 +261,7 @@ def _verifier_capacite(file):
 def file_en_attente(file):
     return (
         EntreeFile.objects.filter(file=file, statut=EntreeFile.Statut.EN_ATTENTE)
-        .select_related("passage", "passage__ticket", "passage__ticket__patient")
+        .select_related("passage", "passage__ticket")
         .order_by("rang")
     )
 
@@ -501,9 +501,15 @@ def peut_transferer_pharmacie(passage):
 
 
 @transaction.atomic
-def terminer(entree, agent, transferer_pharmacie=False, motif=""):
+def terminer(entree, agent, transferer_pharmacie=False, motif="", derogation=False, motif_derogation=""):
     """
     Fin de prise en charge.
+
+    - À l'accueil : valide le ticket et l'oriente vers son service. Aucune
+      information patient n'est collectée (décision du 18/11/2026). Pour un
+      parcours soumis à quota (dentiste), la place est réservée à cette
+      validation ; si le quota est atteint, seule une dérogation (motif
+      obligatoire) le permet, sinon rien n'est modifié.
 
     - Sans transfert : le patient passe à l'étape suivante du parcours,
       sinon le ticket se termine.
@@ -521,8 +527,16 @@ def terminer(entree, agent, transferer_pharmacie=False, motif=""):
     ).get(pk=entree.passage_id)
     ticket = passage.ticket
 
-    if ticket.patient_id is None and passage.service.est_accueil and not ticket.est_autre:
-        raise ErreurCircuit("Identifiez le patient avant de l'orienter vers son service.")
+    # Accueil : réservation de la place de quota à la validation du ticket.
+    # Faite en premier : si elle échoue, rien n'est modifié (tout ou rien).
+    if (
+        passage.service.est_accueil
+        and not ticket.est_autre
+        and ticket.parcours_id
+        and ticket.parcours.soumis_quota
+        and ticket.reservation_active() is None
+    ):
+        _reserver_quota(ticket, agent, derogation, motif_derogation or "")
 
     # Mode Autre : le ticket est clôturé après l'orientation de la demande ;
     # la demande reste ensuite suivie indépendamment (notifications, réponses).
@@ -583,7 +597,7 @@ def terminer(entree, agent, transferer_pharmacie=False, motif=""):
 
 
 # ---------------------------------------------------------------------------
-# Accueil : identification, quotas, annulation
+# Accueil : quotas, annulation
 # ---------------------------------------------------------------------------
 
 def etat_quota(parcours, date_heure=None):
@@ -607,7 +621,7 @@ def _reserver_quota(ticket, agent, derogation=False, motif_derogation=""):
     if quota is None:
         raise ErreurCircuit(
             f"Le service {parcours.libelle_borne} est fermé pendant cette période : "
-            "aucune identification n'est possible."
+            "aucun ticket ne peut lui être orienté."
         )
 
     if restantes <= 0:
@@ -645,69 +659,8 @@ def _reserver_quota(ticket, agent, derogation=False, motif_derogation=""):
 
 
 @transaction.atomic
-def identifier_patient(ticket, patient, agent, derogation=False, motif_derogation=""):
-    """
-    Associe le patient au ticket (à l'accueil). Réserve une place de quota
-    si le parcours y est soumis. Un patient ne peut avoir qu'un nombre
-    limité de tickets ouverts (1 par défaut) dans le centre.
-    """
-    from patients.models import PatientCentre
-
-    ticket = Ticket.objects.select_for_update(of=("self",)).select_related("centre", "parcours").get(pk=ticket.pk)
-    if not ticket.ouvert:
-        raise ErreurCircuit("Ce ticket n'est plus ouvert.")
-    if ticket.est_autre:
-        raise ErreurCircuit("Un ticket « Autre » n'est pas rattaché à un parcours de soins.")
-    if ticket.patient_id is not None:
-        raise ErreurCircuit("Ce ticket est déjà identifié.")
-
-    passage = ticket.passage_actif()
-    if passage is None or not passage.service.est_accueil:
-        raise ErreurCircuit("L'identification se fait à l'accueil.")
-
-    while patient.fusionne_dans_id:
-        patient = patient.fusionne_dans
-
-    # Verrou sur la fiche patient pour sérialiser les identifications.
-    type(patient).objects.select_for_update().get(pk=patient.pk)
-
-    # Règle confirmée : un patient n'a qu'un ticket ouvert à la fois, tous
-    # centres confondus (dossier patient partagé). Les numéros d'un autre
-    # centre ne sont pas révélés.
-    ouverts = Ticket.objects.filter(
-        patient=patient, statut__in=Ticket.STATUTS_OUVERTS
-    ).exclude(pk=ticket.pk)
-    if ouverts.count() >= ticket.centre.max_tickets_ouverts_par_patient:
-        locaux = list(ouverts.filter(centre=ticket.centre).values_list("numero", flat=True))
-        if locaux:
-            detail = f"({', '.join(locaux)})"
-        else:
-            detail = "dans un autre centre"
-        raise ErreurCircuit(
-            f"Ce patient a déjà un ticket ouvert {detail}. "
-            "Annulez le ticket supplémentaire."
-        )
-
-    if ticket.parcours.soumis_quota:
-        _reserver_quota(ticket, agent, derogation, motif_derogation)
-
-    rattachement, _ = PatientCentre.objects.get_or_create(patient=patient, centre=ticket.centre)
-    if rattachement.archive:
-        rattachement.archive = False
-        rattachement.save(update_fields=["archive", "date_modification"])
-
-    ticket.patient = patient
-    ticket.date_identification = timezone.now()
-    ticket.identifie_par = agent
-    ticket.save(update_fields=["patient", "date_identification", "identifie_par"])
-    _evenement(ticket, Evenement.Type.IDENTIFICATION, agent=agent, passage=passage,
-               patient=patient.pk, matricule=rattachement.matricule)
-    return ticket
-
-
-@transaction.atomic
 def liberer_quota(ticket, agent, motif):
-    """Libère la place réservée d'un patient qui ne s'est pas présenté."""
+    """Libère la place réservée d'un ticket dont le patient ne s'est pas présenté."""
     motif = (motif or "").strip()
     if not motif:
         raise ErreurCircuit("Le motif de libération est obligatoire.")

@@ -13,7 +13,7 @@ Ce document distingue les **règles confirmées** dans Trello, les **paramètres
 | `core` | Isolation des données par centre (manager, mixin d'administration, accès), fuseaux horaires, filtre d'affichage des durées |
 | `centres` | Centres, services, horaires, files, bornes, écrans d'affichage |
 | `comptes` | Utilisateurs, affectations (centre + rôle + services + permissions individuelles), backend d'autorisation |
-| `patients` | Fiche centrale partagée, rattachement par centre (matricule `CODE-000001`), recherche, doublons, fusion réversible |
+| `patients` | **Inactif** (décision du 18/11/2026 : aucune information patient). Tables conservées, plus aucune page ni permission |
 | `parcours` | Parcours versionnés (M, D, I, E), quotas du dentiste |
 | `circuit` | Tickets, passages, files, appels, transferts, quotas réservés, mode Autre, événements ; interfaces agents, borne, écran |
 | `audit` | Journal d'audit (connexions, rôles, quotas, publications, désactivations, fusions, exports) |
@@ -36,12 +36,12 @@ Le module `salles` n'a pas été créé : il reste optionnel et non validé (Tre
 - Comptes individuels pour chaque agent ; interface commune par service.
 - **Chronométrage** de l'attente et de la prise en charge à chaque passage, et durée totale du ticket.
 - Absence seulement après **3 appels** sans réponse ; réintégration sans effacer l'historique.
-- **Un patient n'a qu'un seul ticket ouvert à la fois** (tous centres confondus) ; un ticket supplémentaire est annulé à l'accueil.
-- **Quotas dentiste** : 7 le matin et 4 l'après-midi du lundi au vendredi, 4 le samedi matin ; bascule à 12 h 00 ; fermé le samedi après-midi et le dimanche. Place réservée à l'**identification à l'accueil** ; blocage quand le quota est atteint ; **dérogation** possible uniquement par un responsable autorisé, avec motif obligatoire, historisée ; **libération** manuelle avec motif obligatoire, historisée. Modification des quotas dans l'administration, historisée (auteur, date, avant/après).
+- **Aucune information sur le patient n'est collectée** (décision du 18/11/2026) : le système fonctionne uniquement avec les numéros de ticket. L'accueil appelle le ticket, le prend en charge puis le **valide** et l'oriente vers son service. Il n'y a ni fiche patient, ni identification, ni règle « un seul ticket par patient ».
+- **Quotas dentiste** : 7 le matin et 4 l'après-midi du lundi au vendredi, 4 le samedi matin ; bascule à 12 h 00 ; fermé le samedi après-midi et le dimanche. Place réservée quand l'**accueil valide le ticket** (avant l'orientation vers le dentiste) ; blocage quand le quota est atteint ; **dérogation** possible uniquement par un responsable autorisé, avec motif obligatoire, historisée ; **libération** manuelle avec motif obligatoire, historisée. Modification des quotas dans l'administration, historisée (auteur, date, avant/après).
 - **Mode Autre** (rendez-vous, cotisations, rencontre d'une personne…) : notification à l'accueil ; l'accueil oriente vers une **personne précise** ou un **service** (dans ce cas, un **agent désigné** du service est notifié, pas tous les agents) ; le destinataire répond par un **statut prédéfini** (demande reçue, prise en compte, en cours de traitement, patient attendu, traitée, non réalisable) **et un message libre facultatif**. Le ticket est clôturé après l'orientation ; la demande reste suivie indépendamment.
-- **Dossier patient unique partagé** entre centres ; matricule propre à chaque centre `CODECENTRE-000001` ; tickets, passages et activités isolés par centre.
+- Tickets, passages et activités isolés par centre.
 - Le concept de « visite » n'existe pas.
-- **Confidentialité par service** (décision du 18/11/2026) : un agent ne voit que les patients qui viennent dans son service. Un ticket est visible pour un service **à l'avance**, dès que son parcours prévoit ce service (ex. un patient M à l'accueil ou à l'infirmerie est visible des médecins, dans la section « À venir » de leur interface), puis pendant et après son passage. Un patient transféré à la pharmacie depuis une étape intermédiaire n'est plus « à venir » pour les étapes suivantes. L'accueil voit tous les tickets (tous les patients y passent) ; la pharmacie ne voit que les patients qui lui sont transférés ; la direction ne voit aucun patient (statistiques uniquement). Le fichier patients (recherche, création) est réservé à l'accueil et aux responsables. Contrôle côté serveur : liste des tickets du jour et accès direct par adresse (404 sinon).
+- **Confidentialité par service** (décision du 18/11/2026) : un agent ne voit que les patients qui viennent dans son service. Un ticket est visible pour un service **à l'avance**, dès que son parcours prévoit ce service (ex. un patient M à l'accueil ou à l'infirmerie est visible des médecins, dans la section « À venir » de leur interface), puis pendant et après son passage. Un patient transféré à la pharmacie depuis une étape intermédiaire n'est plus « à venir » pour les étapes suivantes. L'accueil voit tous les tickets (tous les patients y passent) ; la pharmacie ne voit que les patients qui lui sont transférés ; la direction ne voit aucun patient (statistiques uniquement). Contrôle côté serveur : liste des tickets du jour et accès direct par adresse (404 sinon).
 
 ### Paramètres configurables (administration)
 
@@ -52,7 +52,6 @@ Le module `salles` n'a pas été créé : il reste optionnel et non validé (Tre
 | Appels simultanés | File d'attente | 1 ; file des médecins = nombre de médecins |
 | Ordre strict | File d'attente | oui |
 | Réintégrations maximum | Centre | 1 |
-| Tickets ouverts par patient | Centre | 1 |
 | Heure de bascule matin / après-midi | Centre | 12 h 00 |
 | Durée de mise en évidence d'un appel à l'écran | Centre | 30 s |
 | Quotas (jour, période, dates de validité) | Quotas de parcours | voir ci-dessus |
@@ -64,7 +63,6 @@ Le module `salles` n'a pas été créé : il reste optionnel et non validé (Tre
 
 | Point (carte « Répondre aux points ouverts ») | Comportement provisoire |
 |---|---|
-| Identification obligatoire avant le premier service | Exigée pour les tickets de soins |
 | Heure de clôture des tickets restés ouverts | Commande nocturne : tickets des jours précédents clôturés, passages en cours annulés |
 | Transfert pharmacie depuis l'infirmerie du parcours M (étape intermédiaire) | Autorisé avec motif obligatoire ; la consultation n'est pas réalisée ; le ticket se termine après la pharmacie |
 | Transfert vers un autre service que la pharmacie | Non proposé |
@@ -73,7 +71,7 @@ Le module `salles` n'a pas été créé : il reste optionnel et non validé (Tre
 | Pharmacie, appel oral | Bouton « Appel oral » = prise en charge directe, puis « Terminer » (horaires enregistrés) |
 | File des médecins : ordre strict ou libre ; guichets d'accueil | Ordre strict ; 1 guichet d'accueil (paramétrable) |
 | Préfixe des tickets « Autre » | `A` avec son propre compteur |
-| Droits de la direction | Statistiques sans noms de patients |
+| Droits de la direction | Statistiques uniquement |
 | Priorités, durée de conservation des historiques, module salles | Non implémentés |
 
 ## Installation (développement)
@@ -100,13 +98,13 @@ Le compte PostgreSQL doit pouvoir créer les extensions `pg_trgm` et `btree_gist
 
 Pour une recette : `python manage.py preparer_demo <CODE> --mot-de-passe "..."` (un compte par rôle `<role>_<code>`, une borne `BORNE1`, un écran `ECRAN1`).
 
-## Comptes de test et simulation de patients
+## Comptes de test et simulation
 
 **Uniquement sur une base de développement ou de test** (les deux commandes refusent de s'exécuter si `DEBUG` est désactivé, sauf `--force`).
 
 ```bash
 python manage.py creer_comptes_test              # 2 comptes par service, tous les centres actifs
-python manage.py simuler_patients 001            # 30 patients fictifs, 15 tickets, 10 étapes
+python manage.py simuler_patients 001            # 15 tickets, 10 étapes
 python manage.py simuler_patients 001 --continu --intervalle 15 --duree 30   # démonstration en direct
 ```
 
@@ -123,7 +121,7 @@ Comptes créés, mot de passe par défaut **1234** (modifiable avec `--mot-de-pa
 | Direction (statistiques) | `directiontest1`, `directiontest2` |
 | Responsable (dérogations, fusions) | `responsabletest1`, `responsabletest2` |
 
-La simulation passe par le moteur réel (toutes les règles s'appliquent). Elle émet ses tickets par une borne dédiée « SIMULATION », n'agit que sur ses propres tickets et uniquement au nom des comptes de test ; elle n'appelle jamais une file dont le premier patient est un vrai patient. Les patients simulés sont rattachés à l'entreprise « ENTREPRISE SIMULATION ». Les tickets simulés restent dans l'historique et les statistiques (rien n'est supprimé).
+La simulation passe par le moteur réel (toutes les règles s'appliquent). Elle émet ses tickets par une borne dédiée « SIMULATION », n'agit que sur ses propres tickets et uniquement au nom des comptes de test ; elle n'appelle jamais une file dont le premier patient est un vrai patient. Aucune information patient n'est créée. Les tickets simulés restent dans l'historique et les statistiques (rien n'est supprimé).
 
 ## Production sur le réseau local
 
@@ -184,4 +182,4 @@ La borne et l'écran n'acceptent que les adresses du réseau local (`RESEAU_LOCA
 python manage.py test --noinput
 ```
 
-Tests sur PostgreSQL (base de test créée automatiquement) : comptes et permissions, isolation entre centres, numérotation et appels simultanés, recette des quatre parcours par les interfaces avec et sans pharmacie, mode Autre, quotas, absences et réintégrations, chronométrage à horloge contrôlée, borne, écran, audit, statistiques et exports, fusion de patients.
+Tests sur PostgreSQL (base de test créée automatiquement) : comptes et permissions, isolation entre centres, numérotation et appels simultanés, recette des quatre parcours par les interfaces avec et sans pharmacie, mode Autre, quotas, absences et réintégrations, chronométrage à horloge contrôlée, borne, écran, audit, statistiques et exports, absence de toute information patient.

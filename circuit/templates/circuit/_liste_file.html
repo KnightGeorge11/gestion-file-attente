@@ -7,14 +7,14 @@
 {% endif %}
 <div class="tableau-defilant">
 <table>
-    <thead><tr><th>Ticket</th><th>Patient</th><th>Arrivée</th><th></th></tr></thead>
+    <thead><tr><th>Ticket</th><th>Parcours</th><th>Arrivée</th><th></th></tr></thead>
     <tbody>
     {% for entree in attente %}
         <tr>
             <td><span class="numero">{{ entree.passage.ticket.numero }}</span>
                 {% if entree.reintegration %}<span class="etiquette attention">réintégré</span>{% endif %}
                 {% if entree.passage.origine == "TRANSFERT" %}<span class="etiquette info">transfert</span>{% endif %}</td>
-            <td>{{ entree.passage.ticket.patient|default:"—" }}</td>
+            <td class="discret">{{ entree.passage.ticket.parcours.libelle_borne|default:"Autre" }}</td>
             <td class="discret">{{ entree.date_entree|time:"H:i" }}</td>
             <td style="text-align:right">
                 {% if not tenue and not autre_service and peut_appeler %}
@@ -51,7 +51,7 @@
 <div class="section-titre">Absents du jour</div>
 <ul class="chronologie">
     {% for p in absents %}
-    <li><strong>{{ p.ticket.numero }}</strong> <span>{{ p.ticket.patient|default:"" }}</span>
+    <li><strong>{{ p.ticket.numero }}</strong>
         {% if peut_reintegrer %}
         <form hx-post="{% url 'circuit:guichet_action' service.pk 'reintegrer' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'reintegrer' %}" style="margin-left:auto">
             {% csrf_token %}<input type="hidden" name="passage" value="{{ p.pk }}"><input type="hidden" name="file" value="{{ file.pk }}">
@@ -65,10 +65,10 @@
 
 {% if a_venir %}
 <div class="section-titre">À venir · {{ a_venir|length }}</div>
-<p class="discret" style="margin:0 0 4px">Patients dont le parcours passe ensuite par ce service.</p>
+<p class="discret" style="margin:0 0 4px">Tickets dont le parcours passe ensuite par ce service.</p>
 <ul class="chronologie">
     {% for t in a_venir %}
-    <li><strong>{{ t.numero }}</strong> <span>{{ t.patient|default:"(non identifié)" }}</span> <span class="etiquette" style="margin-left:auto">actuellement : {{ t.service_actuel }}</span></li>
+    <li><strong>{{ t.numero }}</strong> <span class="etiquette" style="margin-left:auto">actuellement : {{ t.service_actuel }}</span></li>
     {% endfor %}
 </ul>
 {% endif %}

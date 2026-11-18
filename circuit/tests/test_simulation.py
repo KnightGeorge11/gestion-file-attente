@@ -60,7 +60,7 @@ class SimulationTests(TestCase):
         commande("creer_comptes_test")
 
     def test_simulation_avance_les_patients_dans_le_respect_des_regles(self):
-        commande("simuler_patients", "AAA", "--patients", "40", "--tickets", "25", "--etapes", "60",
+        commande("simuler_patients", "AAA", "--tickets", "25", "--etapes", "60",
                  "--graine", "7")
         tickets = Ticket.objects.filter(centre=self.a)
         self.assertEqual(tickets.count(), 25)
@@ -77,7 +77,7 @@ class SimulationTests(TestCase):
         for ticket in tickets.filter(statut="TERMINE", mode__in=["INTERNE", "EXTERNE"]):
             self.assertTrue(ticket.passages.first().service.est_accueil)
             self.assertFalse(ticket.passages.filter(date_fin__isnull=True).exists())
-            self.assertIsNotNone(ticket.patient)
+            self.assertIsNone(ticket.patient)  # aucune information patient
 
     def test_sans_comptes_test_message_clair(self):
         Centre.objects.create(code="CCC", nom="Centre C")
@@ -118,7 +118,6 @@ class SimulationNeToucheQueSesTicketsTests(TestCase):
         services.appeler(self.d.file("ACC"), self.d.agent("autre_accueil", "Accueil", ["ACC"]))
         entree = self.d.entree(en_tete)
         services.prendre_en_charge(entree, entree.agent)
-        services.identifier_patient(en_tete, self.d.patient("VRAI"), entree.agent)
         services.terminer(entree, entree.agent)  # en_tete attend en infirmerie
         avant = {t.pk: t.evenements.count() for t in (tenu, en_tete)}
 

@@ -132,10 +132,10 @@ class ParcoursCompletsTests(BaseCircuit):
                                      ("I", "INF", self.infirmier)):
             with a_heure(LUNDI_MATIN):
                 sans = self.d.ticket(prefixe)
-                self.d.accueillir(sans, self.accueil, patient=self.d.patient(f"SANS{prefixe}"))
+                self.d.accueillir(sans, self.accueil)
                 self.d.traiter(sans, code, agent)
                 avec = self.d.ticket(prefixe)
-                self.d.accueillir(avec, self.accueil, patient=self.d.patient(f"AVEC{prefixe}"))
+                self.d.accueillir(avec, self.accueil)
                 self.d.traiter(avec, code, agent, transferer=True)
                 self.d.traiter(avec, "PHA", self.pharma)
             sans.refresh_from_db()
@@ -149,7 +149,7 @@ class ParcoursCompletsTests(BaseCircuit):
         for prefixe in "MDEI":
             with a_heure(LUNDI_MATIN):
                 ticket = self.d.ticket(prefixe)
-                self.d.accueillir(ticket, self.accueil, patient=self.d.patient(f"P{prefixe}"))
+                self.d.accueillir(ticket, self.accueil)
                 for passage_code in {"M": ["INF", "MED"], "D": ["DEN"], "E": ["ECH"], "I": ["INF"]}[prefixe]:
                     agent = {"INF": self.infirmier, "MED": self.medecin, "DEN": self.dentiste,
                              "ECH": self.echo}[passage_code]
@@ -176,17 +176,16 @@ class ParcoursCompletsTests(BaseCircuit):
         entree = self.d.entree(ticket)
         services.appeler(self.d.file("ACC"), self.accueil)
         services.prendre_en_charge(entree, self.accueil)
-        services.identifier_patient(ticket, self.d.patient(), self.accueil)
         with self.assertRaises(ErreurCircuit):
             services.terminer(entree, self.accueil, transferer_pharmacie=True, motif="x")
 
-    def test_identification_obligatoire_avant_de_quitter_l_accueil(self):
+    def test_accueil_valide_le_ticket_sans_aucune_information_patient(self):
         ticket = self.d.ticket("M")
-        entree = self.d.entree(ticket)
-        services.appeler(self.d.file("ACC"), self.accueil)
-        services.prendre_en_charge(entree, self.accueil)
-        with self.assertRaises(ErreurCircuit):
-            services.terminer(entree, self.accueil)
+        suite = self.d.accueillir(ticket, self.accueil)
+        ticket.refresh_from_db()
+        self.assertEqual(suite.service.code, "INF")
+        self.assertIsNone(ticket.patient)
+        self.assertFalse(ticket.evenements.filter(type=Evenement.Type.IDENTIFICATION).exists())
 
     def test_version_du_parcours_conservee_apres_publication(self):
         ancien = self.d.ticket("I")
@@ -223,7 +222,7 @@ class AppelsTests(BaseCircuit):
         tickets = []
         for nom in ("A", "B", "C"):
             ticket = self.d.ticket("M")
-            self.d.accueillir(ticket, self.accueil, patient=self.d.patient(nom))
+            self.d.accueillir(ticket, self.accueil)
             self.d.traiter(ticket, "INF", self.infirmier)
             tickets.append(ticket)
         file = self.d.file("MED")
@@ -304,31 +303,33 @@ class AppelsTests(BaseCircuit):
 
 
 class QuotaTests(BaseCircuit):
-    def _identifier_dentiste(self, n, **kwargs):
+    def _valider_dentiste(self, **kwargs):
+        """L'accueil valide un ticket D : la place de quota est réservée à ce moment."""
         ticket = self.d.ticket("D")
         entree = self.d.entree(ticket)
         services.appeler(self.d.file("ACC"), self.accueil, entree=entree)
         services.prendre_en_charge(entree, self.accueil)
         try:
-            services.identifier_patient(ticket, self.d.patient(f"PATIENT{n}"), self.accueil, **kwargs)
+            services.terminer(entree, self.accueil, **kwargs)
         except ErreurCircuit:
-            # Libère le guichet avant de propager l'erreur.
-            services.annuler_ticket(ticket, self.accueil, "Identification impossible")
+            entree.refresh_from_db()
+            # Tout ou rien : le ticket est toujours en cours à l'accueil, sans réservation.
+            assert entree.statut == "EN_COURS" and ticket.reservation_active() is None
+            services.annuler_ticket(ticket, self.accueil, "Quota atteint ou service fermé")
             raise
-        services.terminer(entree, self.accueil)
         return ticket
 
     def test_quota_matin_puis_blocage_et_derogation(self):
         with a_heure(LUNDI_MATIN):
             for n in range(7):
-                self._identifier_dentiste(n)
+                self._valider_dentiste()
             quota, reservees, restantes = services.etat_quota(self.d.parcours["D"])
             self.assertEqual((quota.nombre_places, reservees, restantes), (7, 7, 0))
             with self.assertRaises(ErreurCircuit):
-                self._identifier_dentiste(8)
+                self._valider_dentiste()
             with self.assertRaises(ErreurCircuit):
-                self._identifier_dentiste(9, derogation=True, motif_derogation="")
-            self._identifier_dentiste(10, derogation=True, motif_derogation="Urgence dentaire")
+                self._valider_dentiste(derogation=True, motif_derogation="")
+            self._valider_dentiste(derogation=True, motif_derogation="Urgence dentaire")
         reservation = ReservationQuota.objects.get(derogation=True)
         self.assertEqual(reservation.motif_derogation, "Urgence dentaire")
         self.assertTrue(Evenement.objects.filter(type=Evenement.Type.DEROGATION_QUOTA).exists())
@@ -347,13 +348,13 @@ class QuotaTests(BaseCircuit):
         for moment in (samedi_14h, dimanche):
             with a_heure(moment):
                 with self.assertRaises(ErreurCircuit):
-                    self._identifier_dentiste(1)
+                    self._valider_dentiste()
         with a_heure(samedi_matin):
             self.assertEqual(services.etat_quota(self.d.parcours["D"])[2], 4)
 
     def test_liberation_avec_motif_obligatoire(self):
         with a_heure(LUNDI_MATIN):
-            ticket = self._identifier_dentiste(1)
+            ticket = self._valider_dentiste()
             with self.assertRaises(ErreurCircuit):
                 services.liberer_quota(ticket, self.accueil, " ")
             services.liberer_quota(ticket, self.accueil, "Patient parti")
@@ -364,54 +365,13 @@ class QuotaTests(BaseCircuit):
 
     def test_quota_consomme_a_la_prise_en_charge_dentiste(self):
         with a_heure(LUNDI_MATIN):
-            ticket = self._identifier_dentiste(1)
+            ticket = self._valider_dentiste()
             entree = self.d.entree(ticket)
             services.appeler(self.d.file("DEN"), self.dentiste)
             services.prendre_en_charge(entree, self.dentiste)
             with self.assertRaises(ErreurCircuit):
                 services.liberer_quota(ticket, self.accueil, "Trop tard")
         self.assertEqual(ReservationQuota.objects.get().statut, ReservationQuota.Statut.CONSOMMEE)
-
-
-class PatientsTicketsTests(BaseCircuit):
-    def test_un_seul_ticket_ouvert_par_patient(self):
-        patient = self.d.patient()
-        t1 = self.d.ticket("M")
-        self.d.accueillir(t1, self.accueil, patient=patient)
-        t2 = self.d.ticket("I")
-        entree = self.d.entree(t2)
-        services.appeler(self.d.file("ACC"), self.accueil)
-        services.prendre_en_charge(entree, self.accueil)
-        with self.assertRaises(ErreurCircuit):
-            services.identifier_patient(t2, patient, self.accueil)
-        services.annuler_ticket(t2, self.accueil, "Ticket supplémentaire")
-        t2.refresh_from_db()
-        self.assertEqual(t2.statut, Ticket.Statut.ANNULE)
-
-    def test_un_seul_ticket_ouvert_tous_centres_confondus(self):
-        autre = Donnees().construire("ANT")
-        accueil_b = autre.agent("accueil_b", "Accueil", ["ACC"])
-        patient = self.d.patient()
-        t1 = self.d.ticket("M")
-        self.d.accueillir(t1, self.accueil, patient=patient)
-        t2 = autre.ticket("I")
-        entree = autre.entree(t2)
-        services.appeler(autre.file("ACC"), accueil_b)
-        services.prendre_en_charge(entree, accueil_b)
-        with self.assertRaises(ErreurCircuit) as erreur:
-            services.identifier_patient(t2, patient, accueil_b)
-        message = " ".join(erreur.exception.messages)
-        self.assertIn("autre centre", message)
-        self.assertNotIn(t1.numero, message)  # aucun numéro de l'autre centre révélé
-        # Une fois le premier ticket terminé, l'identification est possible.
-        services.annuler_ticket(t1, self.accueil, "Fin de journée")
-        services.identifier_patient(t2, patient, accueil_b)
-
-    def test_identification_cree_le_rattachement_au_centre(self):
-        patient = self.d.patient()
-        t1 = self.d.ticket("I")
-        self.d.accueillir(t1, self.accueil, patient=patient)
-        self.assertEqual(patient.rattachements.get().matricule, "TAM-000001")
 
 
 class ModeAutreTests(BaseCircuit):
@@ -472,13 +432,11 @@ class ModeAutreTests(BaseCircuit):
             ["NOTIFICATION", "FIN_TICKET", "REPONSE", "REPONSE"],
         )
 
-    def test_ticket_autre_jamais_transfere_ni_identifie(self):
+    def test_ticket_autre_jamais_transfere(self):
         ticket = services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE)
         entree = self.d.entree(ticket)
         services.appeler(self.d.file("ACC"), self.accueil)
         services.prendre_en_charge(entree, self.accueil)
-        with self.assertRaises(ErreurCircuit):
-            services.identifier_patient(ticket, self.d.patient(), self.accueil)
         self.assertFalse(services.peut_transferer_pharmacie(entree.passage))
 
     def test_un_service_choisi_sans_agent_designe_et_statut_inconnu(self):

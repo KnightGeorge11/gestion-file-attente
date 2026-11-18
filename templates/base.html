@@ -25,8 +25,6 @@
     <nav class="menu" aria-label="Navigation principale">
         <a href="{% url 'circuit:guichets' %}" class="{% if page == 'guichets' or page == 'guichet' %}actif{% endif %}">Services</a>
         {% if voit_tickets %}<a href="{% url 'circuit:tickets' %}" class="{% if page == 'tickets' or page == 'ticket' %}actif{% endif %}">Tickets</a>{% endif %}
-        {% if peut_voir_patients %}<a href="{% url 'patients:recherche' %}" class="{% if espace == 'patients' and page != 'doublons' %}actif{% endif %}">Patients</a>{% endif %}
-        {% if peut_fusionner %}<a href="{% url 'patients:doublons' %}" class="{% if page == 'doublons' %}actif{% endif %}">Doublons</a>{% endif %}
         {% if peut_statistiques %}<a href="{% url 'statistiques:tableau' %}" class="{% if espace == 'statistiques' %}actif{% endif %}">Statistiques</a>{% endif %}
         <a href="{% url 'circuit:notifications' %}" class="{% if page == 'notifications' %}actif{% endif %}">Notifications<span hx-get="{% url 'circuit:badge_notifications' %}" hx-trigger="every 15s" hx-swap="innerHTML">{% if nb_notifications %}<span class="pastille">{{ nb_notifications }}</span>{% endif %}</span></a>
         <a href="{% url 'circuit:ecran' %}" target="_blank" rel="noopener">Écran ↗</a>

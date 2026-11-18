@@ -1,5 +1,6 @@
 """
-Simulation de patients (« clients ») pour tester et démontrer le système.
+Simulation de tickets (patients anonymes) pour tester et démontrer le système.
+Aucune information patient n'est créée (décision du 18/11/2026).
 
 La simulation passe uniquement par le moteur réel (circuit.services) :
 toutes les règles s'appliquent (quotas, ordre des files, un patient par
@@ -20,7 +21,6 @@ from comptes.management.commands.creer_comptes_test import identifiants_test
 from comptes.models import Utilisateur
 from core.timeutils import maintenant_centre
 from parcours.models import Parcours
-from patients.models import Entreprise, Patient, PatientCentre
 
 from . import services
 from .models import (
@@ -33,11 +33,6 @@ from .models import (
 )
 from .services import ErreurCircuit
 
-ENTREPRISE_SIMULATION = "ENTREPRISE SIMULATION"
-NOMS = ["RAKOTO", "RABE", "RANDRIA", "RAZAFY", "RASOA", "ANDRIAMANANTENA", "RAHARISON", "RAVELO",
-        "RAMAROSON", "RAJAONARY", "RAKOTONIRINA", "RANAIVO", "RAFALIMANANA", "ANDRIANJAKA", "RATSIMBA"]
-PRENOMS = ["Hery", "Lova", "Tiana", "Fara", "Mialy", "Nirina", "Tojo", "Haja", "Voahirana", "Fanja",
-           "Toky", "Soa", "Rivo", "Onja", "Mamy", "Zo", "Faly", "Ny Aina"]
 MOTIFS_AUTRE = ["Rendez-vous", "Cotisations (paiement ou renseignement)", "Rencontrer une personne du centre"]
 
 
@@ -77,31 +72,10 @@ class Simulateur:
             )
         return agents
 
-    def creer_patients(self, nombre):
-        entreprise, _ = Entreprise.objects.get_or_create(nom=ENTREPRISE_SIMULATION)
+    def preparer(self):
+        """Motifs du mode Autre utilisés par la simulation (aucune donnée patient)."""
         for motif in MOTIFS_AUTRE:
             MotifDemande.objects.get_or_create(centre=self.centre, libelle=motif)
-        crees = 0
-        existants = Patient.objects.filter(entreprise=entreprise).count()
-        for i in range(existants, existants + nombre):
-            patient = Patient.objects.create(
-                nom=f"{self.hasard.choice(NOMS)}",
-                prenom=f"{self.hasard.choice(PRENOMS)} {i + 1}",
-                sexe=self.hasard.choice(["Masculin", "Féminin"]),
-                entreprise=entreprise,
-                matricule_entreprise=f"SIM-{i + 1:04d}",
-            )
-            PatientCentre.objects.create(patient=patient, centre=self.centre)
-            crees += 1
-        return crees
-
-    def _patient_libre(self):
-        libres = (
-            Patient.objects.filter(entreprise__nom=ENTREPRISE_SIMULATION, fusionne_dans__isnull=True)
-            .exclude(tickets__statut__in=Ticket.STATUTS_OUVERTS)
-            .order_by("?")
-        )
-        return libres.first()
 
     def _agent_libre(self, code):
         for agent in self.hasard.sample(self.agents.get(code, []), len(self.agents.get(code, []))):
@@ -150,17 +124,6 @@ class Simulateur:
                         return
                     services.transmettre_demande(demande, agent, service=cible, message="Demande simulée")
                     self.journal(f"Accueil : demande {ticket.numero} transmise ({cible.nom})")
-            elif ticket.patient_id is None:
-                patient = self._patient_libre()
-                try:
-                    if patient is None:
-                        raise ErreurCircuit("Aucun patient simulé disponible.")
-                    services.identifier_patient(ticket, patient, agent)
-                    self.journal(f"Accueil : {ticket.numero} identifié ({patient})")
-                except ErreurCircuit as erreur:
-                    services.annuler_ticket(ticket, agent, f"Simulation : {' '.join(erreur.messages)}")
-                    self.journal(f"Accueil : {ticket.numero} annulé ({' '.join(erreur.messages)})")
-                    return
         transferer, motif = False, ""
         if services.peut_transferer_pharmacie(passage):
             derniere_etape = services.etape_suivante(ticket, passage) is None
@@ -168,7 +131,15 @@ class Simulateur:
                 transferer = True
             elif not derniere_etape and self.hasard.random() < 0.05:
                 transferer, motif = True, "Simulation : renouvellement d'ordonnance"
-        suite = services.terminer(entree, agent, transferer_pharmacie=transferer, motif=motif)
+        try:
+            suite = services.terminer(entree, agent, transferer_pharmacie=transferer, motif=motif)
+        except ErreurCircuit as erreur:
+            # Ex. quota dentiste atteint ou service fermé : l'accueil annule le ticket.
+            if not service.est_accueil:
+                raise
+            services.annuler_ticket(ticket, agent, f"Simulation : {' '.join(erreur.messages)}")
+            self.journal(f"Accueil : {ticket.numero} annulé ({' '.join(erreur.messages)})")
+            return
         destination = "fin du parcours" if suite is None else suite.nom_service
         self.journal(f"{service.nom} : {ticket.numero} terminé -> {destination}")
 
