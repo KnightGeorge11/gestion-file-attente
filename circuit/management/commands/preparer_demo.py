@@ -35,7 +35,7 @@ AGENTS = [
     ("responsable", "Responsable", ["ACC"]),
 ]
 
-MOTIFS = ["Rendez-vous", "Cotisations (paiement ou renseignement)", "Rencontrer une personne du centre"]
+from circuit.models import MOTIFS_AUTRE_PAR_DEFAUT as MOTIFS  # noqa: E402
 
 
 class Command(BaseCommand):

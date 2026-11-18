@@ -36,6 +36,17 @@ class CompteurTicket(ModeleCentre):
         return f"{self.prefixe} {self.jour} : {self.dernier_numero}"
 
 
+# Motifs proposés par défaut sur la borne pour le mode Autre (demandes hors
+# parcours de soins). Liste modifiable par centre dans l'administration.
+MOTIFS_AUTRE_PAR_DEFAUT = [
+    "Rendez-vous",
+    "Visite d'embauche",
+    "Entretien",
+    "Cotisations (paiement ou renseignement)",
+    "Rencontrer une personne du centre",
+]
+
+
 class MotifDemande(ModeleCentre):
     """Motifs proposés pour le mode Autre (liste évolutive)."""
 

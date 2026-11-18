@@ -779,3 +779,28 @@ class ScenarioTabletteAccueilServiceTests(BaseVues):
         self.assertContains(ecran, "Salle 1")
         ticket.refresh_from_db()
         self.assertIsNone(ticket.patient)
+
+
+@override_settings(RESEAU_LOCAL_UNIQUEMENT=True, BORNE_DELAI_MIN_SECONDES=0)
+class MotifsAutreTests(BaseVues):
+    def test_motifs_par_defaut_proposes_sur_la_borne(self):
+        from circuit.models import MOTIFS_AUTRE_PAR_DEFAUT, MotifDemande
+
+        motifs = list(MotifDemande.objects.filter(centre=self.d.centre).order_by("ordre")
+                      .values_list("libelle", flat=True))
+        for libelle in ("Visite d'embauche", "Entretien"):
+            self.assertIn(libelle, motifs)
+        self.assertTrue(set(MOTIFS_AUTRE_PAR_DEFAUT) <= set(motifs))
+
+        borne = Borne(centre=self.d.centre, code="B1", libelle="Borne")
+        cle = borne.generer_cle()
+        borne.save()
+        self.client.post(reverse("circuit:borne"), {"centre": "TAM", "code": "B1", "cle": cle})
+        page = self.client.get(reverse("circuit:borne"))
+        self.assertContains(page, "Visite d&#x27;embauche")
+        self.assertContains(page, "Entretien")
+        embauche = MotifDemande.objects.get(centre=self.d.centre, libelle="Visite d'embauche")
+        self.client.post(reverse("circuit:borne_emettre"), {"mode": "AUTRE", "motif": embauche.pk})
+        ticket = Ticket.objects.get(mode="AUTRE", demande__motif=embauche)
+        self.assertEqual(ticket.numero, "A001")
+        self.assertIsNone(ticket.parcours)  # hors parcours de soins

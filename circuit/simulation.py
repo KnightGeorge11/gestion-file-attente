@@ -33,7 +33,7 @@ from .models import (
 )
 from .services import ErreurCircuit
 
-MOTIFS_AUTRE = ["Rendez-vous", "Cotisations (paiement ou renseignement)", "Rencontrer une personne du centre"]
+from .models import MOTIFS_AUTRE_PAR_DEFAUT as MOTIFS_AUTRE  # noqa: E402
 
 
 class Simulateur:

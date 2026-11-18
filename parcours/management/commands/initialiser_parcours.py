@@ -74,6 +74,7 @@ class Command(BaseCommand):
         with transaction.atomic():
             services = self._services(centre, medecins)
             self._parcours(centre, services)
+            self._motifs_autre(centre)
 
         self.stdout.write(self.style.SUCCESS(f"Centre {centre} initialisé."))
 
@@ -165,6 +166,21 @@ class Command(BaseCommand):
                         auteur=None,
                     )
                 self.stdout.write(f"  Quotas {libelle} créés")
+
+    def _motifs_autre(self, centre):
+        """Motifs du mode Autre proposés sur la borne (ajoutés s'ils manquent)."""
+        from circuit.models import MOTIFS_AUTRE_PAR_DEFAUT, MotifDemande
+
+        for rang, libelle in enumerate(MOTIFS_AUTRE_PAR_DEFAUT, start=1):
+            # Tolère d'éventuels doublons déjà saisis : on ne recrée rien.
+            motif = MotifDemande.objects.filter(centre=centre, libelle=libelle).order_by("pk").first()
+            cree = motif is None
+            if cree:
+                motif = MotifDemande.objects.create(centre=centre, libelle=libelle, ordre=rang)
+            elif motif.ordre != rang:
+                motif.ordre = rang
+                motif.save(update_fields=["ordre"])
+            self._log(cree, f"Motif Autre « {libelle} »")
 
     def _log(self, cree, libelle):
         etat = "créé" if cree else "déjà présent"

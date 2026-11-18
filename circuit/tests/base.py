@@ -29,7 +29,7 @@ class Donnees:
         self.centre = centre
         self.svc = {s.code: s for s in Service.objects.filter(centre=centre)}
         self.parcours = {p.prefixe: p for p in Parcours.objects.filter(centre=centre)}
-        self.motif = MotifDemande.objects.create(centre=centre, libelle="Rendez-vous")
+        self.motif = MotifDemande.objects.get(centre=centre, libelle="Rendez-vous")
         return self
 
     def agent(self, username, role, services_codes=None, centre=None):
