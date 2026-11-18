@@ -102,6 +102,8 @@ Pour une recette : `python manage.py preparer_demo <CODE> --mot-de-passe "..."` 
 
 ## Comptes de test et simulation
 
+Pour une démonstration ou un test manuel pas à pas, voir le **[guide de test](docs/GUIDE_TEST.md)**.
+
 **Uniquement sur une base de développement ou de test** (les deux commandes refusent de s'exécuter si `DEBUG` est désactivé, sauf `--force`).
 
 ```bash
