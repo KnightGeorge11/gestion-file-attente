@@ -13,12 +13,14 @@ def navigation(request):
 
     from comptes.permissions import a_droit
     from circuit.models import Notification
+    from circuit.visibilite import services_operationnels
 
     contexte.update(
         {
             "peut_statistiques": a_droit(utilisateur, "circuit.voir_statistiques", centre),
             "peut_fusionner": a_droit(utilisateur, "patients.add_fusionpatient", centre),
             "peut_voir_patients": a_droit(utilisateur, "patients.view_patient", centre),
+            "voit_tickets": bool(services_operationnels(utilisateur, centre)),
             "nb_notifications": Notification.objects.filter(
                 centre=centre, destinataire=utilisateur, date_lecture__isnull=True
             ).count(),

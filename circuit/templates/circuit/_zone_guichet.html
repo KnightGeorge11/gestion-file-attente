@@ -1,29 +1,36 @@
 {% if request.headers.HX_Request %}{% include "_messages.html" with oob=True %}{% endif %}
-<div class="grille">
+<div class="grille-guichet">
     <section class="carte accent">
-        <h2>Patient en cours</h2>
+        <h2>Patient en cours
+            {% if tenue %}<span class="etiquette {% if tenue.statut == 'APPELE' %}attention{% else %}ok{% endif %}">{{ tenue.get_statut_display }}</span>{% endif %}
+        </h2>
         {% if autre_service %}
             <p class="etiquette attention">Vous avez un patient en cours dans le service {{ autre_service.nom }}.</p>
         {% endif %}
         {% if tenue %}
-            <p><span class="numero enorme">{{ ticket.numero }}</span>
-               <span class="etiquette">{{ ticket.get_mode_display }}</span>
-               {% if ticket.parcours %}<span class="etiquette info">{{ ticket.parcours.libelle_borne }}</span>{% endif %}
-               {% if tenue.reintegration %}<span class="etiquette attention">Réintégré</span>{% endif %}
-            </p>
-            <p>
-                {% if ticket.patient %}<strong>{{ ticket.patient }}</strong>
-                {% elif ticket.est_autre %}Demande « Autre » : {{ ticket.demande.motif|default:"motif non précisé" }}
-                {% else %}<span class="etiquette alerte">Patient non identifié</span>{% endif %}
-            </p>
-            {% if reservation %}<p class="discret">Quota : place {{ reservation.get_statut_display|lower }}{% if reservation.derogation %} (dérogation){% endif %}</p>{% endif %}
+            <div class="patient-en-cours">
+                <span class="numero enorme">{{ ticket.numero }}</span>
+                <div>
+                    <div class="nom-patient">
+                        {% if ticket.patient %}{{ ticket.patient }}
+                        {% elif ticket.est_autre %}Demande « Autre » : {{ ticket.demande.motif|default:"motif non précisé" }}
+                        {% else %}<span class="etiquette alerte">Patient non identifié</span>{% endif %}
+                    </div>
+                    <div class="ligne" style="gap:4px;margin-top:4px">
+                        <span class="etiquette">{{ ticket.get_mode_display }}</span>
+                        {% if ticket.parcours %}<span class="etiquette info">{{ ticket.parcours.libelle_borne }}</span>{% endif %}
+                        {% if tenue.reintegration %}<span class="etiquette attention">Réintégré</span>{% endif %}
+                        {% if reservation %}<span class="etiquette">Quota : {{ reservation.get_statut_display|lower }}{% if reservation.derogation %} (dérogation){% endif %}</span>{% endif %}
+                    </div>
+                </div>
+            </div>
             <p class="discret">Arrivé à {{ tenue.passage.date_arrivee|time:"H:i" }} ·
                 {% if tenue.statut == "APPELE" %}appelé {{ tenue.nb_appels }} fois (dernier à {{ tenue.date_dernier_appel|time:"H:i:s" }})
                 {% else %}pris en charge à {{ tenue.date_debut|time:"H:i" }}{% endif %}
                 · <a href="{% url 'circuit:ticket' ticket.pk %}">historique</a></p>
 
             {% if tenue.statut == "APPELE" %}
-            <div class="ligne">
+            <div class="actions">
                 <form hx-post="{% url 'circuit:guichet_action' service.pk 'prendre' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'prendre' %}">
                     {% csrf_token %}<input type="hidden" name="entree" value="{{ tenue.pk }}"><input type="hidden" name="file" value="{{ file.pk }}">
                     <button class="principal grand">Patient présent : prendre en charge</button>
@@ -31,33 +38,35 @@
                 {% if not appels_max %}
                 <form hx-post="{% url 'circuit:guichet_action' service.pk 'rappeler' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'rappeler' %}">
                     {% csrf_token %}<input type="hidden" name="entree" value="{{ tenue.pk }}"><input type="hidden" name="file" value="{{ file.pk }}">
-                    <button>Rappeler</button>
+                    <button class="grand">Rappeler</button>
                 </form>
                 {% endif %}
                 {% if peut_absent and appels_max %}
                 <form hx-post="{% url 'circuit:guichet_action' service.pk 'absent' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'absent' %}">
                     {% csrf_token %}<input type="hidden" name="entree" value="{{ tenue.pk }}"><input type="hidden" name="file" value="{{ file.pk }}">
-                    <button class="danger">Marquer absent</button>
+                    <button class="danger grand">Marquer absent</button>
                 </form>
                 {% endif %}
             </div>
-            {% if prochain_appel and prochain_appel > maintenant %}<p class="discret">Nouvel appel possible à {{ prochain_appel|time:"H:i:s" }}.</p>{% endif %}
+            {% if prochain_appel and prochain_appel > maintenant %}<p class="discret" style="margin-top:8px">Nouvel appel possible à {{ prochain_appel|time:"H:i:s" }}.</p>{% endif %}
             {% else %}
-                {% if service.est_accueil and not ticket.est_autre and not ticket.patient and peut_identifier %}
-                    <p><a class="bouton principal grand" href="{% url 'circuit:identifier' ticket.pk %}">Identifier le patient</a></p>
-                {% endif %}
                 {% if service.est_accueil and ticket.est_autre %}
                     <p>Demande : <span class="etiquette {% if ticket.demande.statut == 'NOUVELLE' %}alerte{% else %}ok{% endif %}">{{ ticket.demande.get_statut_display }}</span></p>
-                    {% if ticket.demande.statut == 'NOUVELLE' and peut_orienter %}
-                    <p><a class="bouton principal" href="{% url 'circuit:demandes' %}">Orienter la demande</a></p>
-                    {% endif %}
                 {% endif %}
-                <form hx-post="{% url 'circuit:guichet_action' service.pk 'terminer' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'terminer' %}">
-                    {% csrf_token %}<input type="hidden" name="entree" value="{{ tenue.pk }}"><input type="hidden" name="file" value="{{ file.pk }}">
-                    <button class="principal grand" {% if service.est_accueil and not ticket.est_autre and not ticket.patient %}disabled{% endif %}{% if service.est_accueil and ticket.est_autre and ticket.demande.statut == 'NOUVELLE' %}disabled{% endif %}>
-                        Terminer{% if suivante %} et orienter vers {{ suivante.service.nom }}{% else %} (fin du parcours){% endif %}
-                    </button>
-                </form>
+                <div class="actions">
+                    {% if service.est_accueil and not ticket.est_autre and not ticket.patient and peut_identifier %}
+                        <a class="bouton principal grand" href="{% url 'circuit:identifier' ticket.pk %}">Identifier le patient</a>
+                    {% endif %}
+                    {% if service.est_accueil and ticket.est_autre and ticket.demande.statut == 'NOUVELLE' and peut_orienter %}
+                        <a class="bouton principal grand" href="{% url 'circuit:demandes' %}">Orienter la demande</a>
+                    {% endif %}
+                    <form hx-post="{% url 'circuit:guichet_action' service.pk 'terminer' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'terminer' %}">
+                        {% csrf_token %}<input type="hidden" name="entree" value="{{ tenue.pk }}"><input type="hidden" name="file" value="{{ file.pk }}">
+                        <button class="{% if not service.est_accueil or ticket.patient or ticket.est_autre and ticket.demande.statut != 'NOUVELLE' %}principal {% endif %}grand" {% if service.est_accueil and not ticket.est_autre and not ticket.patient %}disabled{% endif %}{% if service.est_accueil and ticket.est_autre and ticket.demande.statut == 'NOUVELLE' %}disabled{% endif %}>
+                            Terminer{% if suivante %} et orienter vers {{ suivante.service.nom }}{% else %} (fin du parcours){% endif %}
+                        </button>
+                    </form>
+                </div>
                 {% if transfert_possible and peut_transferer %}
                 <details>
                     <summary>Transférer à la pharmacie</summary>
@@ -66,8 +75,10 @@
                         <input type="hidden" name="pharmacie" value="1">
                         {% if suivante %}<p class="etiquette attention">Étape intermédiaire : l'étape {{ suivante.service.nom }} ne sera pas réalisée. Motif obligatoire.</p>{% endif %}
                         <label for="motif-pha">Motif {% if not suivante %}(facultatif){% endif %}</label>
-                        <input id="motif-pha" name="motif" maxlength="500" {% if suivante %}required{% endif %}>
-                        <p><button class="principal">Terminer et transférer à la pharmacie</button></p>
+                        <div class="ligne">
+                            <input id="motif-pha" name="motif" maxlength="500" {% if suivante %}required{% endif %} style="flex:1;min-width:200px">
+                            <button class="principal">Terminer et transférer à la pharmacie</button>
+                        </div>
                     </form>
                 </details>
                 {% endif %}
@@ -77,7 +88,7 @@
             {% if peut_appeler and not autre_service %}
             <form hx-post="{% url 'circuit:guichet_action' service.pk 'appeler' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'appeler' %}" class="ligne">
                 {% csrf_token %}<input type="hidden" name="file" value="{{ file.pk }}">
-                <input name="poste" maxlength="50" placeholder="Guichet / salle (facultatif)" style="max-width:220px">
+                <input name="poste" maxlength="50" placeholder="Guichet / salle (facultatif)" aria-label="Guichet ou salle" style="flex:1;min-width:160px;max-width:240px">
                 <button class="principal grand">Appeler le suivant</button>
             </form>
             {% endif %}

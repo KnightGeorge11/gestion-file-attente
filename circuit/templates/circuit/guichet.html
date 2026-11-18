@@ -1,11 +1,12 @@
 {% extends "base.html" %}
 {% block titre %}{{ service.nom }}{% endblock %}
 {% block contenu %}
-<div class="ligne" style="justify-content:space-between">
-    <h1>{{ service.nom }}{% if files|length > 1 %} · {{ file.nom }}{% endif %}</h1>
+<div class="entete-page">
+    <h1>{{ service.nom }}{% if files|length > 1 %} <span class="discret">· {{ file.nom }}</span>{% endif %}</h1>
     {% if files|length > 1 %}
     <form method="get" class="ligne">
-        <select name="file" onchange="this.form.submit()">
+        <label for="choix-file" style="margin:0">File</label>
+        <select id="choix-file" name="file" onchange="this.form.submit()" style="width:auto">
             {% for f in files %}<option value="{{ f.pk }}" {% if f.pk == file.pk %}selected{% endif %}>{{ f.nom }}</option>{% endfor %}
         </select>
     </form>

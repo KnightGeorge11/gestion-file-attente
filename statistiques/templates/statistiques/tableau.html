@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block titre %}Statistiques{% endblock %}
 {% block contenu %}
-<h1>Tableau de bord · {{ libelle_centres }}</h1>
+<div class="entete-page"><h1>Tableau de bord <span class="discret">· {{ libelle_centres }}</span></h1></div>
 <form method="get" class="ligne carte" style="margin-bottom:16px">
     <label style="margin:0">Du <input type="date" name="du" value="{{ du|date:'Y-m-d' }}" style="width:auto"></label>
     <label style="margin:0">au <input type="date" name="au" value="{{ au|date:'Y-m-d' }}" style="width:auto"></label>
@@ -12,8 +12,8 @@
 </form>
 
 <div class="grille">
-    <section class="carte accent"><h2>Tickets émis</h2><p class="numero enorme">{{ stats.total_tickets }}</p></section>
-    <section class="carte accent"><h2>Durée totale moyenne</h2><p class="numero enorme">{{ stats.duree_totale_moy|default:"—" }}<small> min</small></p></section>
+    <section class="carte tuile accent"><h2>Tickets émis</h2><div class="valeur">{{ stats.total_tickets }}</div><div class="libelle">sur la période</div></section>
+    <section class="carte tuile accent"><h2>Durée totale moyenne</h2><div class="valeur">{{ stats.duree_totale_moy|default:"—" }}</div><div class="libelle">minutes par ticket terminé</div></section>
     <section class="carte"><h2>Par statut</h2>
         <ul class="chronologie">{% for k, v in stats.par_statut.items %}<li>{{ k }} : <strong>{{ v }}</strong></li>{% endfor %}</ul></section>
     <section class="carte"><h2>Par mode</h2>

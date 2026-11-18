@@ -1,5 +1,5 @@
-<h2>File d'attente · {{ attente|length }} en attente</h2>
-{% if service.est_accueil %}
+<h2>File d'attente <span class="etiquette {% if attente %}info{% endif %}">{{ attente|length }} en attente</span></h2>
+{% if service.est_accueil and nb_demandes_nouvelles or service.est_accueil and nb_reponses_non_lues %}
 <p class="ligne">
     {% if nb_demandes_nouvelles %}<a class="etiquette alerte" href="{% url 'circuit:demandes' %}">{{ nb_demandes_nouvelles }} demande(s) « Autre » à orienter</a>{% endif %}
     {% if nb_reponses_non_lues %}<a class="etiquette info" href="{% url 'circuit:demandes' %}">{{ nb_reponses_non_lues }} réponse(s) reçue(s)</a>{% endif %}
@@ -15,8 +15,8 @@
                 {% if entree.reintegration %}<span class="etiquette attention">réintégré</span>{% endif %}
                 {% if entree.passage.origine == "TRANSFERT" %}<span class="etiquette info">transfert</span>{% endif %}</td>
             <td>{{ entree.passage.ticket.patient|default:"—" }}</td>
-            <td>{{ entree.date_entree|time:"H:i" }}</td>
-            <td>
+            <td class="discret">{{ entree.date_entree|time:"H:i" }}</td>
+            <td style="text-align:right">
                 {% if not tenue and not autre_service and peut_appeler %}
                     {% if not file.ordre_strict and not forloop.first %}
                     <form hx-post="{% url 'circuit:guichet_action' service.pk 'appeler' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'appeler' %}">
@@ -41,19 +41,19 @@
 </div>
 
 {% if en_cours %}
-<h2 style="margin-top:16px">Appelés / en cours</h2>
+<div class="section-titre">Appelés / en cours</div>
 <ul class="chronologie">
-    {% for e in en_cours %}<li><strong>{{ e.passage.ticket.numero }}</strong> · {{ e.get_statut_display }} · {{ e.agent }}{% if e.poste %} · {{ e.poste }}{% endif %}</li>{% endfor %}
+    {% for e in en_cours %}<li><strong>{{ e.passage.ticket.numero }}</strong> <span class="etiquette {% if e.statut == 'APPELE' %}attention{% else %}ok{% endif %}">{{ e.get_statut_display }}</span> <span class="discret">{{ e.agent }}{% if e.poste %} · {{ e.poste }}{% endif %}</span></li>{% endfor %}
 </ul>
 {% endif %}
 
 {% if absents %}
-<h2 style="margin-top:16px">Absents du jour</h2>
+<div class="section-titre">Absents du jour</div>
 <ul class="chronologie">
     {% for p in absents %}
-    <li class="ligne"><strong>{{ p.ticket.numero }}</strong> {{ p.ticket.patient|default:"" }}
+    <li><strong>{{ p.ticket.numero }}</strong> <span>{{ p.ticket.patient|default:"" }}</span>
         {% if peut_reintegrer %}
-        <form hx-post="{% url 'circuit:guichet_action' service.pk 'reintegrer' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'reintegrer' %}">
+        <form hx-post="{% url 'circuit:guichet_action' service.pk 'reintegrer' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'reintegrer' %}" style="margin-left:auto">
             {% csrf_token %}<input type="hidden" name="passage" value="{{ p.pk }}"><input type="hidden" name="file" value="{{ file.pk }}">
             <button>Réintégrer</button>
         </form>
@@ -64,11 +64,11 @@
 {% endif %}
 
 {% if a_venir %}
-<h2 style="margin-top:16px">À venir · {{ a_venir|length }}</h2>
-<p class="discret">Patients dont le parcours passe ensuite par ce service.</p>
+<div class="section-titre">À venir · {{ a_venir|length }}</div>
+<p class="discret" style="margin:0 0 4px">Patients dont le parcours passe ensuite par ce service.</p>
 <ul class="chronologie">
     {% for t in a_venir %}
-    <li><strong>{{ t.numero }}</strong> {{ t.patient|default:"(non identifié)" }} <span class="etiquette">actuellement : {{ t.service_actuel }}</span></li>
+    <li><strong>{{ t.numero }}</strong> <span>{{ t.patient|default:"(non identifié)" }}</span> <span class="etiquette" style="margin-left:auto">actuellement : {{ t.service_actuel }}</span></li>
     {% endfor %}
 </ul>
 {% endif %}
