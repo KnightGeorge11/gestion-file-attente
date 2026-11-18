@@ -1,4 +1,5 @@
-﻿import os
+import os
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -21,6 +22,15 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.postgres",
+    "core",
+    "comptes",
+    "centres",
+    "patients",
+    "parcours",
+    "circuit",
+    "audit",
+    "statistiques",
 ]
 
 MIDDLEWARE = [
@@ -31,6 +41,8 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "centres.middleware.CentreActifMiddleware",
+    "audit.threadlocal.UtilisateurCourantMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -45,6 +57,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "core.context_processors.navigation",
             ],
         },
     },
@@ -84,3 +97,21 @@ MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+AUTH_USER_MODEL = 'comptes.Utilisateur'
+
+AUTHENTICATION_BACKENDS = ["comptes.backends.AffectationBackend"]
+
+LOGIN_URL = "connexion"
+LOGIN_REDIRECT_URL = "accueil"
+LOGOUT_REDIRECT_URL = "connexion"
+
+# Borne et écran : accès limité au réseau local (adresses privées).
+RESEAU_LOCAL_UNIQUEMENT = os.getenv("RESEAU_LOCAL_UNIQUEMENT", "True").lower() == "true"
+# Délai minimal entre deux tickets émis par une même borne (limitation de débit).
+BORNE_DELAI_MIN_SECONDES = float(os.getenv("BORNE_DELAI_MIN_SECONDES", "2"))
+
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = False
+
+if "test" in sys.argv:
+    PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]

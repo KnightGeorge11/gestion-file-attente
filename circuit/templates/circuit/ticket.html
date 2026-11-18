@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block titre %}Ticket {{ ticket.numero }}{% endblock %}
+{% block contenu %}
+<h1>Ticket <span class="numero">{{ ticket.numero }}</span> du {{ ticket.jour|date:"d/m/Y" }}
+    <span class="etiquette {% if ticket.ouvert %}info{% else %}ok{% endif %}">{{ ticket.get_statut_display }}</span></h1>
+<div class="grille">
+<section class="carte">
+    <p>Mode : <strong>{{ ticket.get_mode_display }}</strong>
+    {% if ticket.parcours %} · Parcours : <strong>{{ ticket.parcours.libelle_borne }}</strong> (v{{ ticket.parcours_version.numero }}){% endif %}</p>
+    <p>Patient : <strong>{{ ticket.patient|default:"non identifié" }}</strong>
+        {% if ticket.identifie_par %}<span class="discret">(identifié par {{ ticket.identifie_par }})</span>{% endif %}</p>
+    {% if ticket.est_autre %}<p>Demande : {{ ticket.demande.motif|default:"—" }} · {{ ticket.demande.get_statut_display }}</p>{% endif %}
+    <p>Émis à {{ ticket.date_emission|time:"H:i:s" }}{% if ticket.date_fin %} · terminé à {{ ticket.date_fin|time:"H:i:s" }} · durée totale {{ ticket.duree_totale }}{% endif %}</p>
+    {% if ticket.motif_annulation %}<p class="etiquette alerte">Annulé par {{ ticket.annule_par }} : {{ ticket.motif_annulation }}</p>{% endif %}
+
+    {% if peut_annuler %}
+    <details><summary>Annuler le ticket</summary>
+        <form method="post" action="{% url 'circuit:ticket_action' ticket.pk 'annuler' %}">{% csrf_token %}
+            <label>Motif obligatoire</label><input name="motif" required maxlength="500">
+            <p><button class="danger">Annuler le ticket</button></p>
+        </form>
+    </details>
+    {% endif %}
+    {% if peut_liberer %}
+    <details><summary>Libérer la place de quota (patient absent)</summary>
+        <form method="post" action="{% url 'circuit:ticket_action' ticket.pk 'liberer' %}">{% csrf_token %}
+            <label>Motif obligatoire</label><input name="motif" required maxlength="500">
+            <p><button class="danger">Libérer la place</button></p>
+        </form>
+    </details>
+    {% endif %}
+</section>
+
+<section class="carte">
+    <h2>Passages</h2>
+    <table>
+        <thead><tr><th>Service</th><th>Arrivée</th><th>Attente</th><th>Prise en charge</th><th>Statut</th></tr></thead>
+        {% for p in passages %}
+        <tr>
+            <td>{{ p.nom_service }}{% if p.origine == "TRANSFERT" %} <span class="etiquette info">transfert</span>{% endif %}<br><span class="discret">{{ p.pris_en_charge_par|default:"" }}</span></td>
+            <td>{{ p.date_arrivee|time:"H:i:s" }}</td>
+            <td>{{ p.duree_attente|default:"—" }}</td>
+            <td>{{ p.duree_prise_en_charge|default:"—" }}</td>
+            <td>{{ p.get_statut_display }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% if reservations %}
+    <h2 style="margin-top:16px">Quota</h2>
+    <ul class="chronologie">{% for r in reservations %}
+        <li>{{ r.jour|date:"d/m" }} {{ r.periode|lower }} · {{ r.get_statut_display }}{% if r.derogation %} · dérogation : {{ r.motif_derogation }}{% endif %}{% if r.motif_liberation %} · libérée : {{ r.motif_liberation }}{% endif %}</li>
+    {% endfor %}</ul>
+    {% endif %}
+</section>
+</div>
+
+<section class="carte" style="margin-top:16px">
+    <h2>Historique</h2>
+    <ul class="chronologie">
+        {% for e in evenements %}
+        <li><strong>{{ e.date|time:"H:i:s" }}</strong> · {{ e.get_type_display }}{% if e.agent %} · {{ e.agent }}{% endif %}
+            {% if e.details.motif %}<span class="discret"> · {{ e.details.motif }}</span>{% endif %}</li>
+        {% endfor %}
+    </ul>
+</section>
+{% endblock %}

@@ -1,0 +1,13 @@
+<div class="ecran-appels">
+{% for appel in appels %}
+    <div class="ecran-appel {% if appel.date >= recents %}nouveau{% endif %}" data-appel="{{ appel.pk }}"
+         data-annonce="{% if annonce %}1{% else %}0{% endif %}"
+         data-texte="Ticket {{ appel.numero_ticket|join:' ' }}, {{ appel.nom_service }}{% if appel.poste %}, {{ appel.poste }}{% endif %}">
+        <span class="num">{{ appel.numero_ticket }}</span>
+        <span>{{ appel.nom_service }}</span>
+        <span class="poste">{{ appel.poste }}</span>
+    </div>
+{% empty %}
+    <div class="ecran-vide">En attente des appels…</div>
+{% endfor %}
+</div>

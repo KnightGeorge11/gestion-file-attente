@@ -1,0 +1,44 @@
+{% load static %}<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block titre %}Files d'attente{% endblock %} - SMIE FUNTOA</title>
+    <link rel="stylesheet" href="{% static 'css/app.css' %}">
+    <script src="{% static 'js/htmx.min.js' %}" defer></script>
+    {% block entete %}{% endblock %}
+</head>
+<body class="{% block classe_body %}{% endblock %}" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+{% block barre %}
+{% if user.is_authenticated %}
+<header class="barre">
+    <a class="marque" href="{% url 'accueil' %}">SMIE FUNTOA · Files d'attente</a>
+    <nav>
+        {% if centre_actif %}<span>Centre : <strong>{{ centre_actif.nom }}</strong></span>{% endif %}
+        <a href="{% url 'centres:selection' %}">Changer de centre</a>
+        {% if centre_actif %}
+            <a href="{% url 'circuit:guichets' %}">Services</a>
+            <a href="{% url 'circuit:notifications' %}">Notifications
+                <span hx-get="{% url 'circuit:badge_notifications' %}" hx-trigger="every 15s" hx-swap="innerHTML">{% if nb_notifications %}<span class="pastille">{{ nb_notifications }}</span>{% endif %}</span></a>
+            <a href="{% url 'patients:recherche' %}">Patients</a>
+            {% if peut_statistiques %}<a href="{% url 'statistiques:tableau' %}">Statistiques</a>{% endif %}
+            <a href="{% url 'circuit:ecran' %}" target="_blank">Écran</a>
+        {% endif %}
+        {% if user.is_staff %}<a href="{% url 'admin:index' %}">Administration</a>{% endif %}
+        <span>{{ user }}</span>
+        <form method="post" action="{% url 'deconnexion' %}">{% csrf_token %}<button type="submit">Déconnexion</button></form>
+    </nav>
+</header>
+{% endif %}
+{% endblock %}
+<main>
+    {% if messages %}
+    <ul class="messages">
+        {% for message in messages %}<li class="{{ message.tags }}">{{ message }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    {% block contenu %}{% endblock %}
+</main>
+{% block scripts %}{% endblock %}
+</body>
+</html>

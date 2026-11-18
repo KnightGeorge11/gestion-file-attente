@@ -1,0 +1,854 @@
+"""
+Moteur du circuit des patients.
+
+Toutes les opérations :
+- sont transactionnelles (tout ou rien) ;
+- verrouillent les lignes concernées (file, ticket, compteur, quota) ;
+- enregistrent leur événement dans la même transaction ;
+- sont attribuées à l'agent connecté.
+
+Les contrôles de permission (rôle, centre, service) sont faits par les vues
+avec `comptes.permissions.a_droit` ; ce module vérifie les règles métier.
+"""
+
+from django.core.exceptions import ValidationError
+from django.db import connection, transaction
+from django.db.models import Max
+from django.utils import timezone
+
+from centres.models import FileAttente, Service
+from core.timeutils import maintenant_centre
+from parcours.models import Parcours, QuotaParcours
+from parcours.quotas import periode_pour, quota_applicable
+
+from .models import (
+    Appel,
+    DemandeAutre,
+    EntreeFile,
+    Evenement,
+    Notification,
+    Passage,
+    ReponseNotification,
+    ReservationQuota,
+    Ticket,
+    Transfert,
+)
+
+PREFIXE_AUTRE = "A"
+
+
+class ErreurCircuit(ValidationError):
+    """Règle métier non respectée (message destiné à l'agent)."""
+
+
+def _evenement(ticket, type_, agent=None, passage=None, entree=None, **details):
+    return Evenement.objects.create(
+        centre_id=ticket.centre_id,
+        ticket=ticket,
+        passage=passage,
+        entree=entree,
+        type=type_,
+        agent=agent,
+        date=timezone.now(),
+        details=details,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Émission des tickets (borne)
+# ---------------------------------------------------------------------------
+
+def prochain_numero(centre, prefixe, jour):
+    """
+    Incrémente atomiquement le compteur (centre, préfixe, jour).
+    INSERT ... ON CONFLICT DO UPDATE : aucun doublon possible, même avec
+    des émissions simultanées.
+    """
+    with connection.cursor() as curseur:
+        curseur.execute(
+            """
+            INSERT INTO circuit_compteurticket (centre_id, prefixe, jour, dernier_numero)
+            VALUES (%s, %s, %s, 1)
+            ON CONFLICT (centre_id, prefixe, jour)
+            DO UPDATE SET dernier_numero = circuit_compteurticket.dernier_numero + 1
+            RETURNING dernier_numero
+            """,
+            [centre.pk, prefixe, jour],
+        )
+        return curseur.fetchone()[0]
+
+
+def _file_accueil(centre):
+    accueil = (
+        Service.objects.filter(centre=centre, est_accueil=True, actif=True)
+        .order_by("ordre")
+        .first()
+    )
+    if accueil is None:
+        raise ErreurCircuit("Aucun service d'accueil actif n'est configuré.")
+    file = accueil.file_par_defaut()
+    if file is None or not file.actif:
+        raise ErreurCircuit("La file de l'accueil n'est pas disponible.")
+    return accueil, file
+
+
+@transaction.atomic
+def emettre_ticket(centre, mode, parcours=None, borne=None, motif=None, precision=""):
+    """
+    Émet un ticket depuis la borne.
+
+    - Interne / Externe : un parcours visible est obligatoire ; le ticket
+      suit la version publiée du parcours.
+    - Autre : demande hors parcours de soins ; préfixe « A », une demande
+      est créée et notifiée à l'accueil.
+    Dans tous les cas, le patient passe d'abord par l'accueil.
+    """
+    if mode not in Ticket.Mode.values:
+        raise ErreurCircuit("Mode inconnu.")
+
+    if borne is not None and (borne.centre_id != centre.pk or not borne.actif):
+        raise ErreurCircuit("Borne non autorisée.")
+
+    version = None
+
+    if mode == Ticket.Mode.AUTRE:
+        prefixe = PREFIXE_AUTRE
+        parcours = None
+        if motif is not None and motif.centre_id != centre.pk:
+            raise ErreurCircuit("Motif inconnu.")
+    else:
+        if parcours is None:
+            raise ErreurCircuit("Veuillez choisir un service.")
+        if parcours.centre_id != centre.pk or not parcours.actif or not parcours.visible_borne:
+            raise ErreurCircuit("Ce service n'est pas disponible.")
+        version = parcours.version_publiee()
+        if version is None:
+            raise ErreurCircuit("Ce parcours n'a pas de version publiée.")
+        prefixe = parcours.prefixe
+
+    accueil, file_accueil = _file_accueil(centre)
+
+    maintenant = timezone.now()
+    jour = maintenant_centre(centre).date()
+    sequence = prochain_numero(centre, prefixe, jour)
+
+    ticket = Ticket.objects.create(
+        centre=centre,
+        numero=f"{prefixe}{sequence:03d}",
+        prefixe=prefixe,
+        sequence=sequence,
+        jour=jour,
+        mode=mode,
+        parcours=parcours,
+        parcours_version=version,
+        borne=borne,
+        date_emission=maintenant,
+    )
+    _evenement(ticket, Evenement.Type.EMISSION, mode=mode,
+               parcours=parcours.code if parcours else None,
+               version=version.numero if version else None)
+
+    if mode == Ticket.Mode.AUTRE:
+        DemandeAutre.objects.create(
+            centre=centre, ticket=ticket, motif=motif, precision=precision[:500]
+        )
+
+    _creer_passage(
+        ticket,
+        accueil,
+        file_accueil,
+        origine=Passage.Origine.PARCOURS,
+        ordre_etape=1 if version else None,
+    )
+
+    if borne is not None:
+        borne.derniere_activite = maintenant
+        borne.save(update_fields=["derniere_activite"])
+
+    return ticket
+
+
+# ---------------------------------------------------------------------------
+# Passages et files
+# ---------------------------------------------------------------------------
+
+def _verrouiller_file(file_id):
+    return FileAttente.objects.select_for_update(of=("self",)).select_related("service", "centre").get(pk=file_id)
+
+
+def _ajouter_en_file(passage, file, reintegration=False, agent=None):
+    _verrouiller_file(file.pk)
+    rang = (EntreeFile.objects.filter(file=file).aggregate(m=Max("rang"))["m"] or 0) + 1
+    entree = EntreeFile.objects.create(
+        centre_id=passage.centre_id,
+        passage=passage,
+        file=file,
+        rang=rang,
+        reintegration=reintegration,
+        date_entree=timezone.now(),
+    )
+    _evenement(
+        passage.ticket,
+        Evenement.Type.REINTEGRATION if reintegration else Evenement.Type.ENTREE_FILE,
+        agent=agent,
+        passage=passage,
+        entree=entree,
+        file=file.nom,
+        rang=rang,
+    )
+    return entree
+
+
+def _creer_passage(ticket, service, file, origine, ordre_etape=None):
+    if service.centre_id != ticket.centre_id or file.service_id != service.pk:
+        raise ErreurCircuit("Service ou file incohérent avec le centre du ticket.")
+    if not service.disponible or not file.actif:
+        raise ErreurCircuit(f"Le service {service.nom} n'est pas disponible.")
+
+    passage = Passage.objects.create(
+        centre_id=ticket.centre_id,
+        ticket=ticket,
+        service=service,
+        file=file,
+        nom_service=service.nom,
+        nom_file=file.nom,
+        origine=origine,
+        ordre_etape=ordre_etape,
+        date_arrivee=timezone.now(),
+    )
+    _ajouter_en_file(passage, file)
+    return passage
+
+
+def _verrouiller_entree(entree_id):
+    """Verrouille l'entrée, son passage et son ticket (ordre fixe)."""
+    entree = EntreeFile.objects.select_related("file", "file__service").get(pk=entree_id)
+    _verrouiller_file(entree.file_id)
+    entree = (
+        EntreeFile.objects.select_for_update(of=("self",))
+        .select_related("file", "file__service", "passage", "passage__ticket")
+        .get(pk=entree_id)
+    )
+    Ticket.objects.select_for_update().get(pk=entree.passage.ticket_id)
+    return entree
+
+
+def entree_tenue_par(agent):
+    return (
+        EntreeFile.objects.filter(agent=agent, statut__in=EntreeFile.STATUTS_TENUS)
+        .select_related("passage", "passage__ticket", "file", "file__service")
+        .first()
+    )
+
+
+def _verifier_agent_libre(agent, sauf=None):
+    tenue = entree_tenue_par(agent)
+    if tenue is not None and tenue.pk != getattr(sauf, "pk", None):
+        raise ErreurCircuit(
+            f"Vous avez déjà le ticket {tenue.passage.ticket.numero} en cours. "
+            "Terminez-le avant d'appeler un autre patient."
+        )
+
+
+def _verifier_capacite(file):
+    tenues = EntreeFile.objects.filter(file=file, statut__in=EntreeFile.STATUTS_TENUS).count()
+    if tenues >= file.nb_appels_simultanes:
+        raise ErreurCircuit(
+            "Le nombre maximal de patients appelés simultanément dans cette file est atteint."
+        )
+
+
+def file_en_attente(file):
+    return (
+        EntreeFile.objects.filter(file=file, statut=EntreeFile.Statut.EN_ATTENTE)
+        .select_related("passage", "passage__ticket", "passage__ticket__patient")
+        .order_by("rang")
+    )
+
+
+def _enregistrer_appel(entree, agent, mode=Appel.Mode.ECRAN):
+    maintenant = timezone.now()
+    entree.nb_appels += 1
+    entree.date_dernier_appel = maintenant
+    if entree.date_premier_appel is None:
+        entree.date_premier_appel = maintenant
+    entree.save(update_fields=["nb_appels", "date_dernier_appel", "date_premier_appel",
+                               "statut", "agent", "poste"])
+    passage = entree.passage
+    ticket = passage.ticket
+    appel = Appel.objects.create(
+        centre_id=entree.centre_id,
+        entree=entree,
+        ticket=ticket,
+        service=entree.file.service,
+        numero_ticket=ticket.numero,
+        nom_service=entree.file.service.nom,
+        poste=entree.poste,
+        numero_appel=entree.nb_appels,
+        mode=mode,
+        agent=agent,
+        date=maintenant,
+    )
+    _evenement(
+        ticket,
+        Evenement.Type.APPEL if entree.nb_appels == 1 else Evenement.Type.RAPPEL,
+        agent=agent, passage=passage, entree=entree,
+        numero_appel=entree.nb_appels, mode=mode, poste=entree.poste,
+    )
+    return appel
+
+
+@transaction.atomic
+def appeler(file, agent, entree=None, poste=""):
+    """
+    Appelle le patient suivant (ou `entree` si la file n'est pas en ordre
+    strict). Verrou par file : deux agents ne peuvent pas appeler le même
+    patient. Dans la file commune des médecins, le patient est attribué
+    au médecin qui l'appelle.
+    """
+    file = _verrouiller_file(file.pk)
+    if not file.actif or not file.service.disponible:
+        raise ErreurCircuit("Cette file n'est pas disponible.")
+
+    _verifier_agent_libre(agent)
+    _verifier_capacite(file)
+
+    attente = file_en_attente(file)
+    premier = attente.first()
+    if premier is None:
+        raise ErreurCircuit("Aucun patient en attente.")
+
+    if entree is None:
+        cible = premier
+    else:
+        cible = attente.filter(pk=entree.pk).first()
+        if cible is None:
+            raise ErreurCircuit("Ce patient n'est plus en attente dans cette file.")
+        if file.ordre_strict and cible.pk != premier.pk:
+            raise ErreurCircuit("Ordre strict : seul le premier patient de la file peut être appelé.")
+
+    cible = EntreeFile.objects.select_for_update(of=("self",)).select_related(
+        "file", "file__service", "passage", "passage__ticket"
+    ).get(pk=cible.pk)
+    Ticket.objects.select_for_update().get(pk=cible.passage.ticket_id)
+
+    cible.statut = EntreeFile.Statut.APPELE
+    cible.agent = agent
+    cible.poste = (poste or "")[:50]
+    appel = _enregistrer_appel(cible, agent)
+
+    passage = cible.passage
+    passage.statut = Passage.Statut.APPELE
+    passage.save(update_fields=["statut"])
+    return appel
+
+
+@transaction.atomic
+def rappeler(entree, agent):
+    entree = _verrouiller_entree(entree.pk)
+    if entree.statut != EntreeFile.Statut.APPELE or entree.agent_id != agent.pk:
+        raise ErreurCircuit("Ce patient n'est pas appelé par vous.")
+    if entree.nb_appels >= entree.file.nb_appels_avant_absence:
+        raise ErreurCircuit("Nombre maximal d'appels atteint : marquez le patient absent.")
+    prochain = entree.prochain_appel_possible()
+    if prochain and timezone.now() < prochain:
+        secondes = int((prochain - timezone.now()).total_seconds()) + 1
+        raise ErreurCircuit(f"Veuillez patienter {secondes} s avant de rappeler.")
+    return _enregistrer_appel(entree, agent)
+
+
+@transaction.atomic
+def marquer_absent(entree, agent):
+    """Absence seulement après N appels sans réponse, espacés du délai paramétré."""
+    entree = _verrouiller_entree(entree.pk)
+    if entree.statut != EntreeFile.Statut.APPELE or entree.agent_id != agent.pk:
+        raise ErreurCircuit("Ce patient n'est pas appelé par vous.")
+    if entree.nb_appels < entree.file.nb_appels_avant_absence:
+        raise ErreurCircuit(
+            f"Le patient doit être appelé {entree.file.nb_appels_avant_absence} fois "
+            "avant d'être déclaré absent."
+        )
+    prochain = entree.prochain_appel_possible()
+    if prochain and timezone.now() < prochain:
+        secondes = int((prochain - timezone.now()).total_seconds()) + 1
+        raise ErreurCircuit(f"Veuillez patienter {secondes} s après le dernier appel.")
+
+    entree.statut = EntreeFile.Statut.ABSENT
+    entree.date_absence = timezone.now()
+    entree.agent = None
+    entree.save(update_fields=["statut", "date_absence", "agent"])
+
+    passage = entree.passage
+    passage.statut = Passage.Statut.ABSENT
+    passage.save(update_fields=["statut"])
+
+    _evenement(passage.ticket, Evenement.Type.ABSENCE, agent=agent, passage=passage,
+               entree=entree, nb_appels=entree.nb_appels)
+    return entree
+
+
+@transaction.atomic
+def reintegrer(passage, agent):
+    """Nouvelle entrée en fin de file pour le même passage (maximum paramétré)."""
+    passage = Passage.objects.select_for_update(of=("self",)).select_related("ticket", "file", "centre").get(pk=passage.pk)
+    Ticket.objects.select_for_update().get(pk=passage.ticket_id)
+    if passage.statut != Passage.Statut.ABSENT:
+        raise ErreurCircuit("Seul un patient absent peut être réintégré.")
+    deja = passage.entrees.filter(reintegration=True).count()
+    if deja >= passage.centre.max_reintegrations:
+        raise ErreurCircuit("Nombre maximal de réintégrations atteint pour ce passage.")
+    if not passage.file.actif:
+        raise ErreurCircuit("La file n'est plus disponible.")
+
+    passage.statut = Passage.Statut.EN_ATTENTE
+    passage.save(update_fields=["statut"])
+    return _ajouter_en_file(passage, passage.file, reintegration=True, agent=agent)
+
+
+def _consommer_quota(ticket, passage):
+    reservation = ticket.reservation_active()
+    if (
+        reservation is not None
+        and reservation.statut == ReservationQuota.Statut.RESERVEE
+        and passage.origine == Passage.Origine.PARCOURS
+        and not passage.service.est_accueil
+    ):
+        reservation.statut = ReservationQuota.Statut.CONSOMMEE
+        reservation.save(update_fields=["statut"])
+
+
+@transaction.atomic
+def prendre_en_charge(entree, agent, oral=False):
+    """
+    Début de prise en charge. Pour un service autorisant l'appel oral
+    (pharmacie), l'agent peut prendre en charge directement un patient en
+    attente : un appel « oral » est enregistré.
+    """
+    entree = _verrouiller_entree(entree.pk)
+    service = entree.file.service
+    passage = entree.passage
+    ticket = passage.ticket
+
+    if entree.statut == EntreeFile.Statut.EN_ATTENTE:
+        if not (oral and service.appel_oral_autorise):
+            raise ErreurCircuit("Appelez d'abord le patient.")
+        _verifier_agent_libre(agent)
+        _verifier_capacite(entree.file)
+        if entree.file.ordre_strict:
+            premier = file_en_attente(entree.file).first()
+            if premier is not None and premier.pk != entree.pk:
+                raise ErreurCircuit("Ordre strict : prenez en charge le premier patient.")
+        entree.statut = EntreeFile.Statut.APPELE
+        entree.agent = agent
+        _enregistrer_appel(entree, agent, mode=Appel.Mode.ORAL)
+    elif entree.statut != EntreeFile.Statut.APPELE or entree.agent_id != agent.pk:
+        raise ErreurCircuit("Ce patient n'est pas appelé par vous.")
+
+    maintenant = timezone.now()
+    entree.statut = EntreeFile.Statut.EN_COURS
+    entree.date_debut = maintenant
+    entree.save(update_fields=["statut", "date_debut"])
+
+    passage.statut = Passage.Statut.EN_COURS
+    if passage.date_debut is None:
+        passage.date_debut = maintenant
+    passage.pris_en_charge_par = agent
+    passage.save(update_fields=["statut", "date_debut", "pris_en_charge_par"])
+
+    if ticket.statut == Ticket.Statut.EMIS:
+        ticket.statut = Ticket.Statut.EN_COURS
+        ticket.save(update_fields=["statut"])
+
+    _consommer_quota(ticket, passage)
+    _evenement(ticket, Evenement.Type.PRISE_EN_CHARGE, agent=agent, passage=passage, entree=entree)
+    return entree
+
+
+def _terminer_ticket(ticket, agent, type_=Evenement.Type.FIN_TICKET, statut=Ticket.Statut.TERMINE, **details):
+    ticket.statut = statut
+    ticket.date_fin = timezone.now()
+    ticket.save(update_fields=["statut", "date_fin"])
+    _evenement(ticket, type_, agent=agent, **details)
+
+
+def etape_suivante(ticket, passage):
+    if ticket.parcours_version_id is None or passage.ordre_etape is None:
+        return None
+    return (
+        ticket.parcours_version.etapes.select_related("service", "file")
+        .filter(ordre__gt=passage.ordre_etape)
+        .order_by("ordre")
+        .first()
+    )
+
+
+def service_pharmacie(centre):
+    return (
+        Service.objects.filter(centre=centre, est_pharmacie=True, actif=True, accepte_transferts=True)
+        .order_by("ordre")
+        .first()
+    )
+
+
+def peut_transferer_pharmacie(passage):
+    """Le transfert vers la pharmacie est possible depuis tout service de soins."""
+    service = passage.service
+    if service.est_accueil or service.est_pharmacie:
+        return False
+    if passage.ticket.est_autre:
+        return False
+    return service_pharmacie(passage.centre) is not None
+
+
+@transaction.atomic
+def terminer(entree, agent, transferer_pharmacie=False, motif=""):
+    """
+    Fin de prise en charge.
+
+    - Sans transfert : le patient passe à l'étape suivante du parcours,
+      sinon le ticket se termine.
+    - Avec transfert (décision explicite du service) : un passage pharmacie
+      est créé ; le ticket se termine après la pharmacie. Depuis une étape
+      intermédiaire (ex. infirmerie du parcours M), un motif est obligatoire
+      et les étapes restantes ne sont pas réalisées.
+    """
+    entree = _verrouiller_entree(entree.pk)
+    if entree.statut != EntreeFile.Statut.EN_COURS or entree.agent_id != agent.pk:
+        raise ErreurCircuit("Ce patient n'est pas pris en charge par vous.")
+
+    passage = Passage.objects.select_for_update(of=("self",)).select_related(
+        "ticket", "ticket__parcours_version", "service", "centre"
+    ).get(pk=entree.passage_id)
+    ticket = passage.ticket
+
+    if ticket.patient_id is None and passage.service.est_accueil and not ticket.est_autre:
+        raise ErreurCircuit("Identifiez le patient avant de l'orienter vers son service.")
+
+    suivante = etape_suivante(ticket, passage)
+    motif = (motif or "").strip()
+
+    if transferer_pharmacie:
+        if not peut_transferer_pharmacie(passage):
+            raise ErreurCircuit("Le transfert vers la pharmacie n'est pas possible depuis ce service.")
+        if suivante is not None and not motif:
+            raise ErreurCircuit(
+                "Transfert depuis une étape intermédiaire : un motif est obligatoire."
+            )
+
+    maintenant = timezone.now()
+    entree.statut = EntreeFile.Statut.TERMINE
+    entree.date_fin = maintenant
+    entree.save(update_fields=["statut", "date_fin"])
+
+    passage.statut = Passage.Statut.TERMINE
+    passage.date_fin = maintenant
+    passage.termine_par = agent
+    passage.save(update_fields=["statut", "date_fin", "termine_par"])
+    _evenement(ticket, Evenement.Type.FIN_PRISE_EN_CHARGE, agent=agent, passage=passage, entree=entree)
+
+    if transferer_pharmacie:
+        pharmacie = service_pharmacie(passage.centre)
+        nouveau = _creer_passage(ticket, pharmacie, pharmacie.file_par_defaut(),
+                                 origine=Passage.Origine.TRANSFERT)
+        Transfert.objects.create(
+            centre_id=ticket.centre_id,
+            ticket=ticket,
+            passage_origine=passage,
+            passage_destination=nouveau,
+            service_destination=pharmacie,
+            motif=motif,
+            decide_par=agent,
+            date=maintenant,
+        )
+        _evenement(ticket, Evenement.Type.TRANSFERT, agent=agent, passage=passage,
+                   vers=pharmacie.nom, motif=motif,
+                   etapes_non_realisees=bool(suivante))
+        return nouveau
+
+    if suivante is not None and passage.origine == Passage.Origine.PARCOURS:
+        return _creer_passage(ticket, suivante.service, suivante.file,
+                              origine=Passage.Origine.PARCOURS, ordre_etape=suivante.ordre)
+
+    _terminer_ticket(ticket, agent)
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Accueil : identification, quotas, annulation
+# ---------------------------------------------------------------------------
+
+def etat_quota(parcours, date_heure=None):
+    """Retourne (quota, réservées, restantes) pour la période en cours."""
+    quota = quota_applicable(parcours, date_heure)
+    jour, _, periode = periode_pour(parcours.centre, date_heure)
+    reservees = ReservationQuota.objects.filter(
+        parcours=parcours, jour=jour, periode=periode,
+        statut__in=ReservationQuota.STATUTS_OCCUPANT,
+    ).count()
+    if quota is None:
+        return None, reservees, 0
+    return quota, reservees, max(quota.nombre_places - reservees, 0)
+
+
+def _reserver_quota(ticket, agent, derogation=False, motif_derogation=""):
+    parcours = Parcours.objects.select_for_update().get(pk=ticket.parcours_id)
+    quota, reservees, restantes = etat_quota(parcours)
+    jour, _, periode = periode_pour(parcours.centre)
+
+    if quota is None:
+        raise ErreurCircuit(
+            f"Le service {parcours.libelle_borne} est fermé pendant cette période : "
+            "aucune identification n'est possible."
+        )
+
+    if restantes <= 0:
+        if not derogation:
+            raise ErreurCircuit(
+                f"Quota atteint pour {parcours.libelle_borne} "
+                f"({quota.nombre_places} places, période {QuotaParcours.Periode(periode).label.lower()})."
+            )
+        if not motif_derogation.strip():
+            raise ErreurCircuit("Une dérogation exige un motif.")
+    else:
+        derogation = False
+        motif_derogation = ""
+
+    reservation = ReservationQuota.objects.create(
+        centre_id=ticket.centre_id,
+        ticket=ticket,
+        parcours=parcours,
+        quota=quota,
+        jour=jour,
+        periode=periode,
+        derogation=derogation,
+        motif_derogation=motif_derogation.strip(),
+        reservee_par=agent,
+        date_reservation=timezone.now(),
+    )
+    _evenement(
+        ticket,
+        Evenement.Type.DEROGATION_QUOTA if derogation else Evenement.Type.RESERVATION_QUOTA,
+        agent=agent,
+        jour=str(jour), periode=periode, places=quota.nombre_places,
+        reservees_avant=reservees, motif=motif_derogation.strip(),
+    )
+    return reservation
+
+
+@transaction.atomic
+def identifier_patient(ticket, patient, agent, derogation=False, motif_derogation=""):
+    """
+    Associe le patient au ticket (à l'accueil). Réserve une place de quota
+    si le parcours y est soumis. Un patient ne peut avoir qu'un nombre
+    limité de tickets ouverts (1 par défaut) dans le centre.
+    """
+    from patients.models import PatientCentre
+
+    ticket = Ticket.objects.select_for_update(of=("self",)).select_related("centre", "parcours").get(pk=ticket.pk)
+    if not ticket.ouvert:
+        raise ErreurCircuit("Ce ticket n'est plus ouvert.")
+    if ticket.est_autre:
+        raise ErreurCircuit("Un ticket « Autre » n'est pas rattaché à un parcours de soins.")
+    if ticket.patient_id is not None:
+        raise ErreurCircuit("Ce ticket est déjà identifié.")
+
+    passage = ticket.passage_actif()
+    if passage is None or not passage.service.est_accueil:
+        raise ErreurCircuit("L'identification se fait à l'accueil.")
+
+    while patient.fusionne_dans_id:
+        patient = patient.fusionne_dans
+
+    # Verrou sur la fiche patient pour sérialiser les identifications.
+    type(patient).objects.select_for_update().get(pk=patient.pk)
+
+    ouverts = Ticket.objects.filter(
+        centre=ticket.centre, patient=patient, statut__in=Ticket.STATUTS_OUVERTS
+    ).exclude(pk=ticket.pk)
+    if ouverts.count() >= ticket.centre.max_tickets_ouverts_par_patient:
+        numeros = ", ".join(ouverts.values_list("numero", flat=True))
+        raise ErreurCircuit(
+            f"Ce patient a déjà un ticket ouvert ({numeros}). "
+            "Annulez le ticket supplémentaire."
+        )
+
+    if ticket.parcours.soumis_quota:
+        _reserver_quota(ticket, agent, derogation, motif_derogation)
+
+    rattachement, _ = PatientCentre.objects.get_or_create(patient=patient, centre=ticket.centre)
+    if rattachement.archive:
+        rattachement.archive = False
+        rattachement.save(update_fields=["archive", "date_modification"])
+
+    ticket.patient = patient
+    ticket.date_identification = timezone.now()
+    ticket.identifie_par = agent
+    ticket.save(update_fields=["patient", "date_identification", "identifie_par"])
+    _evenement(ticket, Evenement.Type.IDENTIFICATION, agent=agent, passage=passage,
+               patient=patient.pk, matricule=rattachement.matricule)
+    return ticket
+
+
+@transaction.atomic
+def liberer_quota(ticket, agent, motif):
+    """Libère la place réservée d'un patient qui ne s'est pas présenté."""
+    motif = (motif or "").strip()
+    if not motif:
+        raise ErreurCircuit("Le motif de libération est obligatoire.")
+    Ticket.objects.select_for_update().get(pk=ticket.pk)
+    reservation = (
+        ReservationQuota.objects.select_for_update(of=("self",))
+        .filter(ticket=ticket, statut=ReservationQuota.Statut.RESERVEE)
+        .first()
+    )
+    if reservation is None:
+        raise ErreurCircuit("Aucune place réservée (non consommée) pour ce ticket.")
+    reservation.statut = ReservationQuota.Statut.LIBEREE
+    reservation.liberee_par = agent
+    reservation.motif_liberation = motif
+    reservation.date_liberation = timezone.now()
+    reservation.save(update_fields=["statut", "liberee_par", "motif_liberation", "date_liberation"])
+    _evenement(ticket, Evenement.Type.LIBERATION_QUOTA, agent=agent, motif=motif,
+               jour=str(reservation.jour), periode=reservation.periode)
+    return reservation
+
+
+def _fermer_passages(ticket):
+    maintenant = timezone.now()
+    for passage in ticket.passages.select_for_update().filter(statut__in=Passage.STATUTS_ACTIFS):
+        passage.entrees.filter(
+            statut__in=["EN_ATTENTE", "APPELE", "EN_COURS"]
+        ).update(statut=EntreeFile.Statut.ANNULE, date_fin=maintenant, agent=None)
+        passage.statut = Passage.Statut.ANNULE
+        passage.date_fin = maintenant
+        passage.save(update_fields=["statut", "date_fin"])
+    ticket.reservations_quota.filter(statut=ReservationQuota.Statut.RESERVEE).update(
+        statut=ReservationQuota.Statut.LIBEREE,
+        motif_liberation="Ticket annulé ou clôturé",
+        date_liberation=maintenant,
+    )
+
+
+@transaction.atomic
+def annuler_ticket(ticket, agent, motif):
+    motif = (motif or "").strip()
+    if not motif:
+        raise ErreurCircuit("Le motif d'annulation est obligatoire.")
+    ticket = Ticket.objects.select_for_update().get(pk=ticket.pk)
+    if not ticket.ouvert:
+        raise ErreurCircuit("Ce ticket n'est plus ouvert.")
+    _fermer_passages(ticket)
+    ticket.motif_annulation = motif
+    ticket.annule_par = agent
+    ticket.save(update_fields=["motif_annulation", "annule_par"])
+    _terminer_ticket(ticket, agent, Evenement.Type.ANNULATION, Ticket.Statut.ANNULE, motif=motif)
+    return ticket
+
+
+@transaction.atomic
+def cloturer_tickets(centre, avant_jour=None):
+    """
+    Clôture automatique des tickets restés ouverts des jours précédents
+    (ou avant `avant_jour`). Les passages en cours sont annulés ; les
+    horodatages existants sont conservés.
+    """
+    if avant_jour is None:
+        avant_jour = maintenant_centre(centre).date()
+    tickets = Ticket.objects.select_for_update().filter(
+        centre=centre, statut__in=Ticket.STATUTS_OUVERTS, jour__lt=avant_jour
+    )
+    nombre = 0
+    for ticket in tickets:
+        _fermer_passages(ticket)
+        _terminer_ticket(ticket, None, Evenement.Type.CLOTURE, Ticket.Statut.CLOTURE)
+        nombre += 1
+    return nombre
+
+
+# ---------------------------------------------------------------------------
+# Mode Autre : notifications et réponses
+# ---------------------------------------------------------------------------
+
+@transaction.atomic
+def transmettre_demande(demande, agent, destinataire=None, service=None, message=""):
+    """
+    L'accueil oriente la demande vers une personne précise ou vers un
+    service ; dans ce cas, seul l'agent désigné du service est notifié.
+    """
+    from comptes.models import AffectationUtilisateur
+
+    demande = DemandeAutre.objects.select_for_update(of=("self",)).select_related("ticket").get(pk=demande.pk)
+    if demande.statut == DemandeAutre.Statut.CLOTUREE:
+        raise ErreurCircuit("Cette demande est clôturée.")
+
+    if (destinataire is None) == (service is None):
+        raise ErreurCircuit("Choisissez soit une personne, soit un service.")
+
+    if service is not None:
+        if service.centre_id != demande.centre_id:
+            raise ErreurCircuit("Service inconnu.")
+        destinataire = service.destinataire_demandes
+        if destinataire is None:
+            raise ErreurCircuit(
+                f"Aucun agent désigné pour recevoir les demandes du service {service.nom}. "
+                "Choisissez une personne précise."
+            )
+
+    if not destinataire.is_active:
+        raise ErreurCircuit("Le destinataire n'a pas de compte actif.")
+
+    autorise = destinataire.is_superuser or AffectationUtilisateur.objects.filter(
+        utilisateur=destinataire, centre_id=demande.centre_id, actif=True
+    ).exists()
+    if not autorise:
+        raise ErreurCircuit("Le destinataire n'est pas affecté à ce centre.")
+
+    notification = Notification.objects.create(
+        centre_id=demande.centre_id,
+        demande=demande,
+        destinataire=destinataire,
+        service=service,
+        message=(message or "").strip(),
+        transmise_par=agent,
+        date=timezone.now(),
+    )
+    demande.statut = DemandeAutre.Statut.TRANSMISE
+    if demande.vue_par_id is None:
+        demande.vue_par = agent
+        demande.date_vue = timezone.now()
+    demande.save(update_fields=["statut", "vue_par", "date_vue"])
+    _evenement(demande.ticket, Evenement.Type.NOTIFICATION, agent=agent,
+               destinataire=destinataire.pk, service=service.nom if service else None)
+    return notification
+
+
+@transaction.atomic
+def repondre_notification(notification, agent, statut, message=""):
+    notification = Notification.objects.select_for_update(of=("self",)).select_related(
+        "demande", "demande__ticket"
+    ).get(pk=notification.pk)
+    if notification.destinataire_id != agent.pk:
+        raise ErreurCircuit("Cette notification ne vous est pas adressée.")
+    if statut not in ReponseNotification.Statut.values:
+        raise ErreurCircuit("Statut de réponse inconnu.")
+
+    reponse = ReponseNotification.objects.create(
+        centre_id=notification.centre_id,
+        notification=notification,
+        statut=statut,
+        message=(message or "").strip(),
+        auteur=agent,
+        date=timezone.now(),
+    )
+    if notification.date_lecture is None:
+        notification.date_lecture = timezone.now()
+        notification.save(update_fields=["date_lecture"])
+
+    demande = notification.demande
+    if statut in ReponseNotification.STATUTS_FINAUX:
+        demande.statut = DemandeAutre.Statut.CLOTUREE
+        demande.save(update_fields=["statut"])
+
+    _evenement(demande.ticket, Evenement.Type.REPONSE, agent=agent,
+               statut=statut, message=reponse.message)
+    return reponse

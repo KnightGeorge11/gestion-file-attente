@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block titre %}Services{% endblock %}
+{% block contenu %}
+<h1>Services du centre</h1>
+<div class="grille">
+    {% for service, en_attente in services %}
+    <a class="carte accent" href="{% url 'circuit:guichet' service.pk %}" style="text-decoration:none;color:inherit">
+        <h2>{{ service.nom }}</h2>
+        <p><span class="numero">{{ en_attente }}</span> en attente</p>
+        {% if service.suspendu %}<span class="etiquette alerte">Suspendu</span>{% endif %}
+        {% if service.est_accueil %}<span class="etiquette info">Accueil</span>{% endif %}
+        {% if service.est_pharmacie %}<span class="etiquette info">Pharmacie</span>{% endif %}
+    </a>
+    {% empty %}
+    <p class="vide">Aucun service ne vous est attribué dans ce centre.</p>
+    {% endfor %}
+</div>
+<p style="margin-top:20px" class="ligne">
+    <a class="bouton" href="{% url 'circuit:tickets' %}">Tickets du jour</a>
+    <a class="bouton" href="{% url 'circuit:notifications' %}">Mes notifications</a>
+</p>
+{% endblock %}

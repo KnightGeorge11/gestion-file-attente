@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block titre %}Connexion{% endblock %}
+{% block contenu %}
+<div class="carte" style="max-width:420px;margin:40px auto;">
+    <h1>Connexion du personnel</h1>
+    <p class="discret">Chaque agent se connecte avec son compte individuel.</p>
+    {% if form.errors %}<ul class="messages"><li class="error">Identifiant ou mot de passe incorrect, ou compte désactivé.</li></ul>{% endif %}
+    <form method="post">
+        {% csrf_token %}
+        <label for="id_username">Identifiant</label>
+        <input type="text" name="username" id="id_username" autocomplete="username" autofocus required>
+        <label for="id_password">Mot de passe</label>
+        <input type="password" name="password" id="id_password" autocomplete="current-password" required>
+        <input type="hidden" name="next" value="{{ next }}">
+        <p><button class="principal grand" type="submit" style="width:100%">Se connecter</button></p>
+    </form>
+</div>
+{% endblock %}

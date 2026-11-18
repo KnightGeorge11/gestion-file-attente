@@ -1,0 +1,64 @@
+<h2>File d'attente · {{ attente|length }} en attente</h2>
+{% if service.est_accueil %}
+<p class="ligne">
+    {% if nb_demandes_nouvelles %}<a class="etiquette alerte" href="{% url 'circuit:demandes' %}">{{ nb_demandes_nouvelles }} demande(s) « Autre » à orienter</a>{% endif %}
+    {% if nb_reponses_non_lues %}<a class="etiquette info" href="{% url 'circuit:demandes' %}">{{ nb_reponses_non_lues }} réponse(s) reçue(s)</a>{% endif %}
+</p>
+{% endif %}
+<div class="tableau-defilant">
+<table>
+    <thead><tr><th>Ticket</th><th>Patient</th><th>Arrivée</th><th></th></tr></thead>
+    <tbody>
+    {% for entree in attente %}
+        <tr>
+            <td><span class="numero">{{ entree.passage.ticket.numero }}</span>
+                {% if entree.reintegration %}<span class="etiquette attention">réintégré</span>{% endif %}
+                {% if entree.passage.origine == "TRANSFERT" %}<span class="etiquette info">transfert</span>{% endif %}</td>
+            <td>{{ entree.passage.ticket.patient|default:"—" }}</td>
+            <td>{{ entree.date_entree|time:"H:i" }}</td>
+            <td>
+                {% if not tenue and not autre_service and peut_appeler %}
+                    {% if not file.ordre_strict and not forloop.first %}
+                    <form hx-post="{% url 'circuit:guichet_action' service.pk 'appeler' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'appeler' %}">
+                        {% csrf_token %}<input type="hidden" name="entree" value="{{ entree.pk }}"><input type="hidden" name="file" value="{{ file.pk }}">
+                        <button>Appeler</button>
+                    </form>
+                    {% endif %}
+                    {% if service.appel_oral_autorise and forloop.first or service.appel_oral_autorise and not file.ordre_strict %}
+                    <form hx-post="{% url 'circuit:guichet_action' service.pk 'prendre' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'prendre' %}">
+                        {% csrf_token %}<input type="hidden" name="entree" value="{{ entree.pk }}"><input type="hidden" name="file" value="{{ file.pk }}"><input type="hidden" name="oral" value="1">
+                        <button title="Appel oral : prise en charge directe">Appel oral</button>
+                    </form>
+                    {% endif %}
+                {% endif %}
+            </td>
+        </tr>
+    {% empty %}
+        <tr><td colspan="4" class="vide">Personne en attente.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+
+{% if en_cours %}
+<h2 style="margin-top:16px">Appelés / en cours</h2>
+<ul class="chronologie">
+    {% for e in en_cours %}<li><strong>{{ e.passage.ticket.numero }}</strong> · {{ e.get_statut_display }} · {{ e.agent }}{% if e.poste %} · {{ e.poste }}{% endif %}</li>{% endfor %}
+</ul>
+{% endif %}
+
+{% if absents %}
+<h2 style="margin-top:16px">Absents du jour</h2>
+<ul class="chronologie">
+    {% for p in absents %}
+    <li class="ligne"><strong>{{ p.ticket.numero }}</strong> {{ p.ticket.patient|default:"" }}
+        {% if peut_reintegrer %}
+        <form hx-post="{% url 'circuit:guichet_action' service.pk 'reintegrer' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'reintegrer' %}">
+            {% csrf_token %}<input type="hidden" name="passage" value="{{ p.pk }}"><input type="hidden" name="file" value="{{ file.pk }}">
+            <button>Réintégrer</button>
+        </form>
+        {% endif %}
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}

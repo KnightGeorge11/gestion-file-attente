@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block titre %}Borne{% endblock %}
+{% block classe_body %}borne{% endblock %}
+{% block barre %}{% endblock %}
+{% block contenu %}
+<h1>Bienvenue au {{ centre.nom }}</h1>
+<form method="post" action="{% url 'circuit:borne_emettre' %}" id="formulaire-borne">
+    {% csrf_token %}
+    <input type="hidden" name="mode" id="champ-mode">
+    <input type="hidden" name="parcours" id="champ-parcours">
+    <input type="hidden" name="motif" id="champ-motif">
+
+    <section id="etape-mode">
+        <h2 style="font-size:1.8rem">1. Vous êtes :</h2>
+        <div class="choix">
+            {% for valeur, libelle in modes %}
+            <button type="button" data-mode="{{ valeur }}">{{ libelle }}</button>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section id="etape-service" hidden>
+        <h2 style="font-size:1.8rem">2. Choisissez votre service :</h2>
+        <div class="choix">
+            {% for p in parcours %}
+            <button type="submit" data-parcours="{{ p.pk }}">{{ p.libelle_borne }}</button>
+            {% empty %}<p>Aucun service disponible.</p>{% endfor %}
+        </div>
+    </section>
+
+    <section id="etape-motif" hidden>
+        <h2 style="font-size:1.8rem">2. Objet de votre demande :</h2>
+        <div class="choix">
+            {% for m in motifs %}
+            <button type="submit" data-motif="{{ m.pk }}">{{ m.libelle }}</button>
+            {% endfor %}
+            <button type="submit" data-motif="">Autre demande</button>
+        </div>
+    </section>
+
+    <p id="retour" hidden><button type="button" class="grand" onclick="window.location.reload()">← Recommencer</button></p>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+    const form = document.getElementById("formulaire-borne");
+    const mode = document.getElementById("champ-mode");
+    let envoye = false;
+    form.querySelectorAll("[data-mode]").forEach(function (b) {
+        b.addEventListener("click", function () {
+            mode.value = b.dataset.mode;
+            document.getElementById("etape-mode").hidden = true;
+            document.getElementById(b.dataset.mode === "AUTRE" ? "etape-motif" : "etape-service").hidden = false;
+            document.getElementById("retour").hidden = false;
+        });
+    });
+    form.querySelectorAll("[data-parcours]").forEach(function (b) {
+        b.addEventListener("click", function () { document.getElementById("champ-parcours").value = b.dataset.parcours; });
+    });
+    form.querySelectorAll("[data-motif]").forEach(function (b) {
+        b.addEventListener("click", function () { document.getElementById("champ-motif").value = b.dataset.motif; });
+    });
+    form.addEventListener("submit", function (e) {
+        if (envoye) { e.preventDefault(); return; }
+        envoye = true;
+    });
+    // Retour automatique à l'écran d'accueil après 60 s d'inactivité.
+    setTimeout(function () { window.location.reload(); }, 60000);
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block titre %}Tickets du jour{% endblock %}
+{% block contenu %}
+<h1>Tickets du {{ jour|date:"d/m/Y" }}</h1>
+<form method="get" class="ligne" style="margin-bottom:12px">
+    <input name="numero" value="{{ numero }}" placeholder="Numéro (ex. M012)" style="max-width:200px">
+    <select name="statut" style="max-width:220px">
+        <option value="">Tous les statuts</option>
+        {% for v, l in statuts %}<option value="{{ v }}" {% if v == statut %}selected{% endif %}>{{ l }}</option>{% endfor %}
+    </select>
+    <button>Filtrer</button>
+</form>
+<div class="tableau-defilant">
+<table>
+    <thead><tr><th>Ticket</th><th>Mode</th><th>Parcours</th><th>Patient</th><th>Émis</th><th>Statut</th></tr></thead>
+    {% for t in tickets %}
+    <tr>
+        <td><a class="numero" href="{% url 'circuit:ticket' t.pk %}">{{ t.numero }}</a></td>
+        <td>{{ t.get_mode_display }}</td>
+        <td>{{ t.parcours.libelle_borne|default:"—" }}</td>
+        <td>{{ t.patient|default:"—" }}</td>
+        <td>{{ t.date_emission|time:"H:i" }}</td>
+        <td>{{ t.get_statut_display }}</td>
+    </tr>
+    {% empty %}<tr><td colspan="6" class="vide">Aucun ticket.</td></tr>{% endfor %}
+</table>
+</div>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block titre %}Statistiques{% endblock %}
+{% block contenu %}
+<h1>Tableau de bord · {{ libelle_centres }}</h1>
+<form method="get" class="ligne carte" style="margin-bottom:16px">
+    <label style="margin:0">Du <input type="date" name="du" value="{{ du|date:'Y-m-d' }}" style="width:auto"></label>
+    <label style="margin:0">au <input type="date" name="au" value="{{ au|date:'Y-m-d' }}" style="width:auto"></label>
+    {% if peut_reseau %}<label style="margin:0"><input type="checkbox" name="reseau" value="1" style="width:auto" {% if reseau %}checked{% endif %}> Tous les centres</label>{% endif %}
+    <button class="principal">Afficher</button>
+    <a class="bouton" href="{% url 'statistiques:export_excel' %}?{{ requete }}">Export Excel</a>
+    <a class="bouton" href="{% url 'statistiques:export_pdf' %}?{{ requete }}">Export PDF</a>
+</form>
+
+<div class="grille">
+    <section class="carte accent"><h2>Tickets émis</h2><p class="numero enorme">{{ stats.total_tickets }}</p></section>
+    <section class="carte accent"><h2>Durée totale moyenne</h2><p class="numero enorme">{{ stats.duree_totale_moy|default:"—" }}<small> min</small></p></section>
+    <section class="carte"><h2>Par statut</h2>
+        <ul class="chronologie">{% for k, v in stats.par_statut.items %}<li>{{ k }} : <strong>{{ v }}</strong></li>{% endfor %}</ul></section>
+    <section class="carte"><h2>Par mode</h2>
+        <ul class="chronologie">{% for k, v in stats.par_mode.items %}<li>{{ k }} : <strong>{{ v }}</strong></li>{% endfor %}</ul></section>
+    <section class="carte"><h2>Quota dentiste</h2>
+        <ul class="chronologie">
+            <li>Réservées : <strong>{{ stats.quotas.reservees }}</strong></li>
+            <li>Consommées : <strong>{{ stats.quotas.consommees }}</strong></li>
+            <li>Libérées : <strong>{{ stats.quotas.liberees }}</strong></li>
+            <li>Dérogations : <strong>{{ stats.quotas.derogations }}</strong></li>
+        </ul></section>
+</div>
+
+<section class="carte tableau-defilant" style="margin-top:16px">
+    <h2>Par service (minutes)</h2>
+    <table>
+        <thead><tr><th>Service</th><th>Passages</th><th>Terminés</th><th>Absences</th><th>Transferts reçus</th><th>Attente moy.</th><th>Attente max</th><th>Prise en charge moy.</th></tr></thead>
+        {% for l in stats.par_service %}
+        <tr><td>{{ l.service }}</td><td>{{ l.passages }}</td><td>{{ l.termines }}</td><td>{{ l.absences }}</td><td>{{ l.transferts_recus }}</td>
+            <td>{{ l.attente_moy|default:"—" }}</td><td>{{ l.attente_max|default:"—" }}</td><td>{{ l.prise_en_charge_moy|default:"—" }}</td></tr>
+        {% empty %}<tr><td colspan="8" class="vide">Aucune donnée.</td></tr>{% endfor %}
+    </table>
+</section>
+
+<div class="grille" style="margin-top:16px">
+<section class="carte tableau-defilant">
+    <h2>Par parcours</h2>
+    <table><thead><tr><th>Parcours</th><th>Tickets</th><th>Terminés</th><th>Durée moy. (min)</th></tr></thead>
+        {% for l in stats.par_parcours %}<tr><td>{{ l.parcours }}</td><td>{{ l.tickets }}</td><td>{{ l.termines }}</td><td>{{ l.duree_totale_moy|default:"—" }}</td></tr>
+        {% empty %}<tr><td colspan="4" class="vide">Aucune donnée.</td></tr>{% endfor %}</table>
+</section>
+<section class="carte tableau-defilant">
+    <h2>Transferts vers la pharmacie</h2>
+    <table><thead><tr><th>Service d'origine</th><th>Transferts</th></tr></thead>
+        {% for l in stats.transferts %}<tr><td>{{ l.service_origine }}</td><td>{{ l.transferts }}</td></tr>
+        {% empty %}<tr><td colspan="2" class="vide">Aucun transfert.</td></tr>{% endfor %}</table>
+</section>
+</div>
+
+<section class="carte tableau-defilant" style="margin-top:16px">
+    <h2>Activité par agent</h2>
+    <table><thead><tr><th>Agent</th><th>Service</th><th>Prises en charge</th><th>Durée moy. (min)</th></tr></thead>
+        {% for l in stats.par_agent %}<tr><td>{{ l.agent }}</td><td>{{ l.service }}</td><td>{{ l.prises_en_charge }}</td><td>{{ l.prise_en_charge_moy|default:"—" }}</td></tr>
+        {% empty %}<tr><td colspan="4" class="vide">Aucune donnée.</td></tr>{% endfor %}</table>
+</section>
+{% endblock %}

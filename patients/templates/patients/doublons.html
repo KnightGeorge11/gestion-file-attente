@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block titre %}Doublons patients{% endblock %}
+{% block contenu %}
+<h1>Doublons signalés</h1>
+<p class="discret">Jamais de fusion automatique. La fusion est réversible : aucun ticket ni historique n'est réattribué.</p>
+<div class="grille">
+{% for s in signalements %}
+<section class="carte">
+    <h2>Score {{ s.score_similarite|default:"—" }}</h2>
+    <form method="post">
+        {% csrf_token %}<input type="hidden" name="signalement" value="{{ s.pk }}">
+        <label><input type="radio" name="garder" value="{{ s.patient_1.pk }}" style="width:auto"> Conserver : <strong>{{ s.patient_1 }}</strong> {{ s.patient_1.date_naissance|default:"" }} {{ s.patient_1.telephone }}</label>
+        <label><input type="radio" name="garder" value="{{ s.patient_2.pk }}" style="width:auto"> Conserver : <strong>{{ s.patient_2 }}</strong> {{ s.patient_2.date_naissance|default:"" }} {{ s.patient_2.telephone }}</label>
+        <label>Motif (obligatoire pour fusionner)</label><input name="motif" maxlength="500">
+        <p class="ligne">
+            <button class="principal" name="action" value="fusionner">Fusionner</button>
+            <button name="action" value="non_doublon">Pas un doublon</button>
+        </p>
+    </form>
+</section>
+{% empty %}
+<p class="vide">Aucun doublon à examiner.</p>
+{% endfor %}
+</div>
+
+<h2 style="margin-top:24px">Fusions</h2>
+<table>
+    <thead><tr><th>Date</th><th>Fiche fusionnée</th><th>Fiche conservée</th><th>Par</th><th>Statut</th><th></th></tr></thead>
+    {% for f in fusions %}
+    <tr>
+        <td>{{ f.date_fusion|date:"d/m/Y H:i" }}</td><td>{{ f.patient_source }}</td><td>{{ f.patient_cible }}</td>
+        <td>{{ f.effectuee_par }}</td><td>{{ f.get_statut_display }}</td>
+        <td>{% if f.statut == "ACTIVE" %}
+            <form method="post">{% csrf_token %}<input type="hidden" name="fusion" value="{{ f.pk }}">
+                <button name="action" value="annuler_fusion">Annuler la fusion</button></form>{% endif %}</td>
+    </tr>
+    {% empty %}<tr><td colspan="6" class="vide">Aucune fusion.</td></tr>{% endfor %}
+</table>
+{% endblock %}

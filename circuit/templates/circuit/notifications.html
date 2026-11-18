@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block titre %}Mes notifications{% endblock %}
+{% block contenu %}
+<h1>Mes notifications</h1>
+<div class="grille">
+{% for n in notifications %}
+<section class="carte {% if not n.date_lecture %}accent{% endif %}">
+    <h2><span class="numero">{{ n.demande.ticket.numero }}</span> · {{ n.demande.motif|default:"Demande" }}</h2>
+    <p class="discret">Transmise par {{ n.transmise_par }} à {{ n.date|time:"H:i" }} le {{ n.date|date:"d/m" }}{% if n.service %} (service {{ n.service.nom }}){% endif %}</p>
+    {% if n.message %}<p>{{ n.message }}</p>{% endif %}
+    {% if n.demande.precision %}<p>{{ n.demande.precision }}</p>{% endif %}
+    {% for r in n.reponses.all %}
+        <div><span class="etiquette info">{{ r.get_statut_display }}</span> {{ r.message }} <span class="discret">{{ r.date|time:"H:i" }}</span></div>
+    {% endfor %}
+    {% if n.demande.statut != 'CLOTUREE' %}
+    <form method="post">
+        {% csrf_token %}<input type="hidden" name="notification" value="{{ n.pk }}">
+        <label>Statut</label>
+        <select name="statut" required>{% for v, l in statuts %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
+        <label>Message (facultatif)</label>
+        <input name="message" maxlength="500">
+        <p><button class="principal">Répondre</button></p>
+    </form>
+    {% endif %}
+</section>
+{% empty %}
+<p class="vide">Aucune notification.</p>
+{% endfor %}
+</div>
+{% endblock %}

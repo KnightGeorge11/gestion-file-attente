@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block titre %}Ticket {{ ticket.numero }}{% endblock %}
+{% block classe_body %}borne{% endblock %}
+{% block barre %}{% endblock %}
+{% block contenu %}
+<div class="ticket-imprime">
+    <div>{{ centre.nom }}</div>
+    <div class="numero">{{ ticket.numero }}</div>
+    <div><strong>{% if ticket.parcours %}{{ ticket.parcours.libelle_borne }}{% else %}{{ ticket.demande.motif|default:"Autre demande" }}{% endif %}</strong> · {{ ticket.get_mode_display }}</div>
+    <div>{{ ticket.date_emission|date:"d/m/Y H:i" }}</div>
+    <div style="margin-top:3mm">Présentez-vous à l'accueil.<br>{{ devant }} personne(s) avant vous.</div>
+    <div style="margin-top:2mm;font-size:9pt">Surveillez l'écran d'appel.</div>
+</div>
+<p class="non-imprime" style="margin-top:24px">
+    <a class="bouton grand" href="{% url 'circuit:borne' %}">Terminé</a>
+</p>
+{% endblock %}
+{% block scripts %}
+<script>
+window.addEventListener("load", function () {
+    window.print();
+    setTimeout(function () { window.location.href = "{% url 'circuit:borne' %}"; }, 8000);
+});
+</script>
+{% endblock %}

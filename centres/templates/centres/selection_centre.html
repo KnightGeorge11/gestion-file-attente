@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block titre %}Choisir un centre{% endblock %}
+{% block contenu %}
+<div class="carte" style="max-width:560px;">
+    <h1>Choisir un centre actif</h1>
+
+    {% if centre_actif %}
+        <p>Centre actuellement actif : <strong>{{ centre_actif.nom }}</strong></p>
+    {% endif %}
+
+    {% if centres %}
+        <form method="post">
+            {% csrf_token %}
+            <label for="centre_id">Sélectionner un centre :</label>
+            <select name="centre_id" id="centre_id" required>
+                <option value="">-- Choisir --</option>
+                {% for centre in centres %}
+                    <option value="{{ centre.id }}" {% if centre_actif.id == centre.id %}selected{% endif %}>
+                        {{ centre.code }} - {{ centre.nom }}
+                    </option>
+                {% endfor %}
+            </select>
+            <p><button class="principal" type="submit">Valider le centre</button></p>
+        </form>
+    {% else %}
+        <p>Aucun centre ne vous est actuellement attribué.</p>
+    {% endif %}
+</div>
+{% endblock %}

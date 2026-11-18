@@ -1,0 +1,8 @@
+{% if peut_deroger and etat_quota and etat_quota.0 and not etat_quota.2 %}
+<details>
+    <summary>Dérogation exceptionnelle (responsable)</summary>
+    <label><input type="checkbox" name="derogation" value="1" style="width:auto"> Autoriser au-delà du quota</label>
+    <label>Motif obligatoire</label>
+    <input name="motif_derogation" maxlength="500">
+</details>
+{% endif %}

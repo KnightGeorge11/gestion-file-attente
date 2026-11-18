@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block titre %}{{ titre }}{% endblock %}
+{% block barre %}{% endblock %}
+{% block contenu %}
+<div class="carte" style="max-width:440px;margin:40px auto;">
+    <h1>{{ titre }}</h1>
+    <p class="discret">Poste sans compte utilisateur : saisissez le code du centre, le code du poste et sa clé (fournis par l'administrateur).</p>
+    {% if erreur %}<ul class="messages"><li class="error">{{ erreur }}</li></ul>{% endif %}
+    <form method="post">
+        {% csrf_token %}
+        <label for="poste-centre">Code du centre</label><input id="poste-centre" name="centre" required>
+        <label for="poste-code">Code du poste</label><input id="poste-code" name="code" required>
+        <label for="poste-cle">Clé</label><input id="poste-cle" name="cle" type="password" required autocomplete="off">
+        <p><button class="principal grand" style="width:100%">Activer</button></p>
+    </form>
+</div>
+{% endblock %}

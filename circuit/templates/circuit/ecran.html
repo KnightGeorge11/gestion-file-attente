@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block titre %}Écran principal{% endblock %}
+{% block classe_body %}ecran{% endblock %}
+{% block barre %}{% endblock %}
+{% block contenu %}
+<div class="ecran-entete">
+    <span>{{ centre.nom }}</span>
+    <span id="horloge"></span>
+</div>
+<div id="zone-appels" hx-get="{% url 'circuit:ecran_appels' %}" hx-trigger="load, every 3s" hx-swap="innerHTML"></div>
+<p class="non-imprime" id="activer-son" style="position:fixed;bottom:8px;right:8px;">
+    <button onclick="activerSon()">Activer le son</button>
+</p>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+    const fuseau = "{{ centre.fuseau_horaire }}";
+    function horloge() {
+        document.getElementById("horloge").textContent = new Date().toLocaleTimeString("fr-FR", {timeZone: fuseau, hour: "2-digit", minute: "2-digit"});
+    }
+    horloge(); setInterval(horloge, 10000);
+
+    let contexte = null;
+    let dernierId = null;
+    window.activerSon = function () {
+        contexte = contexte || new (window.AudioContext || window.webkitAudioContext)();
+        document.getElementById("activer-son").hidden = true;
+    };
+    function carillon() {
+        if (!contexte) return;
+        [880, 660].forEach(function (frequence, i) {
+            const o = contexte.createOscillator(), g = contexte.createGain();
+            o.frequency.value = frequence; o.connect(g); g.connect(contexte.destination);
+            const t = contexte.currentTime + i * 0.35;
+            g.gain.setValueAtTime(0.25, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+            o.start(t); o.stop(t + 0.32);
+        });
+    }
+    function annoncer(texte) {
+        if (!("speechSynthesis" in window)) return;
+        const message = new SpeechSynthesisUtterance(texte);
+        message.lang = "fr-FR";
+        setTimeout(function () { window.speechSynthesis.speak(message); }, 800);
+    }
+    document.body.addEventListener("htmx:afterSwap", function (e) {
+        if (e.target.id !== "zone-appels") return;
+        const premier = e.target.querySelector("[data-appel]");
+        if (!premier) return;
+        if (dernierId !== null && premier.dataset.appel !== dernierId) {
+            carillon();
+            if (premier.dataset.annonce === "1") annoncer(premier.dataset.texte);
+        }
+        dernierId = premier.dataset.appel;
+    });
+})();
+</script>
+{% endblock %}
