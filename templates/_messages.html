@@ -1,0 +1,2 @@
+{# Zone unique des messages : remplacée aussi lors des actions HTMX (hx-swap-oob). #}
+<ul class="messages" id="messages-page"{% if oob %} hx-swap-oob="true"{% endif %}>{% for message in messages %}<li class="{{ message.tags }}">{{ message }}</li>{% endfor %}</ul>

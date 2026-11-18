@@ -130,6 +130,10 @@ AUTH_USER_MODEL = 'comptes.Utilisateur'
 
 AUTHENTICATION_BACKENDS = ["comptes.backends.AffectationBackend"]
 
+# Blocage temporaire d'un identifiant après plusieurs échecs de connexion.
+CONNEXION_MAX_ECHECS = int(os.getenv("CONNEXION_MAX_ECHECS", "5"))
+CONNEXION_BLOCAGE_MINUTES = int(os.getenv("CONNEXION_BLOCAGE_MINUTES", "15"))
+
 LOGIN_URL = "connexion"
 LOGIN_REDIRECT_URL = "accueil"
 LOGOUT_REDIRECT_URL = "connexion"

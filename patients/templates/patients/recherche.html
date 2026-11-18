@@ -1,88 +1,46 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Recherche des patients - SMIE FUNTOA</title>
-    <a href="{% url 'patients:creer' %}">
-    + Ajouter un patient
-</a>
-</head>
-<body>
-
-    <h1>Gestion des files d'attente</h1>
-
-    <h2>Recherche des patients</h2>
-
-    <p>
-        Centre actif :
-        <strong>{{ centre_actif.nom }}</strong>
+{% extends "base.html" %}
+{% block titre %}Recherche des patients{% endblock %}
+{% block contenu %}
+<div class="ligne" style="justify-content:space-between">
+    <h1>Recherche des patients</h1>
+    <p class="ligne">
+        <a class="bouton principal" href="{% url 'patients:creer' %}">+ Ajouter un patient</a>
+        {% if peut_fusionner %}<a class="bouton" href="{% url 'patients:doublons' %}">Doublons</a>{% endif %}
     </p>
+</div>
 
-    <p>
-        <a href="{% url 'centres:selection' %}">
-            Changer de centre
-        </a>
-    </p>
+<form method="get" action="{% url 'patients:recherche' %}" class="carte ligne" style="margin-bottom:16px">
+    <label for="q" style="margin:0">Nom, prénom ou matricule</label>
+    <input type="search" id="q" name="q" value="{{ terme }}" maxlength="100"
+           placeholder="Exemple : RAKOTO ou TAM-000001" required style="flex:1;min-width:200px" autofocus>
+    <button class="principal" type="submit">Rechercher</button>
+</form>
 
-    <form method="get" action="{% url 'patients:recherche' %}">
-        <label for="q">Nom, prénom ou matricule :</label>
-
-        <input
-            type="search"
-            id="q"
-            name="q"
-            value="{{ terme }}"
-            maxlength="100"
-            placeholder="Exemple : RAKOTO ou TAM-000001"
-            required
-        >
-
-        <button type="submit">Rechercher</button>
-    </form>
-
-    {% if terme %}
-        <h3>Résultats de recherche</h3>
-
-        {% if rattachements %}
-            <p>{{ rattachements|length }} résultat(s) trouvé(s).</p>
-
-            <table border="1" cellpadding="8">
-                <thead>
-                    <tr>
-                        <th>Matricule</th>
-                        <th>Nom</th>
-                        <th>Prénom</th>
-                        <th>Date de naissance</th>
-                        <th>Téléphone</th>
-                        <th>Entreprise</th>
-                    </tr>
-                </thead>
-
-                <tbody>
-                    {% for rattachement in rattachements %}
-                        <tr>
-                            <td>{{ rattachement.matricule }}</td>
-                            <td>{{ rattachement.patient.nom }}</td>
-                            <td>{{ rattachement.patient.prenom }}</td>
-                            <td>
-                                {{ rattachement.patient.date_naissance|default:"-" }}
-                            </td>
-                            <td>
-                                {{ rattachement.patient.telephone|default:"-" }}
-                            </td>
-                            <td>
-                                {{ rattachement.patient.entreprise|default:"-" }}
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-
-        {% else %}
-            <p>Aucun patient trouvé dans ce centre.</p>
-        {% endif %}
+{% if terme %}
+<section class="carte tableau-defilant">
+    <h2>Résultats</h2>
+    {% if rattachements %}
+    <p class="discret">{{ rattachements|length }} résultat(s) dans ce centre.</p>
+    <table>
+        <thead>
+            <tr><th>Matricule</th><th>Nom</th><th>Prénom</th><th>Date de naissance</th><th>Téléphone</th><th>Entreprise</th></tr>
+        </thead>
+        <tbody>
+            {% for rattachement in rattachements %}
+            <tr>
+                <td><strong>{{ rattachement.matricule }}</strong></td>
+                <td>{{ rattachement.patient.nom }}</td>
+                <td>{{ rattachement.patient.prenom }}</td>
+                <td>{{ rattachement.patient.date_naissance|date:"d/m/Y"|default:"—" }}</td>
+                <td>{{ rattachement.patient.telephone|default:"—" }}</td>
+                <td>{{ rattachement.patient.entreprise|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="vide">Aucun patient trouvé dans ce centre.</p>
     {% endif %}
-
-</body>
-</html>
+</section>
+{% endif %}
+{% endblock %}

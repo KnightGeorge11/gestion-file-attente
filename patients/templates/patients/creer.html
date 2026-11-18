@@ -1,168 +1,33 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Créer un patient</title>
+{% extends "base.html" %}
+{% block titre %}Créer un patient{% endblock %}
+{% block contenu %}
+<p><a href="{% url 'patients:recherche' %}">← Retour à la recherche</a></p>
+<h1>Créer un patient</h1>
 
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 850px;
-            margin: 30px auto;
-            padding: 20px;
-            background: #f4f6f9;
-        }
+<form method="post" class="carte" style="max-width:720px">
+    {% csrf_token %}
+    {{ form.as_p }}
 
-        .conteneur {
-            background: white;
-            padding: 25px;
-            border-radius: 8px;
-        }
-
-        input, select, textarea {
-            width: 100%;
-            padding: 10px;
-            margin-top: 5px;
-            margin-bottom: 15px;
-            box-sizing: border-box;
-        }
-
-        button, .lien {
-            display: inline-block;
-            padding: 10px 16px;
-            border: none;
-            border-radius: 5px;
-            background: #1769aa;
-            color: white;
-            text-decoration: none;
-            cursor: pointer;
-            margin: 5px 0;
-        }
-
-        .avertissement {
-            background: #fff3cd;
-            padding: 15px;
-            border: 1px solid #e0c36b;
-            margin-bottom: 20px;
-        }
-
-        .candidat {
-            border: 1px solid #ddd;
-            padding: 12px;
-            margin: 10px 0;
-            border-radius: 5px;
-        }
-
-        .secondaire {
-            background: #555;
-        }
-
-        .erreur {
-            color: #b00020;
-        }
-    </style>
-</head>
-
-<body>
-
-<div class="conteneur">
-
-    <h1>Créer un patient</h1>
-
-    <p>
-        Centre actif :
-        <strong>{{ centre_actif.nom }}</strong>
-    </p>
-
-    <p>
-        <a class="lien" href="{% url 'patients:recherche' %}">
-            Retour à la recherche
-        </a>
-    </p>
-
-    {% if messages %}
-        {% for message in messages %}
-            <p>{{ message }}</p>
-        {% endfor %}
-    {% endif %}
-
-    <form method="post">
-        {% csrf_token %}
-
-        {{ form.as_p }}
-
-        {% if doublons %}
-
-            <div class="avertissement">
-                <h3>Attention : fiches potentiellement identiques</h3>
-
-                <p>
-                    Le système a trouvé des patients qui pourraient
-                    correspondre à cette personne.
-                    Vérifie avant de créer une nouvelle fiche.
-                </p>
-
-                {% for patient in doublons %}
-
-                    <div class="candidat">
-
-                        <strong>
-                            {{ patient.nom }} {{ patient.prenom }}
-                        </strong>
-
-                        <p>
-                            Naissance :
-                            {{ patient.date_naissance|default:"Non renseignée" }}
-                        </p>
-
-                        <p>
-                            Téléphone :
-                            {{ patient.telephone|default:"Non renseigné" }}
-                        </p>
-
-                        <p>
-                            Similarité :
-                            {{ patient.similarite|floatformat:2 }}
-                        </p>
-
-                        <button
-                            type="submit"
-                            name="patient_existant"
-                            value="{{ patient.pk }}"
-                        >
-                            Utiliser cette fiche
-                        </button>
-
-                    </div>
-
-                {% endfor %}
-
-                <p>
-                    Si tu confirmes qu'il s'agit d'une autre personne :
-                </p>
-
-                <button
-                    type="submit"
-                    name="confirmer_nouveau"
-                    value="1"
-                    class="secondaire"
-                >
-                    Créer une nouvelle fiche quand même
-                </button>
+    {% if doublons %}
+    <div class="carte" style="background:#fffaeb;margin:16px 0">
+        <h2>Attention : fiches potentiellement identiques</h2>
+        <p>Des patients existants pourraient correspondre à cette personne. Vérifiez avant de créer une nouvelle fiche.</p>
+        {% for patient in doublons %}
+        <div class="ligne" style="border-top:1px dashed var(--bordure);padding:8px 0;justify-content:space-between">
+            <div>
+                <strong>{{ patient.nom }} {{ patient.prenom }}</strong><br>
+                <span class="discret">Naissance : {{ patient.date_naissance|date:"d/m/Y"|default:"non renseignée" }}
+                · Téléphone : {{ patient.telephone|default:"non renseigné" }}
+                · Similarité : {{ patient.similarite|floatformat:2 }}</span>
             </div>
-
-        {% else %}
-
-            <button type="submit">
-                Enregistrer le patient
-            </button>
-
-        {% endif %}
-
-    </form>
-
-</div>
-
-</body>
-</html>
+            <button type="submit" name="patient_existant" value="{{ patient.pk }}">Utiliser cette fiche</button>
+        </div>
+        {% endfor %}
+        <p style="margin-top:12px">S'il s'agit d'une autre personne :</p>
+        <button type="submit" name="confirmer_nouveau" value="1" class="danger">Créer une nouvelle fiche quand même</button>
+    </div>
+    {% else %}
+    <p><button class="principal" type="submit">Enregistrer le patient</button></p>
+    {% endif %}
+</form>
+{% endblock %}

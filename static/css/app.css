@@ -24,6 +24,7 @@ h2 { font-size: 1.15rem; margin: 0 0 12px; }
 .carte { background: var(--surface); border: 1px solid var(--bordure); border-radius: var(--rayon); padding: 16px; }
 .carte.accent { border-left: 5px solid var(--primaire); }
 .messages { list-style: none; padding: 0; margin: 0 0 16px; }
+.messages:empty { display: none; }
 .messages li { padding: 10px 14px; border-radius: var(--rayon); margin-bottom: 8px; background: #eef4ff; }
 .messages li.error { background: #fef3f2; color: var(--alerte); }
 .messages li.success { background: #ecfdf3; color: var(--ok); }

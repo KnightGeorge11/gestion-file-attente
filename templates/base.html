@@ -21,6 +21,7 @@
             <a href="{% url 'circuit:notifications' %}">Notifications
                 <span hx-get="{% url 'circuit:badge_notifications' %}" hx-trigger="every 15s" hx-swap="innerHTML">{% if nb_notifications %}<span class="pastille">{{ nb_notifications }}</span>{% endif %}</span></a>
             <a href="{% url 'patients:recherche' %}">Patients</a>
+            {% if peut_fusionner %}<a href="{% url 'patients:doublons' %}">Doublons</a>{% endif %}
             {% if peut_statistiques %}<a href="{% url 'statistiques:tableau' %}">Statistiques</a>{% endif %}
             <a href="{% url 'circuit:ecran' %}" target="_blank">Écran</a>
         {% endif %}
@@ -32,11 +33,7 @@
 {% endif %}
 {% endblock %}
 <main>
-    {% if messages %}
-    <ul class="messages">
-        {% for message in messages %}<li class="{{ message.tags }}">{{ message }}</li>{% endfor %}
-    </ul>
-    {% endif %}
+    {% include "_messages.html" %}
     {% block contenu %}{% endblock %}
 </main>
 {% block scripts %}{% endblock %}

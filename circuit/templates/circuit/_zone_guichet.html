@@ -1,6 +1,4 @@
-{% if request.headers.HX_Request and messages %}
-<ul class="messages">{% for message in messages %}<li class="{{ message.tags }}">{{ message }}</li>{% endfor %}</ul>
-{% endif %}
+{% if request.headers.HX_Request %}{% include "_messages.html" with oob=True %}{% endif %}
 <div class="grille">
     <section class="carte accent">
         <h2>Patient en cours</h2>

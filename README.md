@@ -150,6 +150,7 @@ La borne et l'écran n'acceptent que les adresses du réseau local (`RESEAU_LOCA
   `REVOKE UPDATE, DELETE ON circuit_evenement, audit_journalaudit FROM <compte_app>;` (le propriétaire des tables doit être un autre rôle).
 - Contraintes : numérotation unique par centre/préfixe/jour, un patient tenu par agent, un passage actif par ticket, une réservation de quota active par ticket.
 - Les comptes ne sont jamais supprimés (désactivation seulement).
+- Connexion : après 5 échecs pour un même identifiant, blocage de 15 minutes (`CONNEXION_MAX_ECHECS`, `CONNEXION_BLOCAGE_MINUTES`) ; les échecs sont comptés dans le journal d'audit et remis à zéro par une connexion réussie.
 
 ## Tests
 

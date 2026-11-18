@@ -556,3 +556,73 @@ class EcranPrincipalTests(BaseVues):
         services.appeler(self.d.file("ACC"), accueil2, poste="Guichet 2")
         affiches = [(a.numero_ticket, a.nom_service) for a in appels_a_afficher(self.d.centre)]
         self.assertEqual(affiches, [("D001", "Accueil"), ("I001", "Infirmerie")])
+
+
+class CorrectionsAmeliorationsTests(BaseVues):
+    @override_settings(RESEAU_LOCAL_UNIQUEMENT=True, BORNE_DELAI_MIN_SECONDES=60)
+    def test_double_appui_sur_la_borne_revient_a_l_accueil(self):
+        borne = Borne(centre=self.d.centre, code="B1", libelle="Borne")
+        cle = borne.generer_cle()
+        borne.save()
+        self.client.post(reverse("circuit:borne"), {"centre": "TAM", "code": "B1", "cle": cle})
+        donnees = {"mode": "INTERNE", "parcours": self.d.parcours["M"].pk}
+        self.client.post(reverse("circuit:borne_emettre"), donnees)
+        reponse = self.client.post(reverse("circuit:borne_emettre"), donnees, follow=True)
+        self.assertEqual(Ticket.objects.count(), 1)
+        self.assertEqual(reponse.status_code, 200)
+        self.assertContains(reponse, "vient d")
+        self.assertContains(reponse, "Vous êtes")  # écran d'accueil de la borne
+
+    def test_pages_patients_dans_la_mise_en_page_commune(self):
+        responsable = self.d.agent("resp_p", "Responsable")
+        self.connecter(responsable, self.d.centre)
+        for url in (reverse("patients:recherche") + "?q=x", reverse("patients:creer")):
+            reponse = self.client.get(url)
+            self.assertContains(reponse, "Déconnexion")
+            self.assertContains(reponse, reverse("patients:doublons"))
+        self.connecter(self.medecin, self.d.centre)
+        self.assertNotContains(self.client.get(reverse("patients:recherche")), reverse("patients:doublons"))
+
+    def test_messages_remplaces_lors_d_une_action_htmx(self):
+        self.d.ticket("M")
+        self.connecter(self.accueil, self.d.centre)
+        reponse = self.client.post(reverse("circuit:guichet_action", args=[self.d.svc["ACC"].pk, "appeler"]),
+                                   HTTP_HX_REQUEST="true")
+        self.assertContains(reponse, 'id="messages-page" hx-swap-oob="true"')
+        self.assertContains(reponse, "M001 appelé")
+
+
+@override_settings(CONNEXION_MAX_ECHECS=5, CONNEXION_BLOCAGE_MINUTES=15)
+class BlocageConnexionTests(BaseVues):
+    def _connexion(self, mot_de_passe, identifiant="accueil1"):
+        return self.client.post(reverse("connexion"), {"username": identifiant, "password": mot_de_passe})
+
+    def test_blocage_apres_cinq_echecs_puis_deblocage(self):
+        import datetime
+
+        for _ in range(5):
+            self._connexion("faux")
+        reponse = self._connexion("mot-de-passe-1")
+        self.assertContains(reponse, "Trop de tentatives")
+        self.assertNotIn("_auth_user_id", self.client.session)
+        # Les autres comptes ne sont pas bloqués.
+        self.assertEqual(self._connexion("mot-de-passe-1", "med1").status_code, 302)
+        self.client.logout()
+        # Après la fenêtre de blocage, la connexion fonctionne.
+        from django.utils import timezone as tz
+        with a_heure(tz.now() + datetime.timedelta(minutes=16)):
+            self.assertEqual(self._connexion("mot-de-passe-1").status_code, 302)
+
+    def test_connexion_reussie_remet_le_compteur_a_zero(self):
+        for _ in range(4):
+            self._connexion("faux")
+        self.assertEqual(self._connexion("mot-de-passe-1").status_code, 302)
+        self.client.logout()
+        for _ in range(4):
+            self._connexion("faux")
+        self.assertEqual(self._connexion("mot-de-passe-1").status_code, 302)
+
+    def test_identifiant_bloque_quelle_que_soit_la_casse(self):
+        for _ in range(5):
+            self._connexion("faux", "ACCUEIL1")
+        self.assertContains(self._connexion("mot-de-passe-1", "accueil1"), "Trop de tentatives")

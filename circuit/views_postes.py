@@ -119,9 +119,13 @@ def borne_emettre(request):
 
     # Limitation de débit par borne.
     delai = timedelta(seconds=getattr(settings, "BORNE_DELAI_MIN_SECONDES", 2))
-    if poste.derniere_activite and timezone.now() - poste.derniere_activite < delai and \
-            Ticket.objects.filter(borne=poste, date_emission__gte=timezone.now() - delai).exists():
-        return HttpResponse("Veuillez patienter quelques secondes.", status=429)
+    # Double appui : on revient à l'accueil de la borne avec un message,
+    # jamais une page brute sans issue devant le patient.
+    if delai.total_seconds() > 0 and Ticket.objects.filter(
+        borne=poste, date_emission__gte=timezone.now() - delai
+    ).exists():
+        messages.warning(request, "Votre ticket vient d'être imprimé. Veuillez patienter quelques secondes.")
+        return redirect("circuit:borne")
 
     centre = poste.centre
     mode = request.POST.get("mode", "")
