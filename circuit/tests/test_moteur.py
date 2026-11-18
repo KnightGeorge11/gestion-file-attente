@@ -157,19 +157,23 @@ class ParcoursCompletsTests(BaseCircuit):
         self.assertFalse(Passage.objects.filter(service__est_pharmacie=True).exists())
         self.assertFalse(Ticket.objects.filter(statut__in=Ticket.STATUTS_OUVERTS).exists())
 
-    def test_transfert_depuis_etape_intermediaire_exige_un_motif(self):
+    def test_pas_de_pharmacie_depuis_une_etape_intermediaire(self):
+        """Décision du 18/11/2026 : « Terminer » envoie toujours au service suivant choisi au départ."""
         ticket = self.d.ticket("M")
         self.d.accueillir(ticket, self.accueil)
-        with self.assertRaises(ErreurCircuit):
-            self.d.traiter(ticket, "INF", self.infirmier, transferer=True)
-        # Rien n'a été modifié (tout ou rien).
+        with self.assertRaises(ErreurCircuit) as erreur:
+            self.d.traiter(ticket, "INF", self.infirmier, transferer=True, motif="Renouvellement")
+        self.assertIn("Médecins", " ".join(erreur.exception.messages))
+        # Rien n'a été modifié (tout ou rien) ; l'infirmerie ne voit pas l'option.
         entree = self.d.entree(ticket)
         self.assertEqual(entree.statut, EntreeFile.Statut.EN_COURS)
-        services.terminer(entree, self.infirmier, transferer_pharmacie=True, motif="Renouvellement")
-        self.d.traiter(ticket, "PHA", self.pharma)
-        ticket.refresh_from_db()
-        self.assertEqual(ticket.statut, Ticket.Statut.TERMINE)
-        self.assertFalse(ticket.passages.filter(service__code="MED").exists())
+        self.assertFalse(services.peut_transferer_pharmacie(entree.passage))
+        suite = services.terminer(entree, self.infirmier)
+        self.assertEqual(suite.service.code, "MED")
+        self.assertFalse(Transfert.objects.exists())
+        # À la fin du parcours (médecin), la pharmacie redevient possible.
+        self.d.traiter(ticket, "MED", self.medecin, transferer=True)
+        self.assertEqual(Transfert.objects.get().passage_origine.service.code, "MED")
 
     def test_accueil_et_pharmacie_ne_transferent_pas(self):
         ticket = self.d.ticket("I")
@@ -459,6 +463,35 @@ class ModeAutreTests(BaseCircuit):
 
 
 class ClotureTests(BaseCircuit):
+    def test_cloture_a_20h_des_tickets_du_jour(self):
+        avant_20h = LUNDI_MATIN.replace(hour=16, minute=30)   # 19:30 heure du centre
+        apres_20h = LUNDI_MATIN.replace(hour=17, minute=5)    # 20:05 heure du centre
+        self.assertEqual(str(self.d.centre.heure_cloture_tickets), "20:00:00")
+        with a_heure(LUNDI_MATIN):
+            ticket = self.d.ticket("M")
+            self.d.accueillir(ticket, self.accueil)
+        with a_heure(avant_20h):
+            self.assertEqual(services.cloturer_tickets(self.d.centre), 0)
+        ticket.refresh_from_db()
+        self.assertTrue(ticket.ouvert)
+        with a_heure(apres_20h):
+            self.assertEqual(services.cloturer_tickets(self.d.centre), 1)
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.statut, Ticket.Statut.CLOTURE)
+        self.assertEqual(ticket.passages.get(service__code="INF").statut, Passage.Statut.ANNULE)
+
+    def test_heure_de_cloture_reglable_par_centre(self):
+        import datetime as dt
+
+        self.d.centre.heure_cloture_tickets = dt.time(18, 0)
+        self.d.centre.save()
+        with a_heure(LUNDI_MATIN):
+            ticket = self.d.ticket("I")
+        with a_heure(LUNDI_MATIN.replace(hour=15, minute=10)):   # 18:10 heure du centre
+            self.assertEqual(services.cloturer_tickets(self.d.centre), 1)
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.statut, Ticket.Statut.CLOTURE)
+
     def test_cloture_des_tickets_des_jours_precedents(self):
         with a_heure(LUNDI_MATIN):
             vieux = self.d.ticket("M")
@@ -512,3 +545,18 @@ class IntegriteBaseDeDonneesTests(BaseCircuit):
         self.accueil.save()
         self.assertEqual(Appel.objects.get(ticket=ticket).agent, self.accueil)
         self.assertTrue(Evenement.objects.filter(agent=self.accueil).exists())
+
+
+class DelaiEntreAppelsTests(BaseCircuit):
+    def test_dix_secondes_entre_deux_appels(self):
+        self.assertEqual(self.d.file("ACC").delai_entre_appels_secondes, 10)
+        ticket = self.d.ticket("M")
+        services.appeler(self.d.file("ACC"), self.accueil)
+        entree = self.d.entree(ticket)
+        with maintenant_plus(5):
+            with self.assertRaises(ErreurCircuit):
+                services.rappeler(entree, self.accueil)
+        with maintenant_plus(11):
+            appel = services.rappeler(entree, self.accueil)
+        self.assertEqual(appel.numero_appel, 2)
+

@@ -649,11 +649,18 @@ class VisibiliteParServiceTests(BaseVues):
         self.assertContains(reponse, self.m_infirmerie.numero)
         self.assertIn(self.m_infirmerie, self._visibles(self.medecin))
 
-    def test_transfert_pharmacie_depuis_l_infirmerie_n_est_plus_a_venir_pour_les_medecins(self):
+    def test_infirmerie_du_parcours_m_sans_option_pharmacie(self):
+        """Décision du 18/11/2026 : le patient M va toujours chez les médecins après l'infirmerie."""
+        self.connecter(self.infirmier, self.d.centre)
+        inf = self.d.svc["INF"].pk
         with a_heure(LUNDI_MATIN):
-            self.d.traiter(self.m_infirmerie, "INF", self.infirmier, transferer=True, motif="Renouvellement")
-        self.assertNotIn(self.m_infirmerie, self._visibles(self.medecin))
-        self.assertIn(self.m_infirmerie, self._visibles(self.pharma))
+            self.client.post(reverse("circuit:guichet_action", args=[inf, "appeler"]))
+            entree = self.d.entree(self.m_infirmerie)
+            self.client.post(reverse("circuit:guichet_action", args=[inf, "prendre"]), {"entree": entree.pk})
+            page = self.client.get(reverse("circuit:guichet", args=[inf]))
+        self.assertContains(page, "Terminer et orienter vers Médecins")
+        self.assertNotContains(page, "Transférer à la pharmacie")
+        self.assertNotIn(self.m_infirmerie, self._visibles(self.pharma))
 
     def test_ticket_annule_avant_d_arriver_n_est_plus_visible(self):
         from circuit import services

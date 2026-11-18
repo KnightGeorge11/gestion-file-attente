@@ -1,12 +1,15 @@
 """
-Clôture automatique des tickets restés ouverts des jours précédents.
+Clôture automatique des tickets restés ouverts.
 
-À planifier chaque nuit (Planificateur de tâches Windows ou cron), par exemple
-à 00 h 30 : python manage.py cloturer_tickets
+Décision du 18/11/2026 : clôture à 20 h 00 (heure réglable par centre).
+Après l'heure de clôture du centre, les tickets du jour encore ouverts sont
+clôturés, ainsi que ceux des jours précédents. Les passages en cours sont
+annulés ; les horodatages déjà enregistrés sont conservés.
 
-Règle provisoire (à confirmer avec le centre) : les tickets d'un jour
-antérieur encore ouverts sont clôturés ; les passages en cours sont annulés
-et les horodatages déjà enregistrés sont conservés.
+À planifier sur le serveur Ubuntu (crontab de l'utilisateur de l'application),
+juste après 20 h, avec une seconde exécution de sécurité la nuit :
+    5 20 * * *  cd /chemin/gestion_file_attente && .venv/bin/python manage.py cloturer_tickets
+    30 0 * * *  cd /chemin/gestion_file_attente && .venv/bin/python manage.py cloturer_tickets
 """
 
 from django.core.management.base import BaseCommand

@@ -11,6 +11,8 @@ Les contrôles de permission (rôle, centre, service) sont faits par les vues
 avec `comptes.permissions.a_droit` ; ce module vérifie les règles métier.
 """
 
+from datetime import timedelta
+
 from django.core.exceptions import ValidationError
 from django.db import connection, transaction
 from django.db.models import Max
@@ -491,11 +493,19 @@ def service_pharmacie(centre):
 
 
 def peut_transferer_pharmacie(passage):
-    """Le transfert vers la pharmacie est possible depuis tout service de soins."""
+    """
+    Le service de soins qui termine le parcours peut décider d'envoyer le
+    patient à la pharmacie. Décision du 18/11/2026 : depuis une étape
+    intermédiaire (ex. infirmerie du parcours M), « Terminer » envoie
+    toujours le patient au service suivant choisi au départ : pas de
+    transfert vers la pharmacie avant la fin du parcours.
+    """
     service = passage.service
     if service.est_accueil or service.est_pharmacie:
         return False
     if passage.ticket.est_autre:
+        return False
+    if etape_suivante(passage.ticket, passage) is not None:
         return False
     return service_pharmacie(passage.centre) is not None
 
@@ -513,10 +523,9 @@ def terminer(entree, agent, transferer_pharmacie=False, motif="", derogation=Fal
 
     - Sans transfert : le patient passe à l'étape suivante du parcours,
       sinon le ticket se termine.
-    - Avec transfert (décision explicite du service) : un passage pharmacie
-      est créé ; le ticket se termine après la pharmacie. Depuis une étape
-      intermédiaire (ex. infirmerie du parcours M), un motif est obligatoire
-      et les étapes restantes ne sont pas réalisées.
+    - Avec transfert (décision explicite du service qui termine le
+      parcours) : un passage pharmacie est créé ; le ticket se termine
+      après la pharmacie.
     """
     entree = _verrouiller_entree(entree.pk)
     if entree.statut != EntreeFile.Statut.EN_COURS or entree.agent_id != agent.pk:
@@ -552,11 +561,12 @@ def terminer(entree, agent, transferer_pharmacie=False, motif="", derogation=Fal
 
     if transferer_pharmacie:
         if not peut_transferer_pharmacie(passage):
+            if suivante is not None:
+                raise ErreurCircuit(
+                    f"Le patient doit d'abord passer par {suivante.service.nom} : "
+                    "la pharmacie est proposée à la fin du parcours."
+                )
             raise ErreurCircuit("Le transfert vers la pharmacie n'est pas possible depuis ce service.")
-        if suivante is not None and not motif:
-            raise ErreurCircuit(
-                "Transfert depuis une étape intermédiaire : un motif est obligatoire."
-            )
 
     maintenant = timezone.now()
     entree.statut = EntreeFile.Statut.TERMINE
@@ -717,12 +727,18 @@ def annuler_ticket(ticket, agent, motif):
 @transaction.atomic
 def cloturer_tickets(centre, avant_jour=None):
     """
-    Clôture automatique des tickets restés ouverts des jours précédents
-    (ou avant `avant_jour`). Les passages en cours sont annulés ; les
-    horodatages existants sont conservés.
+    Clôture automatique des tickets restés ouverts (décision du 18/11/2026 :
+    20 h 00, heure réglable par centre).
+
+    Sont clôturés : les tickets des jours précédents et, une fois l'heure de
+    clôture du centre passée, ceux du jour. Les passages en cours sont
+    annulés ; les horodatages existants sont conservés.
     """
+    maintenant = maintenant_centre(centre)
     if avant_jour is None:
-        avant_jour = maintenant_centre(centre).date()
+        avant_jour = maintenant.date()
+        if centre.heure_cloture_tickets and maintenant.time() >= centre.heure_cloture_tickets:
+            avant_jour = avant_jour + timedelta(days=1)
     tickets = Ticket.objects.select_for_update().filter(
         centre=centre, statut__in=Ticket.STATUTS_OUVERTS, jour__lt=avant_jour
     )

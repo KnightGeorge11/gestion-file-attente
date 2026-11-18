@@ -125,12 +125,8 @@ class Simulateur:
                     services.transmettre_demande(demande, agent, service=cible, message="Demande simulée")
                     self.journal(f"Accueil : demande {ticket.numero} transmise ({cible.nom})")
         transferer, motif = False, ""
-        if services.peut_transferer_pharmacie(passage):
-            derniere_etape = services.etape_suivante(ticket, passage) is None
-            if derniere_etape and self.hasard.random() < 0.35:
-                transferer = True
-            elif not derniere_etape and self.hasard.random() < 0.05:
-                transferer, motif = True, "Simulation : renouvellement d'ordonnance"
+        if services.peut_transferer_pharmacie(passage) and self.hasard.random() < 0.35:
+            transferer = True
         try:
             suite = services.terminer(entree, agent, transferer_pharmacie=transferer, motif=motif)
         except ErreurCircuit as erreur:

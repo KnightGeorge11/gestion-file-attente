@@ -47,7 +47,8 @@ class Centre(models.Model):
     heure_cloture_tickets = models.TimeField(
         null=True,
         blank=True,
-        help_text="Heure de clôture des tickets restés ouverts (à confirmer).",
+        default=datetime.time(20, 0),
+        help_text="Heure de clôture des tickets restés ouverts (20 h 00, décision du 18/11/2026).",
     )
 
     max_reintegrations = models.PositiveSmallIntegerField(
@@ -306,8 +307,8 @@ class FileAttente(ModeleCentre):
     )
 
     delai_entre_appels_secondes = models.PositiveSmallIntegerField(
-        default=60,
-        help_text="Valeur provisoire, à confirmer.",
+        default=10,
+        help_text="Délai minimal entre deux appels du même patient (10 s, décision du 18/11/2026).",
     )
 
     nb_appels_simultanes = models.PositiveSmallIntegerField(

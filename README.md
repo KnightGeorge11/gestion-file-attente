@@ -30,7 +30,11 @@ Le module `salles` n'a pas été créé : il reste optionnel et non validé (Tre
 - Tickets **M, D, I, E** à compteurs indépendants, format lettre + 3 chiffres (M001), **remise à zéro à minuit** (heure du centre) ; un numéro annulé n'est jamais réutilisé.
 - **Tous les patients passent par l'accueil** après le ticket.
 - Parcours : **M** accueil → infirmerie → file commune des médecins → consultation ; **D** accueil → dentiste ; **E** accueil → échographie ; **I** accueil → infirmerie → fin. Marche avant.
-- **Pharmacie : jamais automatique ni obligatoire.** Le service de soins qui prend en charge le patient (médecin, dentiste, échographie, infirmerie) peut décider explicitement, à la fin de sa prise en charge, de l'envoyer à la pharmacie (case « Transférer à la pharmacie »). Aucune version de parcours ne contient la pharmacie. **L'accueil ne transfère pas à la pharmacie** (décision du 18/11/2026).
+- **Progression du patient** (décision du 18/11/2026) : appelé par un service, le patient s'y rend ; quand le service appuie sur « Terminer », le patient peut être appelé par le service suivant de son parcours (celui choisi au départ). Pas de saut d'étape.
+- **Pharmacie : jamais automatique ni obligatoire.** Le service de soins qui termine le parcours (médecin, dentiste, échographie, infirmerie pour le parcours I) peut décider explicitement de l'envoyer à la pharmacie (« Transférer à la pharmacie ») ; le ticket se termine après la pharmacie. Pas de pharmacie depuis une étape intermédiaire (infirmerie du parcours M) ni depuis l'accueil (décisions du 18/11/2026). Aucune version de parcours ne contient la pharmacie.
+- **Clôture** à **20 h 00** des tickets restés ouverts (commande `cloturer_tickets`, heure réglable par centre).
+- **10 secondes** minimum entre deux appels du même patient ; absence après 3 appels.
+- Tickets « Autre » : préfixe **A** avec leur propre compteur.
 - Chaque service appelle ses patients ; **un écran principal unique affiche simultanément les appels de plusieurs services** ; la pharmacie peut appeler sur l'écran ou oralement.
 - File commune des médecins : le patient appelé est attribué au médecin connecté qui l'appelle (verrou, pas de double prise).
 - Comptes individuels pour chaque agent ; interface commune par service.
@@ -47,12 +51,13 @@ Le module `salles` n'a pas été créé : il reste optionnel et non validé (Tre
 
 | Paramètre | Où | Valeur actuelle |
 |---|---|---|
-| Délai entre deux appels | File d'attente | 60 s (provisoire) |
+| Délai entre deux appels | File d'attente | 10 s |
 | Appels avant absence | File d'attente | 3 |
 | Appels simultanés | File d'attente | 1 ; file des médecins = nombre de médecins |
 | Ordre strict | File d'attente | oui |
 | Réintégrations maximum | Centre | 1 |
 | Heure de bascule matin / après-midi | Centre | 12 h 00 |
+| Heure de clôture des tickets | Centre | 20 h 00 |
 | Durée de mise en évidence d'un appel à l'écran | Centre | 30 s |
 | Quotas (jour, période, dates de validité) | Quotas de parcours | voir ci-dessus |
 | Motifs du mode Autre | Motifs de demande | Rendez-vous, Visite d'embauche, Entretien, Cotisations, Rencontrer une personne du centre |
@@ -63,14 +68,10 @@ Le module `salles` n'a pas été créé : il reste optionnel et non validé (Tre
 
 | Point (carte « Répondre aux points ouverts ») | Comportement provisoire |
 |---|---|
-| Heure de clôture des tickets restés ouverts | Commande nocturne : tickets des jours précédents clôturés, passages en cours annulés |
-| Transfert pharmacie depuis l'infirmerie du parcours M (étape intermédiaire) | Autorisé avec motif obligatoire ; la consultation n'est pas réalisée ; le ticket se termine après la pharmacie |
 | Transfert vers un autre service que la pharmacie | Non proposé |
-| Fin du ticket après un transfert | Le ticket se termine après la pharmacie |
-| Délai entre appels, position après réintégration | 60 s ; réintégration en fin de file |
+| Position après réintégration | En fin de file |
 | Pharmacie, appel oral | Bouton « Appel oral » = prise en charge directe, puis « Terminer » (horaires enregistrés) |
 | File des médecins : ordre strict ou libre ; guichets d'accueil | Ordre strict ; 1 guichet d'accueil (paramétrable) |
-| Préfixe des tickets « Autre » | `A` avec son propre compteur |
 | Droits de la direction | Statistiques uniquement |
 | Priorités, durée de conservation des historiques, module salles | Non implémentés |
 
@@ -141,7 +142,15 @@ python manage.py check --deploy
 ```
 
 Les fichiers statiques sont servis par l'application (WhiteNoise), avec des noms versionnés pour que la TV, la borne et les tablettes rechargent le CSS après une mise à jour.
-Serveur d'application : à choisir avec le serveur matériel (carte Trello « Sauvegarde PostgreSQL et déploiement ») — par exemple Waitress sous Windows, Gunicorn (+ Nginx) sous Linux. Le serveur de développement `runserver` ne doit pas être utilisé en production.
+Serveur : **Ubuntu** (décision du 18/11/2026). Serveur d'application conseillé : Gunicorn (éventuellement derrière Nginx). Le serveur de développement `runserver` ne doit pas être utilisé en production. Le déploiement n'est pas pris en charge dans ce dépôt pour l'instant.
+
+### Liste de contrôle sécurité avant la mise en service
+
+- [ ] Mot de passe PostgreSQL fort pour le compte de l'application (l'actuel de développement est trop court).
+- [ ] `DJANGO_DEBUG=False`, `DJANGO_SECRET_KEY` aléatoire, `DJANGO_ALLOWED_HOSTS` = IP / nom du serveur.
+- [ ] Aucun compte de test (`*test1`, `*test2`, mot de passe 1234) sur la base de production : `creer_comptes_test` et `simuler_patients` refusent de s'exécuter si DEBUG est désactivé.
+- [ ] `REVOKE UPDATE, DELETE ON circuit_evenement, audit_journalaudit FROM <compte_app>;` (tables possédées par un autre rôle).
+- [ ] Dépôt GitHub passé en **privé**.
 
 Sur un réseau local en HTTP simple, `check --deploy` signale 4 avertissements liés à HTTPS (HSTS, redirection SSL, cookies sécurisés) : ils sont attendus et disparaissent avec `DJANGO_HTTPS=True` derrière un certificat.
 
@@ -182,8 +191,8 @@ La borne et l'écran n'acceptent que les adresses du réseau local (`RESEAU_LOCA
 
 ## Tâches planifiées
 
-- `python manage.py cloturer_tickets` chaque nuit (ex. 00 h 30).
-- `scripts\sauvegarde.ps1` chaque jour, et `scripts\test_restauration.ps1` au moins une fois par mois.
+- `python manage.py cloturer_tickets` à **20 h 05** (clôture à 20 h 00) et une seconde fois la nuit par sécurité (crontab, voir la commande).
+- Sauvegarde PostgreSQL quotidienne : sur Ubuntu, `pg_dump -Fc` via cron et copie sur un second support ; test de restauration au moins une fois par mois (équivalents des scripts `scripts/*.ps1` écrits pour Windows).
 
 ## Sécurité et intégrité
 

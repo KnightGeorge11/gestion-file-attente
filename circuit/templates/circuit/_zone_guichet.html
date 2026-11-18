@@ -67,10 +67,9 @@
                     <form hx-post="{% url 'circuit:guichet_action' service.pk 'terminer' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'terminer' %}">
                         {% csrf_token %}<input type="hidden" name="entree" value="{{ tenue.pk }}"><input type="hidden" name="file" value="{{ file.pk }}">
                         <input type="hidden" name="pharmacie" value="1">
-                        {% if suivante %}<p class="etiquette attention">Étape intermédiaire : l'étape {{ suivante.service.nom }} ne sera pas réalisée. Motif obligatoire.</p>{% endif %}
-                        <label for="motif-pha">Motif {% if not suivante %}(facultatif){% endif %}</label>
+                        <label for="motif-pha">Motif (facultatif)</label>
                         <div class="ligne">
-                            <input id="motif-pha" name="motif" maxlength="500" {% if suivante %}required{% endif %} style="flex:1;min-width:200px">
+                            <input id="motif-pha" name="motif" maxlength="500" style="flex:1;min-width:200px">
                             <button class="principal">Terminer et transférer à la pharmacie</button>
                         </div>
                     </form>
