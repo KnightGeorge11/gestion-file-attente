@@ -1,6 +1,8 @@
 
 from django.contrib import admin
 
+from core.admin import CentreAdminMixin
+
 from .models import (
     Entreprise,
     FusionPatient,
@@ -53,7 +55,7 @@ class PatientAdmin(admin.ModelAdmin):
 
 
 @admin.register(PatientCentre)
-class PatientCentreAdmin(admin.ModelAdmin):
+class PatientCentreAdmin(CentreAdminMixin, admin.ModelAdmin):
     list_display = (
         "matricule",
         "patient",

@@ -524,6 +524,15 @@ def terminer(entree, agent, transferer_pharmacie=False, motif=""):
     if ticket.patient_id is None and passage.service.est_accueil and not ticket.est_autre:
         raise ErreurCircuit("Identifiez le patient avant de l'orienter vers son service.")
 
+    # Mode Autre : le ticket est clôturé après l'orientation de la demande ;
+    # la demande reste ensuite suivie indépendamment (notifications, réponses).
+    if ticket.est_autre and passage.service.est_accueil:
+        demande = DemandeAutre.objects.filter(ticket=ticket).first()
+        if demande is not None and demande.statut == DemandeAutre.Statut.NOUVELLE:
+            raise ErreurCircuit(
+                "Orientez d'abord la demande (personne ou service) avant de clôturer le ticket."
+            )
+
     suivante = etape_suivante(ticket, passage)
     motif = (motif or "").strip()
 
@@ -662,13 +671,20 @@ def identifier_patient(ticket, patient, agent, derogation=False, motif_derogatio
     # Verrou sur la fiche patient pour sérialiser les identifications.
     type(patient).objects.select_for_update().get(pk=patient.pk)
 
+    # Règle confirmée : un patient n'a qu'un ticket ouvert à la fois, tous
+    # centres confondus (dossier patient partagé). Les numéros d'un autre
+    # centre ne sont pas révélés.
     ouverts = Ticket.objects.filter(
-        centre=ticket.centre, patient=patient, statut__in=Ticket.STATUTS_OUVERTS
+        patient=patient, statut__in=Ticket.STATUTS_OUVERTS
     ).exclude(pk=ticket.pk)
     if ouverts.count() >= ticket.centre.max_tickets_ouverts_par_patient:
-        numeros = ", ".join(ouverts.values_list("numero", flat=True))
+        locaux = list(ouverts.filter(centre=ticket.centre).values_list("numero", flat=True))
+        if locaux:
+            detail = f"({', '.join(locaux)})"
+        else:
+            detail = "dans un autre centre"
         raise ErreurCircuit(
-            f"Ce patient a déjà un ticket ouvert ({numeros}). "
+            f"Ce patient a déjà un ticket ouvert {detail}. "
             "Annulez le ticket supplémentaire."
         )
 

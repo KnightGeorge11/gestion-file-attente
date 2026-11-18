@@ -388,6 +388,25 @@ class PatientsTicketsTests(BaseCircuit):
         t2.refresh_from_db()
         self.assertEqual(t2.statut, Ticket.Statut.ANNULE)
 
+    def test_un_seul_ticket_ouvert_tous_centres_confondus(self):
+        autre = Donnees().construire("ANT")
+        accueil_b = autre.agent("accueil_b", "Accueil", ["ACC"])
+        patient = self.d.patient()
+        t1 = self.d.ticket("M")
+        self.d.accueillir(t1, self.accueil, patient=patient)
+        t2 = autre.ticket("I")
+        entree = autre.entree(t2)
+        services.appeler(autre.file("ACC"), accueil_b)
+        services.prendre_en_charge(entree, accueil_b)
+        with self.assertRaises(ErreurCircuit) as erreur:
+            services.identifier_patient(t2, patient, accueil_b)
+        message = " ".join(erreur.exception.messages)
+        self.assertIn("autre centre", message)
+        self.assertNotIn(t1.numero, message)  # aucun numéro de l'autre centre révélé
+        # Une fois le premier ticket terminé, l'identification est possible.
+        services.annuler_ticket(t1, self.accueil, "Fin de journée")
+        services.identifier_patient(t2, patient, accueil_b)
+
     def test_identification_cree_le_rattachement_au_centre(self):
         patient = self.d.patient()
         t1 = self.d.ticket("I")
@@ -424,11 +443,54 @@ class ModeAutreTests(BaseCircuit):
         n = services.transmettre_demande(notif2, self.accueil, destinataire=directeur)
         self.assertEqual(n.destinataire, directeur)
 
-    def test_ticket_autre_passe_par_l_accueil_sans_identification(self):
-        ticket = services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE)
-        self.d.traiter(ticket, "ACC", self.accueil)
+    def test_ticket_autre_cloture_apres_orientation_demande_independante(self):
+        directeur = self.d.agent("directeur", "Direction")
+        ticket = services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE, motif=self.d.motif)
+        entree = self.d.entree(ticket)
+        services.appeler(self.d.file("ACC"), self.accueil)
+        services.prendre_en_charge(entree, self.accueil)
+        # Pas d'identification requise, mais orientation obligatoire avant clôture.
+        with self.assertRaises(ErreurCircuit):
+            services.terminer(entree, self.accueil)
+        notif = services.transmettre_demande(ticket.demande, self.accueil, destinataire=directeur)
+        services.terminer(entree, self.accueil)
         ticket.refresh_from_db()
         self.assertEqual(ticket.statut, Ticket.Statut.TERMINE)
+        self.assertIsNone(ticket.patient)
+        # La demande reste suivie après la clôture du ticket.
+        demande = ticket.demande
+        self.assertEqual(demande.statut, DemandeAutre.Statut.TRANSMISE)
+        services.repondre_notification(notif, directeur, ReponseNotification.Statut.RECUE)
+        services.repondre_notification(notif, directeur, ReponseNotification.Statut.NON_REALISABLE,
+                                       "Directeur absent aujourd'hui")
+        demande.refresh_from_db()
+        self.assertEqual(demande.statut, DemandeAutre.Statut.CLOTUREE)
+        self.assertEqual(notif.reponses.count(), 2)
+        self.assertEqual(
+            list(ticket.evenements.filter(type__in=["NOTIFICATION", "FIN_TICKET", "REPONSE"])
+                 .values_list("type", flat=True)),
+            ["NOTIFICATION", "FIN_TICKET", "REPONSE", "REPONSE"],
+        )
+
+    def test_ticket_autre_jamais_transfere_ni_identifie(self):
+        ticket = services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE)
+        entree = self.d.entree(ticket)
+        services.appeler(self.d.file("ACC"), self.accueil)
+        services.prendre_en_charge(entree, self.accueil)
+        with self.assertRaises(ErreurCircuit):
+            services.identifier_patient(ticket, self.d.patient(), self.accueil)
+        self.assertFalse(services.peut_transferer_pharmacie(entree.passage))
+
+    def test_un_service_choisi_sans_agent_designe_et_statut_inconnu(self):
+        ticket = services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE)
+        with self.assertRaises(ErreurCircuit):
+            services.transmettre_demande(ticket.demande, self.accueil)  # ni personne ni service
+        with self.assertRaises(ErreurCircuit):
+            services.transmettre_demande(ticket.demande, self.accueil, destinataire=self.medecin,
+                                         service=self.d.svc["MED"])
+        notif = services.transmettre_demande(ticket.demande, self.accueil, destinataire=self.medecin)
+        with self.assertRaises(ErreurCircuit):
+            services.repondre_notification(notif, self.medecin, "INVENTE")
 
     def test_destinataire_d_un_autre_centre_refuse(self):
         autre = Donnees().construire("ANT")

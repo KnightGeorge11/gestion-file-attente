@@ -48,12 +48,15 @@
                 {% if service.est_accueil and not ticket.est_autre and not ticket.patient and peut_identifier %}
                     <p><a class="bouton principal grand" href="{% url 'circuit:identifier' ticket.pk %}">Identifier le patient</a></p>
                 {% endif %}
-                {% if service.est_accueil and ticket.est_autre and peut_orienter %}
-                    <p><a class="bouton" href="{% url 'circuit:demandes' %}">Orienter la demande</a></p>
+                {% if service.est_accueil and ticket.est_autre %}
+                    <p>Demande : <span class="etiquette {% if ticket.demande.statut == 'NOUVELLE' %}alerte{% else %}ok{% endif %}">{{ ticket.demande.get_statut_display }}</span></p>
+                    {% if ticket.demande.statut == 'NOUVELLE' and peut_orienter %}
+                    <p><a class="bouton principal" href="{% url 'circuit:demandes' %}">Orienter la demande</a></p>
+                    {% endif %}
                 {% endif %}
                 <form hx-post="{% url 'circuit:guichet_action' service.pk 'terminer' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'terminer' %}">
                     {% csrf_token %}<input type="hidden" name="entree" value="{{ tenue.pk }}"><input type="hidden" name="file" value="{{ file.pk }}">
-                    <button class="principal grand" {% if service.est_accueil and not ticket.est_autre and not ticket.patient %}disabled{% endif %}>
+                    <button class="principal grand" {% if service.est_accueil and not ticket.est_autre and not ticket.patient %}disabled{% endif %}{% if service.est_accueil and ticket.est_autre and ticket.demande.statut == 'NOUVELLE' %}disabled{% endif %}>
                         Terminer{% if suivante %} et orienter vers {{ suivante.service.nom }}{% else %} (fin du parcours){% endif %}
                     </button>
                 </form>

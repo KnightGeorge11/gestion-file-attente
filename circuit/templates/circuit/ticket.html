@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load durees %}
 {% block titre %}Ticket {{ ticket.numero }}{% endblock %}
 {% block contenu %}
 <h1>Ticket <span class="numero">{{ ticket.numero }}</span> du {{ ticket.jour|date:"d/m/Y" }}
@@ -10,7 +11,7 @@
     <p>Patient : <strong>{{ ticket.patient|default:"non identifié" }}</strong>
         {% if ticket.identifie_par %}<span class="discret">(identifié par {{ ticket.identifie_par }})</span>{% endif %}</p>
     {% if ticket.est_autre %}<p>Demande : {{ ticket.demande.motif|default:"—" }} · {{ ticket.demande.get_statut_display }}</p>{% endif %}
-    <p>Émis à {{ ticket.date_emission|time:"H:i:s" }}{% if ticket.date_fin %} · terminé à {{ ticket.date_fin|time:"H:i:s" }} · durée totale {{ ticket.duree_totale }}{% endif %}</p>
+    <p>Émis à {{ ticket.date_emission|time:"H:i:s" }}{% if ticket.date_fin %} · terminé à {{ ticket.date_fin|time:"H:i:s" }} · durée totale {{ ticket.duree_totale|duree }}{% endif %}</p>
     {% if ticket.motif_annulation %}<p class="etiquette alerte">Annulé par {{ ticket.annule_par }} : {{ ticket.motif_annulation }}</p>{% endif %}
 
     {% if peut_annuler %}
@@ -39,8 +40,8 @@
         <tr>
             <td>{{ p.nom_service }}{% if p.origine == "TRANSFERT" %} <span class="etiquette info">transfert</span>{% endif %}<br><span class="discret">{{ p.pris_en_charge_par|default:"" }}</span></td>
             <td>{{ p.date_arrivee|time:"H:i:s" }}</td>
-            <td>{{ p.duree_attente|default:"—" }}</td>
-            <td>{{ p.duree_prise_en_charge|default:"—" }}</td>
+            <td>{{ p.duree_attente|duree }}</td>
+            <td>{{ p.duree_prise_en_charge|duree }}</td>
             <td>{{ p.get_statut_display }}</td>
         </tr>
         {% endfor %}

@@ -7,7 +7,7 @@ from datetime import timedelta
 
 from django.db.models import Avg, Count, DurationField, ExpressionWrapper, F, Max, Q
 
-from circuit.models import Passage, ReservationQuota, Ticket, Transfert
+from circuit.models import EntreeFile, Passage, ReservationQuota, Ticket, Transfert
 
 ATTENTE = ExpressionWrapper(F("date_debut") - F("date_arrivee"), output_field=DurationField())
 PRISE_EN_CHARGE = ExpressionWrapper(F("date_fin") - F("date_debut"), output_field=DurationField())
@@ -43,12 +43,20 @@ def calculer(centres, date_debut, date_fin):
         .order_by("parcours__libelle_borne")
     ]
 
+    # Absences comptées à part : une jointure sur les entrées de file
+    # dupliquerait les passages réintégrés dans les moyennes et les totaux.
+    absences = dict(
+        EntreeFile.objects.filter(passage__in=passages, statut=EntreeFile.Statut.ABSENT)
+        .values_list("passage__nom_service")
+        .annotate(n=Count("id"))
+    )
+
     par_service = [
         {
             "service": ligne["nom_service"],
             "passages": ligne["n"],
             "termines": ligne["termines"],
-            "absences": ligne["absences"],
+            "absences": absences.get(ligne["nom_service"], 0),
             "transferts_recus": ligne["transferts"],
             "attente_moy": minutes(ligne["attente_moy"]),
             "attente_max": minutes(ligne["attente_max"]),
@@ -58,7 +66,6 @@ def calculer(centres, date_debut, date_fin):
         .annotate(
             n=Count("id"),
             termines=Count("id", filter=Q(statut=Passage.Statut.TERMINE)),
-            absences=Count("entrees", filter=Q(entrees__statut="ABSENT"), distinct=True),
             transferts=Count("id", filter=Q(origine=Passage.Origine.TRANSFERT)),
             attente_moy=Avg(ATTENTE),
             attente_max=Max(ATTENTE),

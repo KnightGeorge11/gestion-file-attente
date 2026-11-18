@@ -1,13 +1,29 @@
 import os
 import sys
 from pathlib import Path
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-local-development-only")
-DEBUG = os.getenv("DJANGO_DEBUG", "True").lower() == "true"
+
+def env_bool(nom, defaut="False"):
+    return os.getenv(nom, defaut).strip().lower() in ("1", "true", "oui", "yes")
+
+
+# Production par défaut : DEBUG doit être activé explicitement (.env de développement).
+DEBUG = env_bool("DJANGO_DEBUG", "False")
+
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "")
+if not SECRET_KEY:
+    if not DEBUG and "test" not in sys.argv:
+        raise ImproperlyConfigured("DJANGO_SECRET_KEY est obligatoire en production (DEBUG désactivé).")
+    SECRET_KEY = "django-insecure-local-development-only"
+if not DEBUG and "test" not in sys.argv and (
+    SECRET_KEY.startswith("django-insecure") or len(SECRET_KEY) < 50
+):
+    raise ImproperlyConfigured("DJANGO_SECRET_KEY doit être une clé aléatoire d'au moins 50 caractères.")
 
 ALLOWED_HOSTS = [
     host.strip()
@@ -35,6 +51,9 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Fichiers statiques (CSS, HTMX) servis par l'application : fonctionne
+    # hors Internet et quel que soit le serveur web retenu.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -93,6 +112,16 @@ STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+# Production : noms de fichiers versionnés (app.4f3c….css) et compressés,
+# pour que la TV, la borne et les tablettes rechargent le CSS / JS après
+# une mise à jour au lieu de garder l'ancienne version en cache.
+# Nécessite « python manage.py collectstatic » à chaque déploiement.
+if not DEBUG and "test" not in sys.argv:
+    STORAGES = {
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+    }
+
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
@@ -112,6 +141,38 @@ BORNE_DELAI_MIN_SECONDES = float(os.getenv("BORNE_DELAI_MIN_SECONDES", "2"))
 
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = False
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SAMESITE = "Lax"
+# Session des agents : déconnexion automatique (postes et tablettes partagés).
+SESSION_COOKIE_AGE = int(os.getenv("SESSION_DUREE_SECONDES", str(12 * 3600)))
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+
+# HTTPS : à activer seulement si le serveur est servi en HTTPS
+# (certificat local ou proxy Nginx). Sur un réseau local en HTTP simple,
+# laisser DJANGO_HTTPS=False, sinon les cookies ne seraient jamais envoyés.
+HTTPS = env_bool("DJANGO_HTTPS", "False")
+SESSION_COOKIE_SECURE = HTTPS
+CSRF_COOKIE_SECURE = HTTPS
+if HTTPS:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_SSL_REDIRECT = env_bool("DJANGO_SSL_REDIRECT", "True")
+    SECURE_HSTS_SECONDS = int(os.getenv("DJANGO_HSTS_SECONDES", "0"))
+
+CSRF_TRUSTED_ORIGINS = [
+    origine.strip()
+    for origine in os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",")
+    if origine.strip()
+]
+
+X_FRAME_OPTIONS = "DENY"
+SECURE_REFERRER_POLICY = "same-origin"
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {"console": {"class": "logging.StreamHandler"}},
+    "root": {"handlers": ["console"], "level": os.getenv("DJANGO_LOG_LEVEL", "WARNING")},
+}
 
 if "test" in sys.argv:
     PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]

@@ -356,3 +356,203 @@ class FusionPatientsTests(BaseVues):
     def test_agent_sans_permission_ne_peut_pas_fusionner(self):
         self.connecter(self.medecin, self.d.centre)
         self.assertEqual(self.client.get(reverse("patients:doublons")).status_code, 403)
+
+
+class IsolationCompleteTests(BaseVues):
+    """Un agent du centre B ne lit ni ne modifie rien du centre A."""
+
+    def test_recherche_patient_limitee_au_centre(self):
+        patient = Patient.objects.create(nom="RANDRIA", prenom="Tiana")
+        PatientCentre.objects.create(patient=patient, centre=self.d.centre)
+        self.connecter(self.agent_b, self.b.centre)
+        reponse = self.client.get(reverse("patients:recherche"), {"q": "RANDRIA"})
+        self.assertNotContains(reponse, "Tiana")
+        reponse = self.client.get(reverse("patients:recherche"), {"q": "TAM-000001"})
+        self.assertNotContains(reponse, "Tiana")
+
+    def test_demandes_et_notifications_d_un_autre_centre(self):
+        ticket = services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE, motif=self.d.motif)
+        notification = services.transmettre_demande(ticket.demande, self.accueil, destinataire=self.medecin)
+        self.connecter(self.agent_b, self.b.centre)
+        self.assertNotContains(self.client.get(reverse("circuit:demandes")), ticket.numero)
+        reponse = self.client.post(reverse("circuit:demandes"),
+                                   {"demande": ticket.demande.pk, "destinataire": self.agent_b.pk})
+        self.assertEqual(reponse.status_code, 404)
+        reponse = self.client.post(reverse("circuit:notifications"),
+                                   {"notification": notification.pk, "statut": "TRAITEE"})
+        self.assertEqual(reponse.status_code, 404)
+        self.assertFalse(notification.reponses.exists())
+
+    def test_ecran_et_tickets_du_jour_par_centre(self):
+        self.d.ticket("M")
+        services.appeler(self.d.file("ACC"), self.accueil)
+        self.connecter(self.agent_b, self.b.centre)
+        self.assertNotContains(self.client.get(reverse("circuit:ecran_appels")), "M001")
+        self.assertNotContains(self.client.get(reverse("circuit:tickets")), "M001")
+
+    def test_exports_limites_au_centre_et_reseau_reserve(self):
+        directeur_b = self.b.agent("dir_b", "Direction")
+        self.d.ticket("M")
+        self.connecter(directeur_b, self.b.centre)
+        reponse = self.client.get(reverse("statistiques:tableau"), {"reseau": "1"})
+        self.assertEqual(reponse.context["stats"]["total_tickets"], 0)
+        self.assertFalse(reponse.context["peut_reseau"])
+
+    def test_administrateur_central_a_la_vue_transversale(self):
+        admin = Utilisateur.objects.create_user("admin_central", password="x", type_compte="ADMIN")
+        self.d.ticket("M")
+        self.b.ticket("M")
+        self.b.ticket("I")
+        self.connecter(admin, self.d.centre)
+        self.assertEqual(self.client.get(reverse("statistiques:tableau")).context["stats"]["total_tickets"], 1)
+        reponse = self.client.get(reverse("statistiques:tableau"), {"reseau": "1"})
+        self.assertEqual(reponse.context["stats"]["total_tickets"], 3)
+        ticket_b = Ticket.objects.filter(centre=self.b.centre).first()
+        # Données opérationnelles : consultées dans le centre actif choisi.
+        self.connecter(admin, self.b.centre)
+        self.assertEqual(self.client.get(reverse("circuit:ticket", args=[ticket_b.pk])).status_code, 200)
+
+    def test_admin_django_filtre_les_tickets_par_centre(self):
+        from django.contrib.auth.models import Permission
+
+        responsable = self.d.agent("resp_staff", "Responsable")
+        responsable.is_staff = True
+        responsable.save()
+        responsable.user_permissions.add(Permission.objects.get(codename="view_ticket"))
+        self.d.ticket("D")
+        self.b.ticket("E")
+        self.client.force_login(responsable)
+        reponse = self.client.get(reverse("admin:circuit_ticket_changelist"))
+        self.assertContains(reponse, "D001")
+        self.assertNotContains(reponse, "E001")
+
+
+class ModeAutreInterfaceTests(BaseVues):
+    def test_cloture_du_ticket_seulement_apres_orientation(self):
+        directeur = self.d.agent("dir", "Direction")
+        ticket = services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE, motif=self.d.motif)
+        self.connecter(self.accueil, self.d.centre)
+        acc = self.d.svc["ACC"].pk
+        self.client.post(reverse("circuit:guichet_action", args=[acc, "appeler"]))
+        entree = self.d.entree(ticket)
+        self.client.post(reverse("circuit:guichet_action", args=[acc, "prendre"]), {"entree": entree.pk})
+        page = self.client.get(reverse("circuit:guichet", args=[acc]))
+        self.assertContains(page, "Orienter la demande")
+        reponse = self.client.post(reverse("circuit:guichet_action", args=[acc, "terminer"]),
+                                   {"entree": entree.pk}, follow=True)
+        self.assertContains(reponse, "Orientez d")
+        self.client.post(reverse("circuit:demandes"),
+                         {"demande": ticket.demande.pk, "destinataire": directeur.pk, "message": "RDV DRH"})
+        self.client.post(reverse("circuit:guichet_action", args=[acc, "terminer"]), {"entree": entree.pk})
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.statut, Ticket.Statut.TERMINE)
+        # Le destinataire répond ensuite, ticket déjà clôturé.
+        self.connecter(directeur, self.d.centre)
+        notification = directeur.notifications_recues.get()
+        self.client.post(reverse("circuit:notifications"),
+                         {"notification": notification.pk, "statut": "TRAITEE", "message": "Reçu à 10 h"})
+        ticket.demande.refresh_from_db()
+        self.assertEqual(ticket.demande.statut, "CLOTUREE")
+        self.connecter(self.accueil, self.d.centre)
+        self.assertContains(self.client.get(reverse("circuit:demandes")), "Reçu à 10 h")
+
+
+@override_settings(RESEAU_LOCAL_UNIQUEMENT=True)
+class SessionPosteTests(BaseVues):
+    def test_borne_reste_activee_au_dela_de_la_duree_des_sessions_agents(self):
+        from django.conf import settings
+
+        borne = Borne(centre=self.d.centre, code="B1", libelle="Borne")
+        cle = borne.generer_cle()
+        borne.save()
+        self.client.post(reverse("circuit:borne"), {"centre": "TAM", "code": "B1", "cle": cle})
+        self.assertGreater(self.client.session.get_expiry_age(), 300 * 24 * 3600)
+        self.assertLessEqual(settings.SESSION_COOKIE_AGE, 24 * 3600)
+
+
+@override_settings(RESEAU_LOCAL_UNIQUEMENT=True, BORNE_DELAI_MIN_SECONDES=0)
+class RecetteParcoursInterfacesTests(BaseVues):
+    """Scénarios de recette par les interfaces : borne → accueil → service(s) → [pharmacie] → fin."""
+
+    ETAPES = {"M": ["INF", "MED"], "D": ["DEN"], "E": ["ECH"], "I": ["INF"]}
+    NOMS = iter(["RAKOTO", "BEZARA", "NOMENJANAHARY", "FALY", "ANDRIAMIHAJA", "SOA", "TSIRY", "VOLOLONA"])
+    ROLES = {"INF": "Infirmerie", "MED": "Médecin", "DEN": "Dentiste", "ECH": "Échographie"}
+
+    def setUp(self):
+        super().setUp()
+        self.agents = {code: self.d.agent(f"agent_{code.lower()}", role, [code])
+                       for code, role in self.ROLES.items()}
+        self.agents["PHA"] = self.pharma
+        borne = Borne(centre=self.d.centre, code="B1", libelle="Borne")
+        self.cle = borne.generer_cle()
+        borne.save()
+
+    def _emettre(self, prefixe, mode):
+        borne_client = self.client_class()
+        borne_client.post(reverse("circuit:borne"), {"centre": "TAM", "code": "B1", "cle": self.cle})
+        borne_client.post(reverse("circuit:borne_emettre"),
+                          {"mode": mode, "parcours": self.d.parcours[prefixe].pk})
+        return Ticket.objects.latest("id")
+
+    def _traiter(self, agent, code, ticket, **donnees):
+        self.connecter(agent, self.d.centre)
+        service = self.d.svc[code].pk
+        if code == "PHA":
+            entree = self.d.entree(ticket)
+            self.client.post(reverse("circuit:guichet_action", args=[service, "prendre"]),
+                             {"entree": entree.pk, "oral": "1"})
+        else:
+            self.client.post(reverse("circuit:guichet_action", args=[service, "appeler"]))
+            entree = self.d.entree(ticket)
+            self.client.post(reverse("circuit:guichet_action", args=[service, "prendre"]), {"entree": entree.pk})
+        if code == "ACC":
+            self.client.post(reverse("circuit:identifier", args=[ticket.pk]),
+                             {"nouveau": "1", "nom": next(self.NOMS)})
+            ticket.refresh_from_db()
+            self.assertIsNotNone(ticket.patient, "identification à l'accueil")
+        self.client.post(reverse("circuit:guichet_action", args=[service, "terminer"]),
+                         {"entree": entree.pk, **donnees})
+
+    def test_quatre_parcours_avec_et_sans_pharmacie(self):
+        with a_heure(LUNDI_MATIN):
+            for prefixe, etapes in self.ETAPES.items():
+                for avec_pharmacie, mode in ((False, "INTERNE"), (True, "EXTERNE")):
+                    with self.subTest(parcours=prefixe, pharmacie=avec_pharmacie):
+                        ticket = self._emettre(prefixe, mode)
+                        self.assertEqual(ticket.mode, mode)
+                        self._traiter(self.accueil, "ACC", ticket)
+                        for rang, code in enumerate(etapes, start=1):
+                            dernier = rang == len(etapes)
+                            options = {"pharmacie": "1"} if (avec_pharmacie and dernier) else {}
+                            self._traiter(self.agents[code], code, ticket, **options)
+                        attendus = ["ACC"] + etapes
+                        if avec_pharmacie:
+                            self._traiter(self.pharma, "PHA", ticket)
+                            attendus.append("PHA")
+                        ticket.refresh_from_db()
+                        self.assertEqual(ticket.statut, Ticket.Statut.TERMINE)
+                        self.assertEqual(list(ticket.passages.values_list("service__code", flat=True)), attendus)
+                        self.assertEqual(ticket.transferts.count(), 1 if avec_pharmacie else 0)
+                        if avec_pharmacie:
+                            self.assertEqual(ticket.transferts.get().decide_par,
+                                             self.agents[etapes[-1]])
+                        # Chaque passage est horodaté de bout en bout.
+                        self.assertFalse(ticket.passages.filter(date_fin__isnull=True).exists())
+
+
+class EcranPrincipalTests(BaseVues):
+    def test_un_seul_appel_par_ticket_et_appels_des_autres_tickets_conserves(self):
+        from circuit.views_postes import appels_a_afficher
+
+        infirmier = self.d.agent("inf_e", "Infirmerie", ["INF"])
+        t1 = self.d.ticket("I")
+        t2 = self.d.ticket("D")
+        services.appeler(self.d.file("ACC"), self.accueil, poste="Guichet 1")
+        services.prendre_en_charge(self.d.entree(t1), self.accueil)
+        services.identifier_patient(t1, self.d.patient("UN"), self.accueil)
+        services.terminer(self.d.entree(t1), self.accueil)
+        services.appeler(self.d.file("INF"), infirmier, poste="Salle 2")
+        accueil2 = self.d.agent("acc_e", "Accueil", ["ACC"])
+        services.appeler(self.d.file("ACC"), accueil2, poste="Guichet 2")
+        affiches = [(a.numero_ticket, a.nom_service) for a in appels_a_afficher(self.d.centre)]
+        self.assertEqual(affiches, [("D001", "Accueil"), ("I001", "Infirmerie")])

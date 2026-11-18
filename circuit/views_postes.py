@@ -29,6 +29,9 @@ from .services import ErreurCircuit
 
 SESSION_BORNE = "borne_id"
 SESSION_ECRAN = "ecran_id"
+# Une borne ou un écran reste activé (session renouvelée à chaque usage) :
+# le formulaire d'activation ne doit pas réapparaître devant les patients.
+DUREE_SESSION_POSTE = 365 * 24 * 3600
 
 
 def _reseau_local(request):
@@ -51,6 +54,8 @@ def _poste_connecte(request, modele, cle_session):
     if poste is None:
         request.session.pop(cle_session, None)
         return None
+    if request.session.get_expiry_age() < DUREE_SESSION_POSTE // 2:
+        request.session.set_expiry(DUREE_SESSION_POSTE)
     timezone.activate(fuseau_horaire_centre(poste.centre))
     return poste
 
@@ -69,6 +74,7 @@ def _connexion_poste(request, modele, cle_session, gabarit, titre):
         if poste is not None and poste.verifier_cle(cle):
             request.session.cycle_key()
             request.session[cle_session] = poste.pk
+            request.session.set_expiry(DUREE_SESSION_POSTE)
             poste.derniere_activite = timezone.now()
             poste.save(update_fields=["derniere_activite"])
             return None
@@ -161,17 +167,31 @@ def _centre_ecran(request):
 
 
 def appels_a_afficher(centre, nombre=8):
-    """Appels récents de tous les services affichés sur l'écran principal."""
+    """
+    Appels récents de tous les services affichés sur l'écran principal.
+    Les appels précédents restent affichés ; pour un même ticket, seul le
+    dernier appel est montré (le patient ne doit pas être dirigé vers un
+    service qu'il a déjà quitté).
+    """
     limite = timezone.now() - timedelta(seconds=max(centre.duree_affichage_appel_secondes, 1) * 10)
-    return list(
+    recents = (
         Appel.objects.filter(
             centre=centre,
             mode=Appel.Mode.ECRAN,
             date__gte=limite,
             service__afficher_ecran_principal=True,
         )
-        .order_by("-date", "-id")[:nombre]
+        .order_by("-date", "-id")[: nombre * 5]
     )
+    appels, vus = [], set()
+    for appel in recents:
+        if appel.ticket_id in vus:
+            continue
+        vus.add(appel.ticket_id)
+        appels.append(appel)
+        if len(appels) == nombre:
+            break
+    return appels
 
 
 def ecran(request):

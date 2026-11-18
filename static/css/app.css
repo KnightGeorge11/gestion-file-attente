@@ -82,6 +82,7 @@ body.borne { background: #0b3d2e; color: #fff; }
 
 /* Écran principal (TV) */
 body.ecran { background: #06131f; color: #fff; overflow: hidden; }
+body.ecran main { max-width: none; padding: 0; }
 .ecran-entete { display: flex; justify-content: space-between; align-items: center; padding: 1.5vh 3vw;
                 background: #0b6e4f; font-size: 3vh; font-weight: 700; }
 .ecran-appels { padding: 2vh 3vw; display: grid; gap: 1.6vh; }
