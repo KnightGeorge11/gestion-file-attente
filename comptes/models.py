@@ -10,7 +10,12 @@ class Utilisateur(AbstractUser):
     """
 
     class TypeCompte(models.TextChoices):
-        ADMINISTRATEUR = "ADMIN", "Administrateur central"
+        # Deux niveaux d'administration (décision du 19/11/2026) :
+        # - la plateforme entière (tous les centres) ;
+        # - un centre (administration Django limitée à ses centres, via ses
+        #   affectations avec le rôle « Administrateur de centre »).
+        ADMINISTRATEUR = "ADMIN", "Administrateur de la plateforme"
+        ADMIN_CENTRE = "ADMCENTRE", "Administrateur de centre"
         RESPONSABLE = "RESP", "Responsable"
         AGENT = "AGENT", "Agent"
 
@@ -29,6 +34,10 @@ class Utilisateur(AbstractUser):
         # Identifiant unique stocké en minuscules.
         if self.username:
             self.username = self.username.strip().lower()
+        # Les administrateurs ont accès à l'administration Django ; celui
+        # d'un centre n'y voit que ses centres (core.admin.CentreAdminMixin).
+        if self.type_compte in (self.TypeCompte.ADMINISTRATEUR, self.TypeCompte.ADMIN_CENTRE):
+            self.is_staff = True
 
         super().save(*args, **kwargs)
 

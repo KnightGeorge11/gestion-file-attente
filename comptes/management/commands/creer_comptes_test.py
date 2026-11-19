@@ -8,8 +8,10 @@ Usage :
     python manage.py creer_comptes_test --mot-de-passe autre
 
 Comptes créés (n = 1, 2) :
-    accueiltest<n>, infirmiertest<n>, medecintest<n>, dentistetest<n>,
-    echographietest<n>, pharmacietest<n>, directiontest<n>, responsabletest<n>
+    accueil<n>, infirmier<n>, medecin<n>, dentiste<n>, echographie<n>,
+    pharmacie<n>, direction<n>, responsable<n>, admincentre<n>
+(noms raccourcis le 19/11/2026 : les anciens comptes « …test<n> » sont
+renommés, leur historique est conservé).
 
 Ces comptes ont un mot de passe faible : la commande refuse de s'exécuter
 quand DEBUG est désactivé (production), sauf avec --force.
@@ -31,14 +33,15 @@ NOMBRE_PAR_SERVICE = 2
 
 # préfixe de l'identifiant, rôle, code du service (None = tout le centre)
 COMPTES = [
-    ("accueiltest", "Accueil", "ACC"),
-    ("infirmiertest", "Infirmerie", "INF"),
-    ("medecintest", "Médecin", "MED"),
-    ("dentistetest", "Dentiste", "DEN"),
-    ("echographietest", "Échographie", "ECH"),
-    ("pharmacietest", "Pharmacie", "PHA"),
-    ("directiontest", "Direction", None),
-    ("responsabletest", "Responsable", None),
+    ("accueil", "Accueil", "ACC"),
+    ("infirmier", "Infirmerie", "INF"),
+    ("medecin", "Médecin", "MED"),
+    ("dentiste", "Dentiste", "DEN"),
+    ("echographie", "Échographie", "ECH"),
+    ("pharmacie", "Pharmacie", "PHA"),
+    ("direction", "Direction", None),
+    ("responsable", "Responsable", None),
+    ("admincentre", "Administrateur de centre", None),
 ]
 
 
@@ -79,10 +82,14 @@ class Command(BaseCommand):
                 groupe = Group.objects.get(name=role)
                 for n in range(1, NOMBRE_PAR_SERVICE + 1):
                     username = f"{prefixe}{n}"
-                    utilisateur, cree = Utilisateur.objects.get_or_create(
-                        username=username,
-                        defaults={"first_name": f"{role} test", "last_name": str(n)},
-                    )
+                    ancien = Utilisateur.objects.filter(username=f"{prefixe}test{n}").first()
+                    if ancien is not None and not Utilisateur.objects.filter(username=username).exists():
+                        ancien.username = username          # ancien nom « …test<n> »
+                        ancien.save(update_fields=["username"])
+                    utilisateur, cree = Utilisateur.objects.get_or_create(username=username)
+                    utilisateur.first_name, utilisateur.last_name = role, str(n)
+                    if prefixe == "admincentre":
+                        utilisateur.type_compte = Utilisateur.TypeCompte.ADMIN_CENTRE
                     utilisateur.is_active = True
                     utilisateur.set_password(options["mot_de_passe"])
                     utilisateur.save()
@@ -97,13 +104,13 @@ class Command(BaseCommand):
                         if code_service:
                             service = Service.objects.get(centre=centre, code=code_service)
                             AffectationService.objects.get_or_create(affectation=affectation, service=service)
-                    self.stdout.write(f"  {username:<18} {role:<12} {'créé' if cree else 'mis à jour'}")
+                    self.stdout.write(f"  {username:<14} {role:<25} {'créé' if cree else 'mis à jour'}")
 
             # Agent désigné pour les demandes « Autre » des services qui n'en ont pas.
             for centre in centres:
-                for code_service, prefixe in (("MED", "medecintest"), ("ACC", "accueiltest"),
-                                              ("DEN", "dentistetest"), ("ECH", "echographietest"),
-                                              ("INF", "infirmiertest"), ("PHA", "pharmacietest")):
+                for code_service, prefixe in (("MED", "medecin"), ("ACC", "accueil"),
+                                              ("DEN", "dentiste"), ("ECH", "echographie"),
+                                              ("INF", "infirmier"), ("PHA", "pharmacie")):
                     service = Service.objects.get(centre=centre, code=code_service)
                     if service.destinataire_demandes_id is None:
                         service.destinataire_demandes = Utilisateur.objects.get(username=f"{prefixe}1")

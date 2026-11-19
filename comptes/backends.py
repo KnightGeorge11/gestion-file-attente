@@ -2,6 +2,8 @@ from django.contrib.auth.backends import ModelBackend
 
 from centres.models import Centre, Service
 
+from centres.access import est_administrateur_central
+
 from .permissions import a_droit, permissions_tous_centres
 
 
@@ -34,11 +36,18 @@ class AffectationBackend(ModelBackend):
 
         return super().get_all_permissions(user_obj) | permissions_tous_centres(user_obj)
 
+    def has_module_perms(self, user_obj, app_label):
+        if user_obj.is_active and est_administrateur_central(user_obj):
+            return True
+        return super().has_module_perms(user_obj, app_label)
+
     def has_perm(self, user_obj, perm, obj=None):
         if not user_obj.is_active:
             return False
 
-        if user_obj.is_superuser:
+        # Administrateur de la plateforme (superutilisateur ou type « ADMIN ») :
+        # tous les droits, sur tous les centres.
+        if user_obj.is_superuser or est_administrateur_central(user_obj):
             return True
 
         if isinstance(obj, Service):

@@ -28,6 +28,10 @@ ROLES = {
     # (circuit.services.appeler, décision du 19/11/2026). La direction ne
     # voit d'ailleurs que ces tickets (circuit.visibilite).
     "Direction": APPEL + ["circuit.voir_statistiques"],
+    # Administrateur d'un centre : paramétrage de son centre dans
+    # l'administration (droits Django ci-dessous) ; n'appelle et ne voit que
+    # les tickets « Autre ».
+    "Administrateur de centre": APPEL + ["circuit.voir_statistiques"],
     "Responsable": APPEL + [
         "circuit.annuler_ticket",
         "circuit.orienter_demande",
@@ -36,6 +40,35 @@ ROLES = {
         "parcours.deroger_quota",
     ],
 }
+
+
+# Droits de l'administration Django du rôle « Administrateur de centre ».
+# Tous ces écrans filtrent les données sur les centres de l'administrateur
+# (CentreAdminMixin) ; les centres eux-mêmes, les rôles et le journal d'audit
+# restent réservés à l'administrateur de la plateforme.
+ADMIN_CENTRE = {
+    "centres.borne": ("view", "add", "change"),
+    "centres.ecranaffichage": ("view", "add", "change"),
+    "centres.imprimanteticket": ("view", "add", "change"),
+    "centres.service": ("view", "change"),
+    "centres.fileattente": ("view", "add", "change"),
+    "circuit.motifdemande": ("view", "add", "change"),
+    "parcours.parcours": ("view", "change"),
+    "parcours.parcoursversion": ("view",),
+    "parcours.quotaparcours": ("view", "change"),
+    "parcours.modificationquota": ("view",),
+    "comptes.utilisateur": ("view", "add", "change"),
+    "comptes.affectationutilisateur": ("view", "add", "change"),
+    "comptes.affectationservice": ("view", "add", "change", "delete"),
+}
+
+
+def codes_admin_centre():
+    return [
+        f"{modele.split('.')[0]}.{action}_{modele.split('.')[1]}"
+        for modele, actions in ADMIN_CENTRE.items()
+        for action in actions
+    ]
 
 
 def permission(code):
@@ -47,6 +80,8 @@ def initialiser_roles():
     resultats = {}
     for nom, codes in ROLES.items():
         groupe, _ = Group.objects.get_or_create(name=nom)
+        if nom == "Administrateur de centre":
+            codes = codes + codes_admin_centre()
         groupe.permissions.set([permission(code) for code in codes])
         resultats[nom] = len(codes)
     return resultats

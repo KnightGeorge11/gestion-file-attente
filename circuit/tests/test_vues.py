@@ -960,3 +960,57 @@ class ActivationBorneEnUnClicTests(BaseVues):
             page = self.client.get(url).content.decode()
             for balise in re.findall(r"<[^>]*hx-select=[^>]*>", page):
                 self.assertIn('hx-disinherit="hx-select hx-swap hx-target"', balise, url)
+
+
+class DeuxTypesAdministrateurTests(BaseVues):
+    """Décision du 19/11/2026 : administrateur de la plateforme et administrateur de centre."""
+
+    def setUp(self):
+        super().setUp()
+        self.borne_a = Borne.objects.create(centre=self.d.centre, code="BA", libelle="Borne A", cle_hash="x")
+        self.borne_b = Borne.objects.create(centre=self.b.centre, code="BB", libelle="Borne B", cle_hash="x")
+        self.admin_centre = self.d.agent("admincentre_a", "Administrateur de centre")
+        self.admin_centre.type_compte = Utilisateur.TypeCompte.ADMIN_CENTRE
+        self.admin_centre.save()
+        self.plateforme = Utilisateur.objects.create_user("chef_plateforme", password="mot-de-passe-1",
+                                                         type_compte=Utilisateur.TypeCompte.ADMINISTRATEUR)
+
+    def test_administrateur_de_centre_limite_a_son_centre(self):
+        self.assertTrue(self.admin_centre.is_staff)          # accès à l'administration
+        self.client.force_login(self.admin_centre)
+        bornes = self.client.get(reverse("admin:centres_borne_changelist"))
+        self.assertContains(bornes, "Borne A")
+        self.assertNotContains(bornes, "Borne B")
+        # Les centres et le journal d'audit restent à l'administrateur de la plateforme.
+        self.assertEqual(self.client.get(reverse("admin:centres_centre_changelist")).status_code, 403)
+        self.assertEqual(self.client.get(reverse("admin:audit_journalaudit_changelist")).status_code, 403)
+        # Il ne peut pas modifier le compte d'un administrateur de la plateforme.
+        AffectationUtilisateur.objects.create(utilisateur=self.plateforme, centre=self.d.centre)
+        comptes = self.client.get(reverse("admin:comptes_utilisateur_changelist"))
+        self.assertContains(comptes, "accueil1")
+        self.assertNotContains(comptes, "chef_plateforme")
+
+    def test_administrateur_de_la_plateforme_voit_tous_les_centres(self):
+        self.assertTrue(self.plateforme.is_staff)
+        self.client.force_login(self.plateforme)
+        bornes = self.client.get(reverse("admin:centres_borne_changelist"))
+        self.assertContains(bornes, "Borne A")
+        self.assertContains(bornes, "Borne B")
+
+    def test_les_deux_administrateurs_n_appellent_que_les_autres(self):
+        from comptes.permissions import appel_limite_aux_autres, voit_autres_seulement
+
+        file = self.d.file("ACC")
+        file.nb_appels_simultanes = 4
+        file.save()
+        patient = self.d.ticket("M")
+        for admin in (self.admin_centre, self.plateforme):
+            self.assertTrue(appel_limite_aux_autres(admin, self.d.centre))
+            with self.assertRaisesMessage(ErreurCircuit, "que les tickets « Autre »"):
+                services.appeler(file, admin, entree=self.d.entree(patient))
+        # L'administrateur de centre, comme la direction, ne voit aucun patient.
+        self.assertTrue(voit_autres_seulement(self.admin_centre, self.d.centre))
+        self.connecter(self.admin_centre, self.d.centre)
+        self.assertEqual(self.client.get(reverse("circuit:ticket", args=[patient.pk])).status_code, 404)
+        autre = services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE, motif=self.d.motif)
+        self.assertEqual(services.appeler(file, self.admin_centre).ticket, autre)

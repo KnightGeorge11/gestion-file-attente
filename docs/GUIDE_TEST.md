@@ -47,10 +47,10 @@ Utiliser le **centre 002** (le plus propre pour une démonstration).
 | Poste | Où l'ouvrir | Connexion |
 |---|---|---|
 | **Borne** (le patient) | Tablette, ou un **autre navigateur** que celui des agents (ex. Edge) | http://localhost:8000/circuit/borne/ — centre `002`, poste `TABLETTE`, clé |
-| **Accueil** | Navigateur principal | `accueiltest1` / `1234`, centre 002 |
-| **Service** (infirmerie, médecin…) | Autre onglet ou autre appareil | ex. `medecintest1` / `1234` |
+| **Accueil** | Navigateur principal | `accueil1` / `1234`, centre 002 |
+| **Service** (infirmerie, médecin…) | Autre onglet ou autre appareil | ex. `medecin1` / `1234` |
 | **Écran TV** | Onglet plein écran (F11) | http://localhost:8000/circuit/ecran/ (connecté avec un compte du centre 002) |
-| **Statistiques** | En fin de démonstration | `directiontest1` / `1234` |
+| **Statistiques** | En fin de démonstration | `direction1` / `1234` |
 
 **Clé de la borne** : elle n'est affichée qu'une fois. Administration (http://localhost:8000/admin/) → *Bornes* → cocher « Tablette entrée » → action **« Régénérer la clé »** → copier la clé du message vert.
 
@@ -59,7 +59,7 @@ Utiliser le **centre 002** (le plus propre pour une démonstration).
 **Important** : un navigateur ne garde qu'une session. Si vous vous connectez comme agent dans la fenêtre de la borne, la borne se désactive. Gardez la borne dans un navigateur à part (ou sur la tablette). Une fenêtre de navigation privée perd la borne quand on la ferme.
 
 Tous les comptes de test ont le mot de passe **1234** :
-`accueiltest1/2`, `infirmiertest1/2`, `medecintest1/2`, `dentistetest1/2`, `echographietest1/2`, `pharmacietest1/2`, `directiontest1/2` (statistiques, appel des « Autre »), `responsabletest1/2` (dérogations, appel des « Autre »). Responsables, direction et administrateur **n'appellent jamais les patients M, D, I, E** : seulement les tickets « Autre ».
+`accueil1/2`, `infirmier1/2`, `medecin1/2`, `dentiste1/2`, `echographie1/2`, `pharmacie1/2`, `direction1/2` (statistiques, appel des « Autre »), `responsable1/2` (dérogations, appel des « Autre »). `admincentre1/2` (administration du centre). Responsables, direction et administrateurs **n'appellent jamais les patients M, D, I, E** : seulement les tickets « Autre ».
 
 ---
 
@@ -68,21 +68,21 @@ Tous les comptes de test ont le mot de passe **1234** :
 **A. Parcours médecin, avec pharmacie**
 1. Borne : *Interne* → *Médecin* → écran de confirmation → **Prendre mon ticket** → ticket **M00x**. En bas de la borne, l'état de l'imprimante est affiché.
 2. Accueil : le ticket apparaît en quelques secondes (surligné), les chiffres du jour se mettent à jour → **Appeler le suivant** (montrer l'écran TV) → **Prendre en charge** → **Valider le ticket et orienter vers Infirmerie**.
-3. Montrer, avec `medecintest1`, que le médecin voit déjà ce ticket dans **« À venir »**.
-4. Infirmerie (`infirmiertest1`) : appeler → prendre en charge → **Terminer et orienter vers Médecins** (pas de pharmacie à cette étape).
-5. Médecin (`medecintest1`) : appeler → prendre en charge → ouvrir **« Transférer à la pharmacie »** → terminer.
-6. Pharmacie (`pharmacietest1`) : **Appel oral** (prise en charge directe) → Terminer. Le ticket est fini.
+3. Montrer, avec `medecin1`, que le médecin voit déjà ce ticket dans **« À venir »**.
+4. Infirmerie (`infirmier1`) : appeler → prendre en charge → **Terminer et orienter vers Médecins** (pas de pharmacie à cette étape).
+5. Médecin (`medecin1`) : appeler → prendre en charge → ouvrir **« Transférer à la pharmacie »** → terminer.
+6. Pharmacie (`pharmacie1`) : **Appel oral** (prise en charge directe) → Terminer. Le ticket est fini.
 7. Ouvrir l'**historique** du ticket (lien « historique ») : attente et durée de chaque étape.
 
-**B. Parcours direct** : Borne → *Externe* → *Échographie* → **Prendre mon ticket** → accueil valide → échographie (`echographietest1`) appelle.
+**B. Parcours direct** : Borne → *Externe* → *Échographie* → **Prendre mon ticket** → accueil valide → échographie (`echographie1`) appelle.
 
-**C. Dentiste et quota** : Borne → *Dentiste*. Avant de valider, l'accueil voit le quota (7 places le matin, 4 l'après-midi ; ex. « 2 réservée(s) sur 7 · 5 restante(s) »). Quota atteint : un responsable (`responsabletest1`) ouvre la page du ticket (Tickets → numéro) → **Autoriser une dérogation au quota** avec un motif ; l'agent d'accueil peut alors valider le ticket.
+**C. Dentiste et quota** : Borne → *Dentiste*. Avant de valider, l'accueil voit le quota (7 places le matin, 4 l'après-midi ; ex. « 2 réservée(s) sur 7 · 5 restante(s) »). Quota atteint : un responsable (`responsable1`) ouvre la page du ticket (Tickets → numéro) → **Autoriser une dérogation au quota** avec un motif ; l'agent d'accueil peut alors valider le ticket.
 
-**D. Mode Autre** : Borne → *Autre* → *Visite d'embauche* → **Prendre mon ticket** → ticket **A00x**. Accueil : appeler, prendre en charge → **Orienter la demande** → choisir une personne ou un service (au centre 002, chaque service a un agent désigné : `…test1`) → revenir à l'accueil → **Terminer**. Le destinataire répond depuis **Notifications** (statut + message), et l'accueil voit la réponse dans « Demandes ».
+**D. Mode Autre** : Borne → *Autre* → *Visite d'embauche* → **Prendre mon ticket** → ticket **A00x**. Accueil : appeler, prendre en charge → **Orienter la demande** → choisir une personne ou un service (au centre 002, chaque service a un agent désigné : `…1`) → revenir à l'accueil → **Terminer**. Le destinataire répond depuis **Notifications** (statut + message), et l'accueil voit la réponse dans « Demandes ».
 
-**E. Deux agents en même temps** : `accueiltest1` et `accueiltest2` appellent chacun un ticket différent (2 agents minimum par service).
+**E. Deux agents en même temps** : `accueil1` et `accueil2` appellent chacun un ticket différent (2 agents minimum par service).
 
-**F. Statistiques** : `directiontest1` → *Statistiques* → export PDF ou Excel. Aucune donnée patient.
+**F. Statistiques** : `direction1` → *Statistiques* → export PDF ou Excel. Aucune donnée patient.
 
 ---
 
@@ -90,7 +90,7 @@ Tous les comptes de test ont le mot de passe **1234** :
 
 | Ce qui s'affiche | Cause | Solution |
 |---|---|---|
-| « Vous avez déjà un ticket en cours… » | L'agent tient déjà un ticket (un seul à la fois, tous centres) | Terminer ce ticket, ou utiliser l'autre compte (`…test2`) |
+| « Vous avez déjà un ticket en cours… » | L'agent tient déjà un ticket (un seul à la fois, tous centres) | Terminer ce ticket, ou utiliser l'autre compte (`…2`) |
 | On ne peut appeler que le premier | Ordre strict de la file | Normal : appeler dans l'ordre d'arrivée |
 | « Veuillez patienter … s avant de rappeler » | 10 s minimum entre deux appels | Attendre quelques secondes |
 | « Marquer absent » n'apparaît pas | Il faut 3 appels sans réponse | Rappeler 2 fois (10 s d'écart) |

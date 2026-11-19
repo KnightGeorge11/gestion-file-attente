@@ -87,9 +87,11 @@ class UtilisateurAdmin(UserAdmin):
         queryset = super().get_queryset(request)
         if est_administrateur_central(request.user):
             return queryset
+        # Administrateur d'un centre : comptes de ses centres, jamais ceux de
+        # la plateforme (pas de changement de mot de passe d'un supérieur).
         return queryset.filter(
             affectations__centre__in=centres_autorises(request.user)
-        ).distinct()
+        ).exclude(is_superuser=True).exclude(type_compte=Utilisateur.TypeCompte.ADMINISTRATEUR).distinct()
 
     def get_readonly_fields(self, request, obj=None):
         champs = super().get_readonly_fields(request, obj)

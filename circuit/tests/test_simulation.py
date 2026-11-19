@@ -24,32 +24,32 @@ class ComptesTestTests(TestCase):
     def test_deux_comptes_par_service_mot_de_passe_1234(self):
         commande("creer_comptes_test")
         noms = identifiants_test()
-        self.assertEqual(len(noms), 16)
-        self.assertIn("medecintest1", noms)
-        self.assertIn("infirmiertest2", noms)
-        self.assertEqual(Utilisateur.objects.filter(username__in=noms).count(), 16)
-        for nom in ("medecintest1", "infirmiertest2", "accueiltest1", "pharmacietest2"):
+        self.assertEqual(len(noms), 18)   # 9 rôles x 2
+        self.assertIn("medecin1", noms)
+        self.assertIn("infirmier2", noms)
+        self.assertEqual(Utilisateur.objects.filter(username__in=noms).count(), 18)
+        for nom in ("medecin1", "infirmier2", "accueil1", "pharmacie2"):
             self.assertTrue(self.client.login(username=nom, password="1234"), nom)
             self.client.logout()
-        medecin = Utilisateur.objects.get(username="medecintest2")
+        medecin = Utilisateur.objects.get(username="medecin2")
         for centre in (self.a, self.b):
             med = centre.services.get(code="MED")
             acc = centre.services.get(code="ACC")
             self.assertTrue(a_droit(medecin, "circuit.appeler", centre, med))
             self.assertFalse(a_droit(medecin, "circuit.appeler", centre, acc))
-        self.assertEqual(self.a.services.get(code="MED").destinataire_demandes.username, "medecintest1")
+        self.assertEqual(self.a.services.get(code="MED").destinataire_demandes.username, "medecin1")
 
     def test_relance_sans_doublon_et_centre_choisi(self):
         commande("creer_comptes_test", "--centres", "AAA")
         commande("creer_comptes_test", "--centres", "AAA")
-        medecin = Utilisateur.objects.get(username="medecintest1")
+        medecin = Utilisateur.objects.get(username="medecin1")
         self.assertEqual(list(medecin.affectations.values_list("centre__code", flat=True)), ["AAA"])
 
     @override_settings(DEBUG=False)
     def test_refuse_en_production_sans_force(self):
         with self.assertRaises(CommandError):
             commande("creer_comptes_test")
-        self.assertFalse(Utilisateur.objects.filter(username="medecintest1").exists())
+        self.assertFalse(Utilisateur.objects.filter(username="medecin1").exists())
 
 
 @override_settings(DEBUG=True)

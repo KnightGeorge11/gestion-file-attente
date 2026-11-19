@@ -95,7 +95,7 @@ def a_droit(utilisateur, permission, centre, service=None):
 
 # Décision du 19/11/2026 : l'administrateur, les responsables et la direction
 # n'appellent que les tickets « Autre » (A…), jamais les patients (M, D, I, E).
-ROLES_APPEL_AUTRES_SEULEMENT = {"Responsable", "Direction"}
+ROLES_APPEL_AUTRES_SEULEMENT = {"Responsable", "Direction", "Administrateur de centre"}
 
 
 def appel_limite_aux_autres(utilisateur, centre):
@@ -112,13 +112,17 @@ def appel_limite_aux_autres(utilisateur, centre):
 
 def voit_autres_seulement(utilisateur, centre):
     """
-    La direction n'appelle et ne voit que les tickets « Autre » : jamais les
-    patients (décision du 19/11/2026, confidentialité).
+    La direction et l'administrateur de centre n'appellent et ne voient que
+    les tickets « Autre » : jamais les patients (décisions du 19/11/2026).
     """
     if est_administrateur_central(utilisateur):
         return False
     affectation = affectation_active(utilisateur, centre)
-    return bool(affectation is not None and affectation.groupe_id and affectation.groupe.name == "Direction")
+    return bool(
+        affectation is not None
+        and affectation.groupe_id
+        and affectation.groupe.name in ("Direction", "Administrateur de centre")
+    )
 
 
 def permissions_tous_centres(utilisateur):
