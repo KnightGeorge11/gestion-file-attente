@@ -71,3 +71,37 @@ class ConcurrenceTests(TransactionTestCase):
         resultats, erreurs = executer_en_parallele(lambda i: services.appeler(file, medecins[i]), 2)
         self.assertEqual(erreurs, [])
         self.assertEqual(len({appel.ticket_id for appel in resultats}), 2)
+
+    def test_appels_simultanes_de_plusieurs_services_differents(self):
+        """Accueil, infirmerie, médecins, dentiste et échographie appellent au même instant."""
+        from circuit.views_postes import appels_a_afficher
+
+        from .base import LUNDI_MATIN, a_heure
+
+        with a_heure(LUNDI_MATIN):
+            accueil = self.d.agent("acc", "Accueil", ["ACC"])
+            inf = self.d.agent("inf", "Infirmerie", ["INF"])
+            m = self.d.ticket("M")
+            self.d.accueillir(m, accueil)
+            self.d.traiter(m, "INF", inf)                      # M001 attend aux médecins
+            for prefixe in ("I", "D", "E"):
+                self.d.accueillir(self.d.ticket(prefixe), accueil)   # I, D, E attendent dans leur service
+            self.d.ticket("M")                                 # M002 attend à l'accueil
+            files = [self.d.file(code) for code in ("ACC", "INF", "MED", "DEN", "ECH")]
+            agents = [
+                self.d.agent("acc2", "Accueil", ["ACC"]),
+                self.d.agent("inf2", "Infirmerie", ["INF"]),
+                self.d.agent("med", "Médecin", ["MED"]),
+                self.d.agent("den", "Dentiste", ["DEN"]),
+                self.d.agent("ech", "Échographie", ["ECH"]),
+            ]
+            resultats, erreurs = executer_en_parallele(
+                lambda i: services.appeler(files[i], agents[i], poste=f"Salle {i}"), 5
+            )
+            self.assertEqual(erreurs, [])
+            self.assertEqual(len({appel.ticket_id for appel in resultats}), 5)
+            self.assertEqual({appel.service.code for appel in resultats}, {"ACC", "INF", "MED", "DEN", "ECH"})
+            # L'écran principal affiche les cinq appels en même temps.
+            affiches = appels_a_afficher(self.d.centre)
+            self.assertEqual({a.nom_service for a in affiches}, {a.nom_service for a in resultats})
+            self.assertEqual(EntreeFile.objects.filter(statut="APPELE").count(), 5)

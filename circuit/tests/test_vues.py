@@ -8,6 +8,7 @@ from centres.access import SESSION_CENTRE_KEY
 from centres.models import Borne, EcranAffichage
 from circuit import services
 from circuit.models import Appel, EntreeFile, Ticket
+from circuit.services import ErreurCircuit
 from comptes.models import AffectationUtilisateur, Utilisateur
 
 from .base import LUNDI_MATIN, Donnees, a_heure
@@ -631,8 +632,15 @@ class VisibiliteParServiceTests(BaseVues):
         self.assertEqual(self._visibles(self.responsable), self.tous)
 
     def test_direction_ne_voit_aucun_patient(self):
+        # Décision du 19/11/2026 : la direction ne voit (et n'appelle) que les tickets « Autre ».
         self.assertEqual(self._visibles(self.directeur), set())
-        self.assertNotContains(self.client.get(reverse("circuit:guichets")), "Tickets du jour")
+        with a_heure(LUNDI_MATIN):
+            autre = services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE, motif=self.d.motif)
+            liste = set(self.client.get(reverse("circuit:tickets")).context["tickets"])
+            self.assertEqual(liste, {autre})
+            page = self.client.get(reverse("circuit:guichet", args=[self.d.svc["ACC"].pk]))
+        self.assertContains(page, autre.numero)
+        self.assertNotContains(page, self.echo_accueil.numero)    # patient E à l'accueil : invisible
 
     def test_section_a_venir_dans_l_interface_des_medecins(self):
         self.connecter(self.medecin, self.d.centre)
@@ -712,17 +720,41 @@ class AucuneInformationPatientTests(BaseVues):
             quota.save()
             ticket = self.d.ticket("D")
             entree = self.d.entree(ticket)
-            services.appeler(self.d.file("ACC"), responsable)
-            services.prendre_en_charge(entree, responsable)
+            # Le responsable n'appelle pas le patient (décision du 19/11/2026) :
+            # il autorise la dérogation depuis la page du ticket.
+            with self.assertRaises(ErreurCircuit):
+                services.appeler(self.d.file("ACC"), responsable)
             self.connecter(responsable, self.d.centre)
+            self.assertContains(self.client.get(reverse("circuit:ticket", args=[ticket.pk])),
+                                "Autoriser une dérogation au quota")
+            self.client.post(reverse("circuit:ticket_action", args=[ticket.pk, "deroger"]), {"motif": "Urgence"})
+            # L'agent d'accueil voit l'autorisation et valide le ticket.
+            services.appeler(self.d.file("ACC"), self.accueil)
+            services.prendre_en_charge(entree, self.accueil)
+            self.connecter(self.accueil, self.d.centre)
             page = self.client.get(reverse("circuit:guichet", args=[acc]))
-            self.assertContains(page, "Dérogation exceptionnelle")
-            self.client.post(reverse("circuit:guichet_action", args=[acc, "terminer"]),
-                             {"entree": entree.pk, "derogation": "1", "motif_derogation": "Urgence"})
+            self.assertContains(page, "Dérogation autorisée par resp_q")
+            self.client.post(reverse("circuit:guichet_action", args=[acc, "terminer"]), {"entree": entree.pk})
         reservation = ticket.reservation_active()
         self.assertTrue(reservation.derogation)
-        self.assertEqual(reservation.motif_derogation, "Urgence")
+        self.assertIn("Urgence", reservation.motif_derogation)
+        self.assertIn("resp_q", reservation.motif_derogation)
         self.assertEqual(self.d.entree(ticket).file.service.code, "DEN")
+
+    def test_sans_autorisation_l_accueil_ne_peut_pas_depasser_le_quota(self):
+        with a_heure(LUNDI_MATIN):
+            quota = self.d.parcours["D"].quotas.get(jour_semaine=0, periode="MATIN")
+            quota.nombre_places = 0
+            quota.save()
+            ticket = self.d.ticket("D")
+            entree = self.d.entree(ticket)
+            services.appeler(self.d.file("ACC"), self.accueil)
+            services.prendre_en_charge(entree, self.accueil)
+            with self.assertRaisesMessage(ErreurCircuit, "Quota atteint"):
+                services.terminer(entree, self.accueil)
+            # Le motif est obligatoire pour autoriser.
+            with self.assertRaisesMessage(ErreurCircuit, "motif"):
+                services.autoriser_derogation(ticket, self.d.agent("resp_m", "Responsable"), "  ")
 
 
 @override_settings(RESEAU_LOCAL_UNIQUEMENT=True, BORNE_DELAI_MIN_SECONDES=0)
@@ -851,3 +883,12 @@ class InterfaceDynamiqueTests(BaseVues):
         self.assertEqual(icone_service(self.d.svc["PHA"]), "pharmacie")
         self.assertEqual(icone_service(None), "autre")
         self.assertIn('href="#i-tickets"', icone("tickets"))
+
+    def test_responsable_ne_voit_que_l_appel_des_demandes_autre(self):
+        responsable = self.d.agent("resp_vue", "Responsable")
+        self.connecter(responsable, self.d.centre)
+        page = self.client.get(reverse("circuit:guichet", args=[self.d.svc["INF"].pk]))
+        self.assertContains(page, "appeler que les tickets « Autre »")
+        self.assertNotContains(page, "Appeler le suivant")
+        page = self.client.get(reverse("circuit:guichet", args=[self.d.svc["ACC"].pk]))
+        self.assertContains(page, "Appeler la demande « Autre » suivante")

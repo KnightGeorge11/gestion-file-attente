@@ -58,6 +58,16 @@
         </form>
     </details>
     {% endif %}
+    {% if derogation_autorisee %}<div class="encart ok" style="margin-top:12px">{% icone "bouclier" %}<span>Dérogation au quota autorisée par {{ derogation_autorisee.agent }} à {{ derogation_autorisee.date|time:"H:i" }} : {{ derogation_autorisee.details.motif }}</span></div>{% endif %}
+    {% if peut_autoriser_derogation %}
+    <details><summary>{% icone "bouclier" %}Autoriser une dérogation au quota</summary>
+        <form method="post" action="{% url 'circuit:ticket_action' ticket.pk 'deroger' %}">{% csrf_token %}
+            <p class="discret">L'accueil pourra ensuite valider ce ticket même si le quota est atteint. Vous n'appelez pas le patient.</p>
+            <label>Motif obligatoire</label><input name="motif" required maxlength="500">
+            <p style="margin-top:10px"><button class="principal">Autoriser la dérogation</button></p>
+        </form>
+    </details>
+    {% endif %}
     {% if peut_liberer %}
     <details><summary>{% icone "calendrier" %}Libérer la place de quota (patient absent)</summary>
         <form method="post" action="{% url 'circuit:ticket_action' ticket.pk 'liberer' %}">{% csrf_token %}

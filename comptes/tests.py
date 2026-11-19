@@ -13,7 +13,7 @@ from centres.access import SESSION_CENTRE_KEY, centres_autorises
 from centres.models import Centre, Service
 from comptes.management.commands.initialiser_roles import ROLES, initialiser_roles
 from comptes.models import AffectationService, AffectationUtilisateur, Utilisateur
-from comptes.permissions import a_droit
+from comptes.permissions import a_droit, appel_limite_aux_autres
 
 MDP = "mot-de-passe-1"
 
@@ -132,10 +132,13 @@ class RolesEtPermissionsTests(BaseComptes):
         self.assertFalse(a_droit(agent, "circuit.appeler", self.a, self.acc_a))
 
     def test_direction_lecture_seule(self):
+        # Décision du 19/11/2026 : la direction peut appeler, mais seulement les
+        # tickets « Autre » (contrôlé dans circuit.services.appeler).
         directeur = self.utilisateur("dir")
         self.affecter(directeur, self.a, "Direction")
         self.assertTrue(a_droit(directeur, "circuit.voir_statistiques", self.a))
-        for action in ("circuit.appeler", "circuit.transferer", "circuit.orienter_demande",
+        self.assertTrue(appel_limite_aux_autres(directeur, self.a))
+        for action in ("circuit.transferer", "circuit.orienter_demande",
                        "circuit.annuler_ticket", "parcours.liberer_quota"):
             self.assertFalse(a_droit(directeur, action, self.a, self.acc_a), action)
 

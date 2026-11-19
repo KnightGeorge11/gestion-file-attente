@@ -36,6 +36,7 @@ Le module `salles` n'a pas été créé : il reste optionnel et non validé (Tre
 - **10 secondes** minimum entre deux appels du même patient ; absence après 3 appels.
 - **2 agents minimum par service** (décision du 18/11/2026) : chaque file accepte au moins 2 appels simultanés ; chaque agent ne tient qu'un patient à la fois.
 - Tickets « Autre » : préfixe **A** avec leur propre compteur.
+- **Qui appelle quoi** (décisions du 19/11/2026) : l'administrateur, les responsables et la direction **n'appellent que les tickets « Autre »** (A…), jamais les patients (M, D, I, E), qui ne relèvent pas de leur département. Ils appellent la demande « Autre » suivante de la file d'accueil, même si des patients sont devant ; l'appel d'un patient, y compris l'appel oral à la pharmacie, leur est refusé côté serveur. La **direction ne voit que les tickets « Autre »** (aucun patient). **Dérogation au quota dentiste** : le responsable l'autorise depuis la page du ticket, avec un motif obligatoire ; l'agent d'accueil valide ensuite le ticket au-delà du quota (la réservation est marquée « dérogation », avec le motif et le nom du responsable).
 - Chaque service appelle ses patients ; **un écran principal unique affiche simultanément les appels de plusieurs services** ; la pharmacie peut appeler sur l'écran ou oralement.
 - File commune des médecins : le patient appelé est attribué au médecin connecté qui l'appelle (verrou, pas de double prise).
 - Comptes individuels pour chaque agent ; interface commune par service.
@@ -46,7 +47,7 @@ Le module `salles` n'a pas été créé : il reste optionnel et non validé (Tre
 - **Mode Autre** (rendez-vous, visite d'embauche, entretien, cotisations, rencontre d'une personne…) : notification à l'accueil ; l'accueil oriente vers une **personne précise** ou un **service** (dans ce cas, un **agent désigné** du service est notifié, pas tous les agents) ; le destinataire répond par un **statut prédéfini** (demande reçue, prise en compte, en cours de traitement, patient attendu, traitée, non réalisable) **et un message libre facultatif**. Le ticket est clôturé après l'orientation ; la demande reste suivie indépendamment.
 - Tickets, passages et activités isolés par centre.
 - Le concept de « visite » n'existe pas.
-- **Confidentialité par service** (décision du 18/11/2026) : un agent ne voit que les patients qui viennent dans son service. Un ticket est visible pour un service **à l'avance**, dès que son parcours prévoit ce service (ex. un patient M à l'accueil ou à l'infirmerie est visible des médecins, dans la section « À venir » de leur interface), puis pendant et après son passage. Un patient transféré à la pharmacie depuis une étape intermédiaire n'est plus « à venir » pour les étapes suivantes. L'accueil voit tous les tickets (tous les patients y passent) ; la pharmacie ne voit que les patients qui lui sont transférés ; la direction ne voit aucun patient (statistiques uniquement). Contrôle côté serveur : liste des tickets du jour et accès direct par adresse (404 sinon).
+- **Confidentialité par service** (décision du 18/11/2026) : un agent ne voit que les patients qui viennent dans son service. Un ticket est visible pour un service **à l'avance**, dès que son parcours prévoit ce service (ex. un patient M à l'accueil ou à l'infirmerie est visible des médecins, dans la section « À venir » de leur interface), puis pendant et après son passage. Un patient transféré à la pharmacie depuis une étape intermédiaire n'est plus « à venir » pour les étapes suivantes. L'accueil voit tous les tickets (tous les patients y passent) ; la pharmacie ne voit que les patients qui lui sont transférés ; la direction ne voit aucun patient : seulement les tickets « Autre », qu'elle peut appeler (décision du 19/11/2026). Contrôle côté serveur : liste des tickets du jour et accès direct par adresse (404 sinon).
 
 ### Paramètres configurables (administration)
 
@@ -122,8 +123,8 @@ Comptes créés, mot de passe par défaut **1234** (modifiable avec `--mot-de-pa
 | Dentiste | `dentistetest1`, `dentistetest2` |
 | Échographie | `echographietest1`, `echographietest2` |
 | Pharmacie | `pharmacietest1`, `pharmacietest2` |
-| Direction (statistiques) | `directiontest1`, `directiontest2` |
-| Responsable (dérogations, fusions) | `responsabletest1`, `responsabletest2` |
+| Direction (statistiques, appel des « Autre ») | `directiontest1`, `directiontest2` |
+| Responsable (dérogations, appel des « Autre ») | `responsabletest1`, `responsabletest2` |
 
 La simulation passe par le moteur réel (toutes les règles s'appliquent). Elle émet ses tickets par une borne dédiée « SIMULATION », n'agit que sur ses propres tickets et uniquement au nom des comptes de test ; elle n'appelle jamais une file dont le premier patient est un vrai patient. Aucune information patient n'est créée. Les tickets simulés restent dans l'historique et les statistiques (rien n'est supprimé).
 

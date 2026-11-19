@@ -609,3 +609,51 @@ class DeuxAgentsParServiceTests(BaseCircuit):
         file.nb_appels_simultanes = 1
         with self.assertRaises(ValidationError):
             file.full_clean()
+
+
+class AppelAutresSeulementTests(BaseCircuit):
+    """Décision du 19/11/2026 : administrateur, responsables et direction n'appellent que les « Autre »."""
+
+    def setUp(self):
+        super().setUp()
+        self.file_acc = self.d.file("ACC")
+        self.file_acc.nb_appels_simultanes = 5
+        self.file_acc.save()
+
+    def _autre(self):
+        return services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE, motif=self.d.motif)
+
+    def test_responsable_et_direction_appellent_seulement_les_autres(self):
+        patient = self.d.ticket("M")
+        autre = self._autre()
+        responsable = self.d.agent("chef_resp", "Responsable")
+        appel = services.appeler(self.file_acc, responsable)
+        # Le patient M001 est devant dans la file, mais c'est la demande « Autre » qui est appelée.
+        self.assertEqual(appel.ticket, autre)
+        services.prendre_en_charge(services.entree_tenue_par(responsable), responsable)
+        direction = self.d.agent("dir2", "Direction")
+        with self.assertRaisesMessage(ErreurCircuit, "que les tickets « Autre »"):
+            services.appeler(self.file_acc, direction, entree=self.d.entree(patient))
+        with self.assertRaisesMessage(ErreurCircuit, "Aucune demande « Autre » en attente"):
+            services.appeler(self.file_acc, direction)
+        # L'agent d'accueil appelle toujours normalement le patient.
+        self.assertEqual(services.appeler(self.file_acc, self.accueil).ticket, patient)
+
+    def test_administrateur_central_appelle_seulement_les_autres(self):
+        admin = Utilisateur.objects.create_superuser("admin_central", "", "mot-de-passe-1")
+        patient = self.d.ticket("M")
+        with self.assertRaisesMessage(ErreurCircuit, "Aucune demande « Autre » en attente"):
+            services.appeler(self.file_acc, admin)
+        with self.assertRaisesMessage(ErreurCircuit, "que les tickets « Autre »"):
+            services.appeler(self.file_acc, admin, entree=self.d.entree(patient))
+        autre = self._autre()
+        self.assertEqual(services.appeler(self.file_acc, admin).ticket, autre)
+
+    def test_pas_d_appel_oral_d_un_patient_a_la_pharmacie(self):
+        ticket = self.d.ticket("I")
+        self.d.accueillir(ticket, self.accueil)
+        infirmier = self.d.agent("inf_x", "Infirmerie", ["INF"])
+        self.d.traiter(ticket, "INF", infirmier, transferer=True)
+        responsable = self.d.agent("resp_pha", "Responsable")
+        with self.assertRaisesMessage(ErreurCircuit, "que les tickets « Autre »"):
+            services.prendre_en_charge(self.d.entree(ticket), responsable, oral=True)

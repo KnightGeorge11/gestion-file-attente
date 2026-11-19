@@ -24,7 +24,10 @@ ROLES = {
     "Dentiste": SOINS,
     "Échographie": SOINS,
     "Pharmacie": APPEL,
-    "Direction": ["circuit.voir_statistiques"],
+    # Direction et Responsable n'appellent que les tickets « Autre »
+    # (circuit.services.appeler, décision du 19/11/2026). La direction ne
+    # voit d'ailleurs que ces tickets (circuit.visibilite).
+    "Direction": APPEL + ["circuit.voir_statistiques"],
     "Responsable": APPEL + [
         "circuit.annuler_ticket",
         "circuit.orienter_demande",

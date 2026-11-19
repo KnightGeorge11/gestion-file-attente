@@ -93,6 +93,34 @@ def a_droit(utilisateur, permission, centre, service=None):
     return permission in permissions_affectation(affectation)
 
 
+# Décision du 19/11/2026 : l'administrateur, les responsables et la direction
+# n'appellent que les tickets « Autre » (A…), jamais les patients (M, D, I, E).
+ROLES_APPEL_AUTRES_SEULEMENT = {"Responsable", "Direction"}
+
+
+def appel_limite_aux_autres(utilisateur, centre):
+    """Vrai si l'utilisateur ne peut appeler que les tickets « Autre » dans ce centre."""
+    if est_administrateur_central(utilisateur):
+        return True
+    affectation = affectation_active(utilisateur, centre)
+    return bool(
+        affectation is not None
+        and affectation.groupe_id
+        and affectation.groupe.name in ROLES_APPEL_AUTRES_SEULEMENT
+    )
+
+
+def voit_autres_seulement(utilisateur, centre):
+    """
+    La direction n'appelle et ne voit que les tickets « Autre » : jamais les
+    patients (décision du 19/11/2026, confidentialité).
+    """
+    if est_administrateur_central(utilisateur):
+        return False
+    affectation = affectation_active(utilisateur, centre)
+    return bool(affectation is not None and affectation.groupe_id and affectation.groupe.name == "Direction")
+
+
 def permissions_tous_centres(utilisateur):
     """Union des permissions de toutes les affectations actives (menus)."""
     perms = set()

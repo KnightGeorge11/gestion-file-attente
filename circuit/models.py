@@ -643,6 +643,7 @@ class Evenement(ModeleCentre):
         IDENTIFICATION = "IDENTIFICATION", "Identification du patient"
         RESERVATION_QUOTA = "RESERVATION_QUOTA", "Réservation de quota"
         DEROGATION_QUOTA = "DEROGATION_QUOTA", "Dérogation au quota"
+        DEROGATION_AUTORISEE = "DEROGATION_AUTORISEE", "Dérogation autorisée par un responsable"
         LIBERATION_QUOTA = "LIBERATION_QUOTA", "Libération de quota"
         NOTIFICATION = "NOTIFICATION", "Notification transmise"
         REPONSE = "REPONSE", "Réponse à une notification"

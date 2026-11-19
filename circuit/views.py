@@ -19,7 +19,7 @@ from centres.decorators import centre_actif_requis
 from centres.models import Service
 from comptes.access import utilisateur_peut_acceder_service
 from comptes.models import Utilisateur
-from comptes.permissions import a_droit
+from comptes.permissions import a_droit, appel_limite_aux_autres, voit_autres_seulement
 from core.access import objet_du_centre
 from core.timeutils import maintenant_centre
 
@@ -163,6 +163,8 @@ def _contexte_guichet(request, service, file):
         "peut_transferer": a_droit(agent, "circuit.transferer", request.centre_actif, service),
         "peut_annuler": a_droit(agent, "circuit.annuler_ticket", request.centre_actif, service),
         "peut_orienter": a_droit(agent, "circuit.orienter_demande", request.centre_actif, service),
+        # Administrateur, responsables, direction : tickets « Autre » seulement.
+        "appel_autres_seulement": appel_limite_aux_autres(agent, request.centre_actif),
         "maintenant": timezone.now(),
         "indicateurs": _indicateurs_service(service, file, agent, jour),
         # Historique des derniers appels du service (aujourd'hui).
@@ -174,6 +176,14 @@ def _contexte_guichet(request, service, file):
         # Patients qui viendront dans ce service (vus à l'avance).
         "a_venir": list(tickets_a_venir(service)[:30]),
     }
+
+    if voit_autres_seulement(agent, request.centre_actif):
+        # Direction : jamais de patient à l'écran, seulement les demandes « Autre ».
+        contexte["attente"] = [e for e in contexte["attente"] if e.passage.ticket.mode == Ticket.Mode.AUTRE]
+        contexte["en_cours"] = [e for e in contexte["en_cours"] if e.passage.ticket.mode == Ticket.Mode.AUTRE]
+        contexte["absents"] = [p for p in contexte["absents"] if p.ticket.mode == Ticket.Mode.AUTRE]
+        contexte["a_venir"] = []
+        contexte["derniers_appels"] = [a for a in contexte["derniers_appels"] if a.numero_ticket.startswith("A")]
 
     if tenue is not None:
         passage = tenue.passage
@@ -196,6 +206,7 @@ def _contexte_guichet(request, service, file):
             and contexte["reservation"] is None
         ):
             contexte["etat_quota"] = services.etat_quota(ticket.parcours)
+            contexte["derogation_autorisee"] = services.derogation_autorisee(ticket)
             contexte["peut_deroger"] = a_droit(agent, "parcours.deroger_quota", request.centre_actif, service)
 
     if service.est_accueil:
@@ -352,6 +363,13 @@ def ticket_detail(request, ticket_id):
             "peut_annuler": ticket.ouvert and a_droit(request.user, "circuit.annuler_ticket", centre, accueil),
             "peut_liberer": a_droit(request.user, "parcours.liberer_quota", centre, accueil)
             and ticket.reservations_quota.filter(statut=ReservationQuota.Statut.RESERVEE).exists(),
+            # Dérogation au quota : le responsable l'autorise ici, l'accueil valide ensuite.
+            "peut_autoriser_derogation": ticket.ouvert
+            and ticket.parcours_id is not None
+            and ticket.parcours.soumis_quota
+            and ticket.reservation_active() is None
+            and a_droit(request.user, "parcours.deroger_quota", centre, accueil),
+            "derogation_autorisee": services.derogation_autorisee(ticket),
         },
     )
 
@@ -367,6 +385,10 @@ def ticket_action(request, ticket_id, action):
             _exiger(request, "circuit.annuler_ticket", accueil)
             services.annuler_ticket(ticket, request.user, request.POST.get("motif", ""))
             messages.success(request, f"Ticket {ticket.numero} annulé.")
+        elif action == "deroger":
+            _exiger(request, "parcours.deroger_quota", accueil)
+            services.autoriser_derogation(ticket, request.user, request.POST.get("motif", ""))
+            messages.success(request, f"Dérogation autorisée : l'accueil peut valider le ticket {ticket.numero}.")
         elif action == "liberer":
             _exiger(request, "parcours.liberer_quota", accueil)
             services.liberer_quota(ticket, request.user, request.POST.get("motif", ""))

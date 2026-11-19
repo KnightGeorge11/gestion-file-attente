@@ -16,7 +16,8 @@ Conséquences :
 - la pharmacie ne voit que les patients qui lui ont été transférés (elle
   n'est jamais une étape de parcours) ;
 - l'accueil voit tous les tickets, puisque tous les patients y passent ;
-- la direction (statistiques sans données nominatives) ne voit aucun patient ;
+- la direction ne voit aucun patient : seulement les tickets « Autre », qu'elle
+  peut appeler (décision du 19/11/2026) ;
 - l'administrateur central voit tout.
 """
 
@@ -24,7 +25,7 @@ from django.db.models import Exists, OuterRef, Q, Subquery
 
 from centres.access import est_administrateur_central
 from centres.models import Service
-from comptes.permissions import a_droit
+from comptes.permissions import a_droit, voit_autres_seulement
 from parcours.models import EtapeParcours
 
 from .models import Passage, Ticket
@@ -68,6 +69,9 @@ def tickets_visibles(utilisateur, centre):
     services = services_operationnels(utilisateur, centre)
     if not services:
         return Ticket.objects.none()
+    if voit_autres_seulement(utilisateur, centre):
+        # Direction : seulement les tickets « Autre », jamais les patients.
+        return Ticket.objects.filter(centre=centre, mode=Ticket.Mode.AUTRE)
     ordre_courant, etape_suivante = _a_venir(services)
     passe_par_service = Passage.objects.filter(ticket=OuterRef("pk"), service__in=services)
     return (

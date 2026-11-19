@@ -301,6 +301,17 @@ def _enregistrer_appel(entree, agent, mode=Appel.Mode.ECRAN):
     return appel
 
 
+MESSAGE_AUTRES_SEULEMENT = (
+    "Votre rôle ne permet d'appeler que les tickets « Autre » (A…), pas les patients."
+)
+
+
+def _appel_limite_aux_autres(agent, file):
+    from comptes.permissions import appel_limite_aux_autres
+
+    return appel_limite_aux_autres(agent, file.centre)
+
+
 @transaction.atomic
 def appeler(file, agent, entree=None, poste=""):
     """
@@ -317,6 +328,13 @@ def appeler(file, agent, entree=None, poste=""):
     _verifier_capacite(file)
 
     attente = file_en_attente(file)
+    if _appel_limite_aux_autres(agent, file):
+        # Administrateur, responsables, direction : tickets « Autre » seulement.
+        if entree is not None and not attente.filter(pk=entree.pk, passage__ticket__mode=Ticket.Mode.AUTRE).exists():
+            raise ErreurCircuit(MESSAGE_AUTRES_SEULEMENT)
+        attente = attente.filter(passage__ticket__mode=Ticket.Mode.AUTRE)
+        if not attente.exists():
+            raise ErreurCircuit("Aucune demande « Autre » en attente. " + MESSAGE_AUTRES_SEULEMENT)
     premier = attente.first()
     if premier is None:
         raise ErreurCircuit("Aucun patient en attente.")
@@ -435,6 +453,8 @@ def prendre_en_charge(entree, agent, oral=False):
     if entree.statut == EntreeFile.Statut.EN_ATTENTE:
         if not (oral and service.appel_oral_autorise):
             raise ErreurCircuit("Appelez d'abord le patient.")
+        if ticket.mode != Ticket.Mode.AUTRE and _appel_limite_aux_autres(agent, entree.file):
+            raise ErreurCircuit(MESSAGE_AUTRES_SEULEMENT)
         _verifier_agent_libre(agent)
         _verifier_capacite(entree.file)
         if entree.file.ordre_strict:
@@ -635,6 +655,16 @@ def _reserver_quota(ticket, agent, derogation=False, motif_derogation=""):
             "aucun ticket ne peut lui être orienté."
         )
 
+    if restantes <= 0 and not derogation:
+        # Dérogation accordée à l'avance par un responsable depuis la page du
+        # ticket (le responsable n'appelle pas les patients).
+        autorisation = derogation_autorisee(ticket)
+        if autorisation is not None:
+            derogation = True
+            motif_derogation = (
+                f"{autorisation.details.get('motif', '')} (autorisée par {autorisation.agent})"
+            )
+
     if restantes <= 0:
         if not derogation:
             raise ErreurCircuit(
@@ -667,6 +697,35 @@ def _reserver_quota(ticket, agent, derogation=False, motif_derogation=""):
         reservees_avant=reservees, motif=motif_derogation.strip(),
     )
     return reservation
+
+
+def derogation_autorisee(ticket):
+    """Dernière autorisation de dérogation accordée pour ce ticket, ou None."""
+    return (
+        ticket.evenements.filter(type=Evenement.Type.DEROGATION_AUTORISEE)
+        .select_related("agent")
+        .order_by("-date", "-id")
+        .first()
+    )
+
+
+@transaction.atomic
+def autoriser_derogation(ticket, agent, motif):
+    """
+    Un responsable autorise, avec un motif, la validation d'un ticket au-delà
+    du quota. L'agent d'accueil valide ensuite le ticket normalement ; la
+    réservation est alors marquée « dérogation ». Le responsable n'appelle
+    jamais le patient (décision du 19/11/2026).
+    """
+    motif = (motif or "").strip()
+    if not motif:
+        raise ErreurCircuit("Le motif de la dérogation est obligatoire.")
+    ticket = Ticket.objects.select_for_update(of=("self",)).select_related("parcours").get(pk=ticket.pk)
+    if not ticket.ouvert or not ticket.parcours_id or not ticket.parcours.soumis_quota:
+        raise ErreurCircuit("Ce ticket n'est pas concerné par un quota.")
+    if ticket.reservation_active() is not None:
+        raise ErreurCircuit("Une place est déjà réservée pour ce ticket.")
+    _evenement(ticket, Evenement.Type.DEROGATION_AUTORISEE, agent=agent, motif=motif)
 
 
 @transaction.atomic

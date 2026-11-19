@@ -57,7 +57,7 @@ Utiliser le **centre 002** (le plus propre pour une démonstration).
 **Important** : un navigateur ne garde qu'une session. Si vous vous connectez comme agent dans la fenêtre de la borne, la borne se désactive. Gardez la borne dans un navigateur à part (ou sur la tablette). Une fenêtre de navigation privée perd la borne quand on la ferme.
 
 Tous les comptes de test ont le mot de passe **1234** :
-`accueiltest1/2`, `infirmiertest1/2`, `medecintest1/2`, `dentistetest1/2`, `echographietest1/2`, `pharmacietest1/2`, `directiontest1/2` (statistiques), `responsabletest1/2` (dérogations).
+`accueiltest1/2`, `infirmiertest1/2`, `medecintest1/2`, `dentistetest1/2`, `echographietest1/2`, `pharmacietest1/2`, `directiontest1/2` (statistiques, appel des « Autre »), `responsabletest1/2` (dérogations, appel des « Autre »). Responsables, direction et administrateur **n'appellent jamais les patients M, D, I, E** : seulement les tickets « Autre ».
 
 ---
 
@@ -74,7 +74,7 @@ Tous les comptes de test ont le mot de passe **1234** :
 
 **B. Parcours direct** : Borne → *Externe* → *Échographie* → **Prendre mon ticket** → accueil valide → échographie (`echographietest1`) appelle.
 
-**C. Dentiste et quota** : Borne → *Dentiste*. Avant de valider, l'accueil voit le quota (7 places le matin, 4 l'après-midi ; ex. « 2 réservée(s) sur 7 · 5 restante(s) »). Quota atteint : seul un responsable (`responsabletest1`) peut accorder une dérogation, avec un motif.
+**C. Dentiste et quota** : Borne → *Dentiste*. Avant de valider, l'accueil voit le quota (7 places le matin, 4 l'après-midi ; ex. « 2 réservée(s) sur 7 · 5 restante(s) »). Quota atteint : un responsable (`responsabletest1`) ouvre la page du ticket (Tickets → numéro) → **Autoriser une dérogation au quota** avec un motif ; l'agent d'accueil peut alors valider le ticket.
 
 **D. Mode Autre** : Borne → *Autre* → *Visite d'embauche* → **Prendre mon ticket** → ticket **A00x**. Accueil : appeler, prendre en charge → **Orienter la demande** → choisir une personne ou un service (au centre 002, chaque service a un agent désigné : `…test1`) → revenir à l'accueil → **Terminer**. Le destinataire répond depuis **Notifications** (statut + message), et l'accueil voit la réponse dans « Demandes ».
 
