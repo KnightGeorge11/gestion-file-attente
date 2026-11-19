@@ -8,9 +8,10 @@
         <p class="sous-titre">Demandes « Autre » qui vous ont été transmises par l'accueil.</p>
     </div>
 </div>
-<div class="cartes-demandes">
+<div id="zone-notifications" hx-get="{{ request.get_full_path }}" hx-trigger="every 10s [pasDeSaisie()]" hx-select="#zone-notifications" hx-swap="outerHTML">
+<div class="cartes-demandes" data-suivi="notifications">
 {% for n in notifications %}
-<section class="carte {% if not n.date_lecture %}accent{% endif %} apparition">
+<section class="carte {% if not n.date_lecture %}accent{% endif %}" data-id="{{ n.pk }}">
     <div class="carte-entete">
         <h2><span class="jeton">{{ n.demande.ticket.numero }}</span>{{ n.demande.motif|default:"Demande" }}</h2>
         {% if not n.date_lecture %}<span class="etiquette alerte">Nouvelle</span>{% endif %}
@@ -35,5 +36,6 @@
 {% empty %}
 <div class="carte vide">{% icone "cloche" %} Aucune notification.</div>
 {% endfor %}
+</div>
 </div>
 {% endblock %}

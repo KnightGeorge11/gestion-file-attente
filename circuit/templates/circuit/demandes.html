@@ -8,9 +8,11 @@
         <p class="sous-titre">Hors parcours de soins : orientez chaque demande vers une personne ou un service, puis suivez les réponses.</p>
     </div>
 </div>
-<div class="cartes-demandes">
+{# Actualisation automatique, suspendue pendant une saisie. #}
+<div id="zone-demandes" hx-get="{{ request.get_full_path }}" hx-trigger="every 10s [pasDeSaisie()]" hx-select="#zone-demandes" hx-swap="outerHTML">
+<div class="cartes-demandes" data-suivi="demandes">
 {% for d in demandes %}
-<section class="carte {% if d.statut == 'NOUVELLE' %}accent{% endif %} apparition">
+<section class="carte {% if d.statut == 'NOUVELLE' %}accent{% endif %}" data-id="{{ d.pk }}-{{ d.statut }}-{{ d.notifications.count }}">
     <div class="carte-entete">
         <h2><span class="jeton">{{ d.ticket.numero }}</span>{{ d.motif|default:"Motif non précisé" }}</h2>
         <span class="etiquette {% if d.statut == 'NOUVELLE' %}alerte{% elif d.statut == 'CLOTUREE' %}ok{% else %}info{% endif %}">{{ d.get_statut_display }}</span>
@@ -45,5 +47,6 @@
 {% empty %}
 <div class="carte vide">{% icone "check-cercle" %} Aucune demande en cours.</div>
 {% endfor %}
+</div>
 </div>
 {% endblock %}

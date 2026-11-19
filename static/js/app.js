@@ -177,6 +177,56 @@
       toast("Le serveur a rencontré une erreur. Réessayez ; si cela persiste, prévenez l'administrateur.", "error");
     }
   });
+  /* Navigation sans rechargement (hx-boost) : quand la réponse est une page
+     d'un autre type (connexion après expiration de la session, borne, page
+     d'erreur…) ou qu'une zone rafraîchie reçoit une page complète, on charge
+     la page normalement plutôt que de l'insérer au mauvais endroit. */
+  function classeBody(html) {
+    var m = /<body[^>]*\sclass="([^"]*)"/i.exec(html || "");
+    return m ? m[1].trim() : null;
+  }
+  document.addEventListener("htmx:beforeSwap", function (e) {
+    var xhr = e.detail.xhr;
+    if (!xhr) { return; }
+    var html = xhr.responseText || "";
+    var pageComplete = /<body[\s>]/i.test(html);
+    var adresse = xhr.responseURL || window.location.href;
+    if (e.detail.boosted) {
+      var classeActuelle = document.body.className.replace(/\bhors-ligne\b/, "").trim();
+      if (xhr.status >= 400 || (pageComplete && classeBody(html) !== classeActuelle)) {
+        e.detail.shouldSwap = false;
+        window.location.href = adresse;
+      }
+    } else if (pageComplete && e.detail.target !== document.body) {
+      // Une zone rafraîchie reçoit une page entière : normal avec hx-select
+      // (seule la zone est reprise), sauf si le serveur a redirigé ailleurs
+      // (ex. session expirée -> page de connexion).
+      var avecSelection = e.detail.elt && e.detail.elt.closest && e.detail.elt.closest("[hx-select]");
+      var demande = e.detail.requestConfig && e.detail.requestConfig.path;
+      var redirige = demande && xhr.responseURL &&
+        new URL(xhr.responseURL, window.location.href).pathname !== new URL(demande, window.location.href).pathname;
+      if (!avecSelection || redirige) {
+        e.detail.shouldSwap = false;
+        window.location.reload();
+      }
+    }
+  });
+
+  /* Les rafraîchissements automatiques attendent que l'agent ait fini de
+     saisir : utilisé dans hx-trigger="every 10s [pasDeSaisie()]". */
+  window.pasDeSaisie = function () {
+    var actif = document.activeElement;
+    if (actif && actif.matches && actif.matches("input, select, textarea")) { return false; }
+    // Un volet (« Annuler le ticket »…) ouvert par l'agent reste ouvert.
+    return !document.querySelector("details[open][data-ouvert-par-agent]");
+  };
+  document.addEventListener("click", function (e) {
+    var resume = e.target.closest && e.target.closest("summary");
+    if (resume && resume.parentNode.tagName === "DETAILS") {
+      resume.parentNode.setAttribute("data-ouvert-par-agent", "1");
+    }
+  });
+
   document.addEventListener("htmx:afterSettle", function (e) {
     messagesEnToasts(document);
     suivreNouveaux(e.detail.elt);

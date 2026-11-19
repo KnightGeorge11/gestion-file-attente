@@ -3,7 +3,11 @@
 externe) et choix de l'icône d'un service ou d'un parcours.
 """
 
+import os
+
 from django import template
+from django.contrib.staticfiles import finders
+from django.templatetags.static import static
 from django.utils.html import format_html
 
 register = template.Library()
@@ -19,6 +23,26 @@ ICONES_MOTS = (
     ("accueil", "accueil"), ("infirm", "infirmerie"), ("médec", "medecin"), ("medec", "medecin"),
     ("dent", "dentiste"), ("écho", "echographie"), ("echo", "echographie"), ("pharm", "pharmacie"),
 )
+
+
+@register.simple_tag
+def static_v(chemin):
+    """
+    Adresse d'un fichier statique avec sa version (date de modification) :
+    après une mise à jour, les navigateurs prennent le nouveau style ou
+    script sans Ctrl+F5. En production, le stockage « Manifest » de
+    whitenoise ajoute déjà une empreinte au nom du fichier.
+    """
+    url = static(chemin)
+    if "?" in url:
+        return url
+    fichier = finders.find(chemin)
+    if fichier:
+        try:
+            return f"{url}?v={int(os.path.getmtime(fichier))}"
+        except OSError:
+            pass
+    return url
 
 
 @register.simple_tag

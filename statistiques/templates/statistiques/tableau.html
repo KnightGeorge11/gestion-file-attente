@@ -15,8 +15,8 @@
     {% if peut_reseau %}<label class="case" style="margin:0"><input type="checkbox" name="reseau" value="1" {% if reseau %}checked{% endif %}> Tous les centres</label>{% endif %}
     <button class="principal">Afficher</button>
     <span class="pousse ligne">
-        <a class="bouton" href="{% url 'statistiques:export_excel' %}?{{ requete }}">{% icone "telecharger" %}Excel</a>
-        <a class="bouton" href="{% url 'statistiques:export_pdf' %}?{{ requete }}">{% icone "telecharger" %}PDF</a>
+        <a class="bouton" hx-boost="false" href="{% url 'statistiques:export_excel' %}?{{ requete }}">{% icone "telecharger" %}Excel</a>
+        <a class="bouton" hx-boost="false" href="{% url 'statistiques:export_pdf' %}?{{ requete }}">{% icone "telecharger" %}PDF</a>
     </span>
 </form>
 
