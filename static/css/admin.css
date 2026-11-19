@@ -88,8 +88,23 @@ div.breadcrumbs { padding: 10px 28px; font-size: .85rem; }
 fieldset.module { background: var(--body-bg); }
 
 /* Tableau de bord */
-.dashboard #content { max-width: 1280px; }
 .dashboard #content > h1 { display: none; }  /* remplacé par le bandeau d'accueil */
+/* Tableau de bord : contenu à gauche, « Actions récentes » dans une colonne à droite. */
+.dashboard #content.colMS {
+  width: auto; max-width: 1600px; margin: 0 auto;
+  display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 28px; align-items: start;
+}
+.dashboard #content > br.clear { display: none; }
+.dashboard #content-main { float: none; width: auto; grid-column: 1; min-width: 0; }
+.dashboard #content-related { float: none; width: auto; margin: 0; grid-column: 2; grid-row: 1; position: sticky; top: 16px; }
+.dashboard #content-related .module { margin: 0; }
+/* Modules en colonnes (sans trous entre des cartes de hauteurs différentes). */
+.modules-admin { columns: 340px; column-gap: 18px; }
+.modules-admin .module { margin: 0 0 18px; break-inside: avoid; display: inline-block; width: 100%; }
+@media (max-width: 1100px) {
+  .dashboard #content.colMS { grid-template-columns: minmax(0, 1fr); }
+  .dashboard #content-related { grid-column: 1; grid-row: auto; position: static; }
+}
 .accueil-admin {
   display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; flex-wrap: wrap;
   padding: 26px 28px; margin-bottom: 26px; border-radius: 18px; color: #fff;
@@ -119,10 +134,7 @@ fieldset.module { background: var(--body-bg); }
 .raccourci-admin small { color: var(--body-quiet-color); font-size: .78rem; }
 .raccourci-icone { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; flex: none; background: linear-gradient(135deg, #e8effc, #dff3f6); color: #1546a0; }
 .raccourci-ajout { margin-left: auto; width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: #e9f8f1; color: #047857; font-weight: 800; }
-.dashboard #content-main { float: none; width: auto; }
 .dashboard .module table th { width: auto; }
-.dashboard .app-list, .dashboard #content-main > div.app-list { display: grid; gap: 18px; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); }
-.dashboard #content-main .module { margin-bottom: 18px; }
 #recent-actions-module { border-radius: var(--admin-rayon); }
 
 /* Icônes partagées avec l'application */
