@@ -301,8 +301,15 @@ def _enregistrer_appel(entree, agent, mode=Appel.Mode.ECRAN):
     return appel
 
 
+# Décision du 19/11/2026 : TOUT PASSE D'ABORD PAR L'ACCUEIL. Seul l'accueil
+# appelle et oriente les tickets qui l'attendent, y compris les « Autre » ;
+# un service n'appelle que les patients que l'accueil lui a orientés.
+# Administrateurs, responsables et direction n'appellent donc aucun ticket :
+# les demandes « Autre » qui les concernent leur sont transmises par
+# l'accueil (Notifications).
 MESSAGE_AUTRES_SEULEMENT = (
-    "Votre rôle ne permet d'appeler que les tickets « Autre » (A…), pas les patients."
+    "Tout passe d'abord par l'accueil : seul l'accueil appelle et oriente les tickets, "
+    "y compris les « Autre ». Les demandes qui vous concernent arrivent dans vos Notifications."
 )
 
 
@@ -329,12 +336,8 @@ def appeler(file, agent, entree=None, poste=""):
 
     attente = file_en_attente(file)
     if _appel_limite_aux_autres(agent, file):
-        # Administrateur, responsables, direction : tickets « Autre » seulement.
-        if entree is not None and not attente.filter(pk=entree.pk, passage__ticket__mode=Ticket.Mode.AUTRE).exists():
-            raise ErreurCircuit(MESSAGE_AUTRES_SEULEMENT)
-        attente = attente.filter(passage__ticket__mode=Ticket.Mode.AUTRE)
-        if not attente.exists():
-            raise ErreurCircuit("Aucune demande « Autre » en attente. " + MESSAGE_AUTRES_SEULEMENT)
+        # Administrateurs, responsables, direction : aucun appel (voir ci-dessus).
+        raise ErreurCircuit(MESSAGE_AUTRES_SEULEMENT)
     premier = attente.first()
     if premier is None:
         raise ErreurCircuit("Aucun patient en attente.")
@@ -453,7 +456,7 @@ def prendre_en_charge(entree, agent, oral=False):
     if entree.statut == EntreeFile.Statut.EN_ATTENTE:
         if not (oral and service.appel_oral_autorise):
             raise ErreurCircuit("Appelez d'abord le patient.")
-        if ticket.mode != Ticket.Mode.AUTRE and _appel_limite_aux_autres(agent, entree.file):
+        if _appel_limite_aux_autres(agent, entree.file):
             raise ErreurCircuit(MESSAGE_AUTRES_SEULEMENT)
         _verifier_agent_libre(agent)
         _verifier_capacite(entree.file)

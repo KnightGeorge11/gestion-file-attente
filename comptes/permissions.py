@@ -93,13 +93,14 @@ def a_droit(utilisateur, permission, centre, service=None):
     return permission in permissions_affectation(affectation)
 
 
-# Décision du 19/11/2026 : l'administrateur, les responsables et la direction
-# n'appellent que les tickets « Autre » (A…), jamais les patients (M, D, I, E).
+# Décision du 19/11/2026 : tout passe d'abord par l'accueil. Les
+# administrateurs, les responsables et la direction n'appellent aucun ticket
+# (circuit.services.appeler) ; l'accueil leur transmet les demandes « Autre ».
 ROLES_APPEL_AUTRES_SEULEMENT = {"Responsable", "Direction", "Administrateur de centre"}
 
 
 def appel_limite_aux_autres(utilisateur, centre):
-    """Vrai si l'utilisateur ne peut appeler que les tickets « Autre » dans ce centre."""
+    """Vrai si l'utilisateur ne doit appeler aucun ticket dans ce centre (tout passe par l'accueil)."""
     if est_administrateur_central(utilisateur):
         return True
     affectation = affectation_active(utilisateur, centre)

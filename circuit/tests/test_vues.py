@@ -887,14 +887,13 @@ class InterfaceDynamiqueTests(BaseVues):
         self.assertEqual(icone_service(None), "autre")
         self.assertIn('href="#i-tickets"', icone("tickets"))
 
-    def test_responsable_ne_voit_que_l_appel_des_demandes_autre(self):
+    def test_responsable_n_a_aucun_bouton_d_appel(self):
         responsable = self.d.agent("resp_vue", "Responsable")
         self.connecter(responsable, self.d.centre)
-        page = self.client.get(reverse("circuit:guichet", args=[self.d.svc["INF"].pk]))
-        self.assertContains(page, "appeler que les tickets « Autre »")
-        self.assertNotContains(page, "Appeler le suivant")
-        page = self.client.get(reverse("circuit:guichet", args=[self.d.svc["ACC"].pk]))
-        self.assertContains(page, "Appeler la demande « Autre » suivante")
+        for code in ("INF", "ACC"):
+            page = self.client.get(reverse("circuit:guichet", args=[self.d.svc[code].pk]))
+            self.assertContains(page, "Tout passe d'abord par l'accueil")
+            self.assertNotContains(page, "Appeler le suivant")
 
 
 @override_settings(RESEAU_LOCAL_UNIQUEMENT=True, BORNE_DELAI_MIN_SECONDES=0)
@@ -997,7 +996,7 @@ class DeuxTypesAdministrateurTests(BaseVues):
         self.assertContains(bornes, "Borne A")
         self.assertContains(bornes, "Borne B")
 
-    def test_les_deux_administrateurs_n_appellent_que_les_autres(self):
+    def test_les_deux_administrateurs_n_appellent_aucun_ticket(self):
         from comptes.permissions import appel_limite_aux_autres, voit_autres_seulement
 
         file = self.d.file("ACC")
@@ -1006,11 +1005,12 @@ class DeuxTypesAdministrateurTests(BaseVues):
         patient = self.d.ticket("M")
         for admin in (self.admin_centre, self.plateforme):
             self.assertTrue(appel_limite_aux_autres(admin, self.d.centre))
-            with self.assertRaisesMessage(ErreurCircuit, "que les tickets « Autre »"):
+            with self.assertRaisesMessage(ErreurCircuit, "Tout passe d'abord par l'accueil"):
                 services.appeler(file, admin, entree=self.d.entree(patient))
         # L'administrateur de centre, comme la direction, ne voit aucun patient.
         self.assertTrue(voit_autres_seulement(self.admin_centre, self.d.centre))
         self.connecter(self.admin_centre, self.d.centre)
         self.assertEqual(self.client.get(reverse("circuit:ticket", args=[patient.pk])).status_code, 404)
         autre = services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE, motif=self.d.motif)
-        self.assertEqual(services.appeler(file, self.admin_centre).ticket, autre)
+        with self.assertRaisesMessage(ErreurCircuit, "Tout passe d'abord par l'accueil"):
+            services.appeler(file, self.admin_centre, entree=self.d.entree(autre))

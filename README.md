@@ -39,7 +39,7 @@ Le module `salles` n'a pas été créé : il reste optionnel et non validé (Tre
 - **Deux types d'administrateur** (décision du 19/11/2026) :
   - **administrateur de la plateforme** (type de compte « Administrateur de la plateforme », ou superutilisateur ; ex. `tedy`) : tous les centres, tous les écrans de l'administration (centres, rôles, journal d'audit compris) ;
   - **administrateur de centre** (type de compte « Administrateur de centre » + affectation au centre avec le rôle « Administrateur de centre ») : l'administration de **son centre seulement** (bornes, écrans, imprimantes, services, files, motifs « Autre », parcours, quotas, comptes et affectations du centre). Il ne voit ni les autres centres, ni les centres eux-mêmes, ni le journal d'audit, et ne peut pas modifier le compte d'un administrateur de la plateforme. Seul l'administrateur de la plateforme peut créer un administrateur de centre.
-- **Qui appelle quoi** (décisions du 19/11/2026) : les administrateurs (plateforme et centre), les responsables et la direction **n'appellent que les tickets « Autre »** (A…), jamais les patients (M, D, I, E), qui ne relèvent pas de leur département. Ils appellent la demande « Autre » suivante de la file d'accueil, même si des patients sont devant ; l'appel d'un patient, y compris l'appel oral à la pharmacie, leur est refusé côté serveur. La **direction et l'administrateur de centre ne voient que les tickets « Autre »** (aucun patient). **Dérogation au quota dentiste** (confirmée le 19/11/2026) : le responsable l'autorise depuis la page du ticket, avec un motif obligatoire ; l'agent d'accueil valide ensuite le ticket au-delà du quota (la réservation est marquée « dérogation », avec le motif et le nom du responsable).
+- **Tout passe d'abord par l'accueil** (décision du 19/11/2026) : seul l'accueil appelle et oriente les tickets qui l'attendent, **y compris les « Autre »**. Un service n'appelle que les patients que l'accueil lui a orientés. Les administrateurs (plateforme et centre), les responsables et la direction **n'appellent aucun ticket** (refus côté serveur, aucun bouton d'appel) : l'accueil leur transmet les demandes « Autre » qui les concernent (Notifications). La **direction et l'administrateur de centre ne voient que les tickets « Autre »** (aucun patient). **Dérogation au quota dentiste** (confirmée le 19/11/2026) : le responsable l'autorise depuis la page du ticket, avec un motif obligatoire ; l'agent d'accueil valide ensuite le ticket au-delà du quota (la réservation est marquée « dérogation », avec le motif et le nom du responsable).
 - Chaque service appelle ses patients ; **un écran principal unique affiche simultanément les appels de plusieurs services** ; la pharmacie peut appeler sur l'écran ou oralement.
 - File commune des médecins : le patient appelé est attribué au médecin connecté qui l'appelle (verrou, pas de double prise).
 - Comptes individuels pour chaque agent ; interface commune par service.
@@ -126,9 +126,9 @@ Comptes créés, mot de passe par défaut **1234** (modifiable avec `--mot-de-pa
 | Dentiste | `dentiste1`, `dentiste2` |
 | Échographie | `echographie1`, `echographie2` |
 | Pharmacie | `pharmacie1`, `pharmacie2` |
-| Direction (statistiques, appel des « Autre ») | `direction1`, `direction2` |
-| Responsable (dérogations, appel des « Autre ») | `responsable1`, `responsable2` |
-| Administrateur de centre (administration de son centre, appel des « Autre ») | `admin1`, `admin2` |
+| Direction (statistiques, demandes « Autre » reçues) | `direction1`, `direction2` |
+| Responsable (dérogations, demandes « Autre » reçues) | `responsable1`, `responsable2` |
+| Administrateur de centre (administration de son centre) | `admin1`, `admin2` |
 
 La simulation passe par le moteur réel (toutes les règles s'appliquent). Elle émet ses tickets par une borne dédiée « SIMULATION », n'agit que sur ses propres tickets et uniquement au nom des comptes de test ; elle n'appelle jamais une file dont le premier patient est un vrai patient. Aucune information patient n'est créée. Les tickets simulés restent dans l'historique et les statistiques (rien n'est supprimé).
 

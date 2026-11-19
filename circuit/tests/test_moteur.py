@@ -611,8 +611,12 @@ class DeuxAgentsParServiceTests(BaseCircuit):
             file.full_clean()
 
 
-class AppelAutresSeulementTests(BaseCircuit):
-    """Décision du 19/11/2026 : administrateur, responsables et direction n'appellent que les « Autre »."""
+class ToutPasseParLAccueilTests(BaseCircuit):
+    """
+    Décision du 19/11/2026 : tout passe d'abord par l'accueil. Seul l'accueil
+    appelle et oriente les tickets, y compris les « Autre » ; administrateurs,
+    responsables et direction n'appellent aucun ticket.
+    """
 
     def setUp(self):
         super().setUp()
@@ -623,31 +627,24 @@ class AppelAutresSeulementTests(BaseCircuit):
     def _autre(self):
         return services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE, motif=self.d.motif)
 
-    def test_responsable_et_direction_appellent_seulement_les_autres(self):
+    def test_responsable_direction_et_administrateur_n_appellent_rien(self):
         patient = self.d.ticket("M")
         autre = self._autre()
-        responsable = self.d.agent("chef_resp", "Responsable")
-        appel = services.appeler(self.file_acc, responsable)
-        # Le patient M001 est devant dans la file, mais c'est la demande « Autre » qui est appelée.
-        self.assertEqual(appel.ticket, autre)
-        services.prendre_en_charge(services.entree_tenue_par(responsable), responsable)
-        direction = self.d.agent("dir2", "Direction")
-        with self.assertRaisesMessage(ErreurCircuit, "que les tickets « Autre »"):
-            services.appeler(self.file_acc, direction, entree=self.d.entree(patient))
-        with self.assertRaisesMessage(ErreurCircuit, "Aucune demande « Autre » en attente"):
-            services.appeler(self.file_acc, direction)
-        # L'agent d'accueil appelle toujours normalement le patient.
-        self.assertEqual(services.appeler(self.file_acc, self.accueil).ticket, patient)
-
-    def test_administrateur_central_appelle_seulement_les_autres(self):
         admin = Utilisateur.objects.create_superuser("admin_central", "", "mot-de-passe-1")
-        patient = self.d.ticket("M")
-        with self.assertRaisesMessage(ErreurCircuit, "Aucune demande « Autre » en attente"):
-            services.appeler(self.file_acc, admin)
-        with self.assertRaisesMessage(ErreurCircuit, "que les tickets « Autre »"):
-            services.appeler(self.file_acc, admin, entree=self.d.entree(patient))
-        autre = self._autre()
-        self.assertEqual(services.appeler(self.file_acc, admin).ticket, autre)
+        for agent in (self.d.agent("chef_resp", "Responsable"), self.d.agent("dir2", "Direction"), admin):
+            for entree in (None, self.d.entree(autre), self.d.entree(patient)):
+                with self.assertRaisesMessage(ErreurCircuit, "Tout passe d'abord par l'accueil"):
+                    services.appeler(self.file_acc, agent, entree=entree)
+        # L'accueil appelle les patients comme les demandes « Autre ».
+        self.assertEqual(services.appeler(self.file_acc, self.accueil).ticket, patient)
+        accueil2 = self.d.agent("accueil_2", "Accueil", ["ACC"])
+        self.assertEqual(services.appeler(self.file_acc, accueil2).ticket, autre)
+
+    def test_un_service_n_appelle_pas_un_patient_que_l_accueil_n_a_pas_oriente(self):
+        self.d.ticket("I")                       # pas encore validé par l'accueil
+        infirmier = self.d.agent("inf_y", "Infirmerie", ["INF"])
+        with self.assertRaisesMessage(ErreurCircuit, "Aucun patient en attente"):
+            services.appeler(self.d.file("INF"), infirmier)
 
     def test_pas_d_appel_oral_d_un_patient_a_la_pharmacie(self):
         ticket = self.d.ticket("I")
@@ -655,5 +652,5 @@ class AppelAutresSeulementTests(BaseCircuit):
         infirmier = self.d.agent("inf_x", "Infirmerie", ["INF"])
         self.d.traiter(ticket, "INF", infirmier, transferer=True)
         responsable = self.d.agent("resp_pha", "Responsable")
-        with self.assertRaisesMessage(ErreurCircuit, "que les tickets « Autre »"):
+        with self.assertRaisesMessage(ErreurCircuit, "Tout passe d'abord par l'accueil"):
             services.prendre_en_charge(self.d.entree(ticket), responsable, oral=True)
