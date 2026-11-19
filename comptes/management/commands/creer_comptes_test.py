@@ -9,7 +9,7 @@ Usage :
 
 Comptes créés (n = 1, 2) :
     accueil<n>, infirmier<n>, medecin<n>, dentiste<n>, echographie<n>,
-    pharmacie<n>, direction<n>, responsable<n>, admincentre<n>
+    pharmacie<n>, direction<n>, responsable<n>, admin<n> (administrateur de centre)
 (noms raccourcis le 19/11/2026 : les anciens comptes « …test<n> » sont
 renommés, leur historique est conservé).
 
@@ -41,7 +41,7 @@ COMPTES = [
     ("pharmacie", "Pharmacie", "PHA"),
     ("direction", "Direction", None),
     ("responsable", "Responsable", None),
-    ("admincentre", "Administrateur de centre", None),
+    ("admin", "Administrateur de centre", None),
 ]
 
 
@@ -82,13 +82,15 @@ class Command(BaseCommand):
                 groupe = Group.objects.get(name=role)
                 for n in range(1, NOMBRE_PAR_SERVICE + 1):
                     username = f"{prefixe}{n}"
-                    ancien = Utilisateur.objects.filter(username=f"{prefixe}test{n}").first()
+                    # Anciens noms : « …test<n> », puis « admincentre<n> » (19/11/2026).
+                    anciens = [f"{prefixe}test{n}"] + ([f"admincentre{n}"] if prefixe == "admin" else [])
+                    ancien = Utilisateur.objects.filter(username__in=anciens).first()
                     if ancien is not None and not Utilisateur.objects.filter(username=username).exists():
                         ancien.username = username          # ancien nom « …test<n> »
                         ancien.save(update_fields=["username"])
                     utilisateur, cree = Utilisateur.objects.get_or_create(username=username)
                     utilisateur.first_name, utilisateur.last_name = role, str(n)
-                    if prefixe == "admincentre":
+                    if prefixe == "admin":
                         utilisateur.type_compte = Utilisateur.TypeCompte.ADMIN_CENTRE
                     utilisateur.is_active = True
                     utilisateur.set_password(options["mot_de_passe"])

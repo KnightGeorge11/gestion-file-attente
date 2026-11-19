@@ -59,7 +59,7 @@ Utiliser le **centre 002** (le plus propre pour une démonstration).
 **Important** : un navigateur ne garde qu'une session. Si vous vous connectez comme agent dans la fenêtre de la borne, la borne se désactive. Gardez la borne dans un navigateur à part (ou sur la tablette). Une fenêtre de navigation privée perd la borne quand on la ferme.
 
 Tous les comptes de test ont le mot de passe **1234** :
-`accueil1/2`, `infirmier1/2`, `medecin1/2`, `dentiste1/2`, `echographie1/2`, `pharmacie1/2`, `direction1/2` (statistiques, appel des « Autre »), `responsable1/2` (dérogations, appel des « Autre »). `admincentre1/2` (administration du centre). Responsables, direction et administrateurs **n'appellent jamais les patients M, D, I, E** : seulement les tickets « Autre ».
+`accueil1/2`, `infirmier1/2`, `medecin1/2`, `dentiste1/2`, `echographie1/2`, `pharmacie1/2`, `direction1/2` (statistiques, appel des « Autre »), `responsable1/2` (dérogations, appel des « Autre »). `admin1/2` (administration du centre). Responsables, direction et administrateurs **n'appellent jamais les patients M, D, I, E** : seulement les tickets « Autre ».
 
 ---
 

@@ -128,7 +128,7 @@ Comptes créés, mot de passe par défaut **1234** (modifiable avec `--mot-de-pa
 | Pharmacie | `pharmacie1`, `pharmacie2` |
 | Direction (statistiques, appel des « Autre ») | `direction1`, `direction2` |
 | Responsable (dérogations, appel des « Autre ») | `responsable1`, `responsable2` |
-| Administrateur de centre (administration de son centre, appel des « Autre ») | `admincentre1`, `admincentre2` |
+| Administrateur de centre (administration de son centre, appel des « Autre ») | `admin1`, `admin2` |
 
 La simulation passe par le moteur réel (toutes les règles s'appliquent). Elle émet ses tickets par une borne dédiée « SIMULATION », n'agit que sur ses propres tickets et uniquement au nom des comptes de test ; elle n'appelle jamais une file dont le premier patient est un vrai patient. Aucune information patient n'est créée. Les tickets simulés restent dans l'historique et les statistiques (rien n'est supprimé).
 
@@ -156,7 +156,7 @@ Serveur : **Ubuntu** (décision du 18/11/2026). Serveur d'application conseillé
 
 - [ ] Mot de passe PostgreSQL fort pour le compte de l'application (l'actuel de développement est trop court).
 - [ ] `DJANGO_DEBUG=False`, `DJANGO_SECRET_KEY` aléatoire, `DJANGO_ALLOWED_HOSTS` = IP / nom du serveur.
-- [ ] Aucun compte de test (`accueil1`, `medecin2`, `admincentre1`… mot de passe 1234) sur la base de production : `creer_comptes_test` et `simuler_patients` refusent de s'exécuter si DEBUG est désactivé.
+- [ ] Aucun compte de test (`accueil1`, `medecin2`, `admin1`… mot de passe 1234) sur la base de production : `creer_comptes_test` et `simuler_patients` refusent de s'exécuter si DEBUG est désactivé.
 - [ ] `REVOKE UPDATE, DELETE ON circuit_evenement, audit_journalaudit FROM <compte_app>;` (tables possédées par un autre rôle).
 - [ ] Dépôt GitHub passé en **privé**.
 
