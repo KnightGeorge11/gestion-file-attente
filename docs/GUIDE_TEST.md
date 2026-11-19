@@ -78,7 +78,7 @@ Tous les comptes de test ont le mot de passe **1234** :
 
 **C. Dentiste et quota** : Borne → *Dentiste*. Avant de valider, l'accueil voit le quota (7 places le matin, 4 l'après-midi ; ex. « 2 réservée(s) sur 7 · 5 restante(s) »). Quota atteint : un responsable (`responsable1`) ouvre la page du ticket (Tickets → numéro) → **Autoriser une dérogation au quota** avec un motif ; l'agent d'accueil peut alors valider le ticket.
 
-**D. Mode Autre** : Borne → *Autre* → *Visite d'embauche* → **Prendre mon ticket** → ticket **A00x**. Accueil : appeler, prendre en charge → **Orienter la demande** → choisir une personne ou un service (au centre 002, chaque service a un agent désigné : `…1`) → revenir à l'accueil → **Terminer**. Le destinataire répond depuis **Notifications** (statut + message), et l'accueil voit la réponse dans « Demandes ».
+**D. Mode Autre** : Borne → *Autre* → *Visite d'embauche* → **Prendre mon ticket** → ticket **A00x**. Accueil : appeler, prendre en charge → **Orienter la demande** → choisir une personne ou un service (au centre 002, chaque service a un agent désigné : `…1`) → revenir à l'accueil → **Terminer**. Le destinataire peut **appeler le visiteur à l'écran** depuis **Notifications** (numéro A00x + « Direction » ou le service sur l'écran TV), et répond (statut + message), et l'accueil voit la réponse dans « Demandes ».
 
 **E. Deux agents en même temps** : `accueil1` et `accueil2` appellent chacun un ticket différent (2 agents minimum par service).
 

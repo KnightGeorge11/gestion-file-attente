@@ -22,6 +22,16 @@
     {% for r in n.reponses.all %}
         <div class="reponse"><span class="etiquette info">{{ r.get_statut_display }}</span> {{ r.message }} <span class="discret pousse">{{ r.date|time:"H:i" }}</span></div>
     {% endfor %}
+    {% if n.demande.statut != 'CLOTUREE' and n.demande.ticket.jour == aujourd_hui %}
+    {% with dernier=n.demande.ticket.appels.all.0 %}
+    <form method="post" action="{% url 'circuit:notification_appeler' n.pk %}" class="appel-suivant" style="margin:10px 0 4px">
+        {% csrf_token %}
+        <input name="poste" maxlength="50" placeholder="Bureau / salle (facultatif)" aria-label="Bureau ou salle">
+        <button class="accent">{% icone "appel" %}Appeler le visiteur à l'écran</button>
+    </form>
+    {% if dernier %}<p class="discret">{% icone "historique" %} Dernier appel à {{ dernier.date|time:"H:i:s" }} · « {{ dernier.nom_service }}{% if dernier.poste %} · {{ dernier.poste }}{% endif %} »</p>{% endif %}
+    {% endwith %}
+    {% endif %}
     {% if n.demande.statut != 'CLOTUREE' %}
     <form method="post" style="margin-top:8px">
         {% csrf_token %}<input type="hidden" name="notification" value="{{ n.pk }}">

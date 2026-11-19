@@ -1014,3 +1014,24 @@ class DeuxTypesAdministrateurTests(BaseVues):
         autre = services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE, motif=self.d.motif)
         with self.assertRaisesMessage(ErreurCircuit, "Tout passe d'abord par l'accueil"):
             services.appeler(file, self.admin_centre, entree=self.d.entree(autre))
+
+
+class AppelVisiteurDepuisNotificationsTests(BaseVues):
+    def test_bouton_appeler_le_visiteur(self):
+        directeur = self.d.agent("dir_notif", "Direction")
+        ticket = services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE, motif=self.d.motif)
+        entree = self.d.entree(ticket)
+        services.appeler(self.d.file("ACC"), self.accueil, entree=entree)
+        services.prendre_en_charge(entree, self.accueil)
+        notification = services.transmettre_demande(ticket.demande, self.accueil, destinataire=directeur)
+        services.terminer(entree, self.accueil)
+        self.connecter(directeur, self.d.centre)
+        self.assertContains(self.client.get(reverse("circuit:notifications")), "Appeler le visiteur à l")
+        url = reverse("circuit:notification_appeler", args=[notification.pk])
+        self.assertEqual(self.client.get(url).status_code, 405)
+        page = self.client.post(url, {"poste": "Bureau 1"}, follow=True)
+        self.assertContains(page, f"{ticket.numero} appelé à l")
+        self.assertTrue(Appel.objects.filter(ticket=ticket, agent=directeur, poste="Bureau 1").exists())
+        # Un autre agent ne peut pas utiliser cette notification.
+        self.connecter(self.medecin, self.d.centre)
+        self.assertEqual(self.client.post(url).status_code, 404)

@@ -654,3 +654,49 @@ class ToutPasseParLAccueilTests(BaseCircuit):
         responsable = self.d.agent("resp_pha", "Responsable")
         with self.assertRaisesMessage(ErreurCircuit, "Tout passe d'abord par l'accueil"):
             services.prendre_en_charge(self.d.entree(ticket), responsable, oral=True)
+
+
+class AppelDuVisiteurAutreTests(BaseCircuit):
+    """Décision du 19/11/2026 : le destinataire d'une demande « Autre » appelle le visiteur à l'écran."""
+
+    def _orienter(self, **cible):
+        ticket = services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE, motif=self.d.motif)
+        entree = self.d.entree(ticket)
+        services.appeler(self.d.file("ACC"), self.accueil, entree=entree)
+        services.prendre_en_charge(entree, self.accueil)
+        notification = services.transmettre_demande(ticket.demande, self.accueil, **cible)
+        services.terminer(entree, self.accueil)
+        return ticket, notification
+
+    def test_le_destinataire_appelle_le_visiteur_a_l_ecran(self):
+        from circuit.views_postes import appels_a_afficher
+
+        directeur = self.d.agent("directeur_v", "Direction")
+        with a_heure(LUNDI_MATIN):
+            ticket, notification = self._orienter(destinataire=directeur)
+            ticket.refresh_from_db()
+            self.assertFalse(ticket.ouvert)               # ticket clôturé après l'orientation
+            # Seul le destinataire peut appeler le visiteur.
+            with self.assertRaisesMessage(ErreurCircuit, "ne vous a pas été transmise"):
+                services.appeler_visiteur(notification, self.medecin)
+            appel = services.appeler_visiteur(notification, directeur, poste="Bureau 3")
+            self.assertEqual((appel.numero_ticket, appel.nom_service, appel.poste), (ticket.numero, "Direction", "Bureau 3"))
+            self.assertIn(appel, appels_a_afficher(self.d.centre))
+            # 10 s minimum entre deux appels.
+            with self.assertRaisesMessage(ErreurCircuit, "Veuillez patienter"):
+                services.appeler_visiteur(notification, directeur)
+        with a_heure(LUNDI_MATIN + datetime.timedelta(seconds=11)):
+            self.assertEqual(services.appeler_visiteur(notification, directeur).numero_appel, appel.numero_appel + 1)
+        self.assertTrue(ticket.evenements.filter(type="APPEL", agent=directeur).exists())
+
+    def test_appel_vers_un_service_et_demande_cloturee(self):
+        service_den = self.d.svc["DEN"]
+        service_den.destinataire_demandes = self.dentiste
+        service_den.save()
+        with a_heure(LUNDI_MATIN):
+            ticket, notification = self._orienter(service=service_den)
+            self.assertEqual(services.appeler_visiteur(notification, self.dentiste).nom_service, service_den.nom)
+            services.repondre_notification(notification, self.dentiste, ReponseNotification.Statut.TRAITEE)
+        with a_heure(LUNDI_MATIN + datetime.timedelta(seconds=30)):
+            with self.assertRaisesMessage(ErreurCircuit, "clôturée"):
+                services.appeler_visiteur(notification, self.dentiste)

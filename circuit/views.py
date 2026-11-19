@@ -514,8 +514,27 @@ def notifications(request):
     return render(
         request,
         "circuit/notifications.html",
-        {"notifications": mes_notifications, "statuts": ReponseNotification.Statut.choices},
+        {
+            "notifications": mes_notifications,
+            "statuts": ReponseNotification.Statut.choices,
+            "aujourd_hui": maintenant_centre(centre).date(),
+        },
     )
+
+
+@require_POST
+@centre_actif_requis
+def notification_appeler(request, notification_id):
+    """Le destinataire d'une demande « Autre » appelle le visiteur à l'écran."""
+    notification = get_object_or_404(
+        Notification.objects.filter(centre=request.centre_actif, destinataire=request.user), pk=notification_id
+    )
+    try:
+        appel = services.appeler_visiteur(notification, request.user, request.POST.get("poste", ""))
+        messages.success(request, f"{appel.numero_ticket} appelé à l'écran : « {appel.nom_service} ».")
+    except ErreurCircuit as erreur:
+        messages.error(request, " ".join(erreur.messages))
+    return redirect("circuit:notifications")
 
 
 @centre_actif_requis

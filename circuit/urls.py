@@ -19,6 +19,7 @@ urlpatterns = [
     path("demandes/", views.demandes, name="demandes"),
     path("notifications/", views.notifications, name="notifications"),
     path("notifications/badge/", views.badge_notifications, name="badge_notifications"),
+    path("notifications/<int:notification_id>/appeler/", views.notification_appeler, name="notification_appeler"),
     # Borne et écran principal (sans compte)
     path("borne/", views_postes.borne, name="borne"),
     path("borne/emettre/", views_postes.borne_emettre, name="borne_emettre"),

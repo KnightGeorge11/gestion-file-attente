@@ -899,6 +899,65 @@ def transmettre_demande(demande, agent, destinataire=None, service=None, message
     return notification
 
 
+DELAI_APPEL_VISITEUR = timedelta(seconds=10)
+
+
+@transaction.atomic
+def appeler_visiteur(notification, agent, poste=""):
+    """
+    Le destinataire d'une demande « Autre » (orientée par l'accueil) appelle
+    le visiteur sur l'écran principal (décision du 19/11/2026). L'écran
+    affiche le numéro du ticket et la destination : le service de la
+    notification, sinon le rôle du destinataire (ex. « Direction »).
+    """
+    from comptes.permissions import affectation_active
+
+    notification = Notification.objects.select_for_update(of=("self",)).select_related(
+        "demande", "demande__ticket", "service", "centre"
+    ).get(pk=notification.pk)
+    if notification.destinataire_id != agent.pk:
+        raise ErreurCircuit("Cette demande ne vous a pas été transmise.")
+    demande = notification.demande
+    ticket = demande.ticket
+    if demande.statut == DemandeAutre.Statut.CLOTUREE:
+        raise ErreurCircuit("Cette demande est clôturée.")
+    if ticket.jour != maintenant_centre(notification.centre).date():
+        raise ErreurCircuit("Ce ticket n'est pas d'aujourd'hui : le visiteur ne peut plus être appelé.")
+    # 10 s minimum entre deux appels du visiteur par ce destinataire.
+    dernier = Appel.objects.filter(ticket=ticket, agent=agent).order_by("-date").first()
+    if dernier is not None and timezone.now() - dernier.date < DELAI_APPEL_VISITEUR:
+        secondes = int((DELAI_APPEL_VISITEUR - (timezone.now() - dernier.date)).total_seconds()) + 1
+        raise ErreurCircuit(f"Veuillez patienter {secondes} s avant de rappeler.")
+    entree = EntreeFile.objects.filter(passage__ticket=ticket).select_related("file__service").order_by("-id").first()
+    if entree is None:
+        raise ErreurCircuit("Ce visiteur n'est pas passé par l'accueil.")
+
+    if notification.service is not None:
+        destination = notification.service.nom
+        service = notification.service if notification.service.afficher_ecran_principal else entree.file.service
+    else:
+        affectation = affectation_active(agent, notification.centre)
+        destination = affectation.groupe.name if affectation and affectation.groupe_id else str(agent)
+        service = entree.file.service
+    maintenant = timezone.now()
+    appel = Appel.objects.create(
+        centre_id=ticket.centre_id,
+        entree=entree,
+        ticket=ticket,
+        service=service,
+        numero_ticket=ticket.numero,
+        nom_service=destination[:100],
+        poste=(poste or "")[:50],
+        numero_appel=Appel.objects.filter(ticket=ticket).count() + 1,
+        mode=Appel.Mode.ECRAN,
+        agent=agent,
+        date=maintenant,
+    )
+    _evenement(ticket, Evenement.Type.APPEL, agent=agent, notification=notification.pk,
+               destination=destination, poste=appel.poste)
+    return appel
+
+
 @transaction.atomic
 def repondre_notification(notification, agent, statut, message=""):
     notification = Notification.objects.select_for_update(of=("self",)).select_related(
