@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% load interface %}
+{% block titre %}Borne fermée{% endblock %}
+{% block classe_body %}borne{% endblock %}
+{% block barre %}{% endblock %}
+{% block entete %}<meta http-equiv="refresh" content="20">{% endblock %}
+{% block contenu %}
+<header class="borne-entete">
+    <div class="marque"><span class="logo">F</span><span class="titre">{{ centre.nom }}<small>SMIE FUNTOA</small></span></div>
+    <div class="heure" data-horloge="minutes" data-fuseau="{{ centre.fuseau_horaire }}">{% now "H:i" %}</div>
+</header>
+<div class="ticket-resultat" style="padding-top:12vh">
+    <span class="statut-impression echec">{% icone "croix" %}</span>
+    <h1>Borne momentanément fermée</h1>
+    <p class="accroche">Merci de vous présenter directement à l'accueil.</p>
+</div>
+{% endblock %}

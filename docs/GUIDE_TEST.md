@@ -54,6 +54,8 @@ Utiliser le **centre 002** (le plus propre pour une démonstration).
 
 **Clé de la borne** : elle n'est affichée qu'une fois. Administration (http://localhost:8000/admin/) → *Bornes* → cocher « Tablette entrée » → action **« Régénérer la clé »** → copier la clé du message vert.
 
+**Activer / désactiver la borne** : Administration → *Bornes* → bouton **Désactiver** (ou **Activer**) sur la ligne, en un clic. Une borne désactivée affiche « Borne momentanément fermée » et reprend toute seule, en 20 secondes au plus, dès qu'on la réactive (pas besoin de ressaisir la clé).
+
 **Important** : un navigateur ne garde qu'une session. Si vous vous connectez comme agent dans la fenêtre de la borne, la borne se désactive. Gardez la borne dans un navigateur à part (ou sur la tablette). Une fenêtre de navigation privée perd la borne quand on la ferme.
 
 Tous les comptes de test ont le mot de passe **1234** :

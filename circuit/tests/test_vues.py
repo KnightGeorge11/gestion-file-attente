@@ -1,5 +1,7 @@
 import datetime
 
+from django.contrib.admin.models import LogEntry
+from django.contrib.auth.models import Permission
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
@@ -892,3 +894,55 @@ class InterfaceDynamiqueTests(BaseVues):
         self.assertNotContains(page, "Appeler le suivant")
         page = self.client.get(reverse("circuit:guichet", args=[self.d.svc["ACC"].pk]))
         self.assertContains(page, "Appeler la demande « Autre » suivante")
+
+
+@override_settings(RESEAU_LOCAL_UNIQUEMENT=True, BORNE_DELAI_MIN_SECONDES=0)
+class ActivationBorneEnUnClicTests(BaseVues):
+    """L'administrateur active ou désactive une borne en un clic (19/11/2026)."""
+
+    def setUp(self):
+        super().setUp()
+        self.borne = Borne(centre=self.d.centre, code="B1", libelle="Borne entrée")
+        self.cle = self.borne.generer_cle()
+        self.borne.save()
+        self.admin = Utilisateur.objects.create_superuser("admin_b", "", "mot-de-passe-1")
+        self.tablette = self.client_class()
+        self.tablette.post(reverse("circuit:borne"), {"centre": "TAM", "code": "B1", "cle": self.cle})
+
+    def test_bouton_de_la_liste_et_reprise_sans_cle(self):
+        self.client.force_login(self.admin)
+        liste = reverse("admin:centres_borne_changelist")
+        url = reverse("admin:centres_borne_basculer", args=[self.borne.pk])
+        self.assertContains(self.client.get(liste), "Désactiver")
+        self.assertEqual(self.client.get(url).status_code, 405)          # jamais par un simple lien
+        self.client.post(url, HTTP_REFERER="http://testserver" + liste)
+        self.borne.refresh_from_db()
+        self.assertFalse(self.borne.actif)
+        # La tablette affiche « borne fermée » et ne peut plus émettre de ticket.
+        self.assertContains(self.tablette.get(reverse("circuit:borne")), "Borne momentanément fermée")
+        self.tablette.post(reverse("circuit:borne_emettre"),
+                           {"mode": "EXTERNE", "parcours": self.d.parcours["E"].pk})
+        self.assertFalse(Ticket.objects.exists())
+        # Réactivation en un clic : la tablette reprend sans ressaisir la clé.
+        self.client.post(url)
+        self.borne.refresh_from_db()
+        self.assertTrue(self.borne.actif)
+        self.assertContains(self.tablette.get(reverse("circuit:borne")), "Vous êtes")
+        self.assertTrue(LogEntry.objects.filter(object_id=str(self.borne.pk)).exists())
+
+    def test_actions_groupees_et_isolation_des_centres(self):
+        self.client.force_login(self.admin)
+        self.client.post(reverse("admin:centres_borne_changelist"),
+                         {"action": "desactiver", "_selected_action": [self.borne.pk]})
+        self.borne.refresh_from_db()
+        self.assertFalse(self.borne.actif)
+        # Un responsable d'un autre centre ne peut pas toucher cette borne.
+        autre = self.b.agent("staff_b", "Responsable")
+        autre.is_staff = True
+        autre.save()
+        autre.user_permissions.add(*Permission.objects.filter(codename__in=["view_borne", "change_borne"]))
+        self.client.force_login(autre)
+        reponse = self.client.post(reverse("admin:centres_borne_basculer", args=[self.borne.pk]))
+        self.assertEqual(reponse.status_code, 404)
+        self.borne.refresh_from_db()
+        self.assertFalse(self.borne.actif)

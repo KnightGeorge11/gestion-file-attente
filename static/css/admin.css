@@ -202,3 +202,15 @@ body.connexion-admin .submit-row input { width: 100%; padding: 11px; }
   .accueil-admin h1 { font-size: 1.35rem; }
   #changelist #toolbar form input[type="text"] { min-width: 0; }
 }
+
+/* Bornes : état et bouton activer / désactiver en un clic */
+.etat-poste { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: .76rem; font-weight: 700; vertical-align: middle; }
+.etat-poste.actif { background: #e9f8f1; color: #047857; }
+.etat-poste.inactif { background: #fdeeee; color: #c0262d; }
+button.bascule-poste {
+  margin-left: 8px; padding: 4px 12px; border-radius: 8px; border: 1px solid #f3c2c4; background: #fff;
+  color: #c0262d; font-weight: 600; font-size: .8rem; cursor: pointer; vertical-align: middle;
+}
+button.bascule-poste:hover { background: #fdeeee; }
+button.bascule-poste.activer { border-color: #047857; background: #047857; color: #fff; }
+button.bascule-poste.activer:hover { background: #036148; }

@@ -1,5 +1,11 @@
 
 from django.contrib import admin, messages
+from django.core.exceptions import PermissionDenied
+from django.http import Http404, HttpResponseNotAllowed
+from django.shortcuts import redirect
+from django.urls import path, reverse
+from django.utils.html import format_html
+from django.utils.http import url_has_allowed_host_and_scheme
 
 from core.admin import CentreAdminMixin
 
@@ -150,7 +156,7 @@ class BorneAdmin(CentreAdminMixin, admin.ModelAdmin):
         "libelle",
         "centre",
         "imprimante",
-        "actif",
+        "etat_et_bascule",
         "derniere_activite",
     )
 
@@ -169,7 +175,67 @@ class BorneAdmin(CentreAdminMixin, admin.ModelAdmin):
         "date_creation",
     )
 
-    actions = ("regenerer_cle",)
+    actions = ("activer", "desactiver", "regenerer_cle")
+
+    # -- Activer / désactiver en un clic -----------------------------------
+
+    def get_urls(self):
+        return [
+            path(
+                "<int:pk>/basculer/",
+                self.admin_site.admin_view(self.basculer),
+                name="centres_borne_basculer",
+            ),
+        ] + super().get_urls()
+
+    @admin.display(description="État", ordering="actif")
+    def etat_et_bascule(self, obj):
+        """
+        État de la borne et bouton pour l'inverser. Le bouton envoie le
+        formulaire de la liste (jeton CSRF compris) vers l'adresse « basculer ».
+        """
+        url = reverse("admin:centres_borne_basculer", args=[obj.pk])
+        if obj.actif:
+            return format_html(
+                '<span class="etat-poste actif">Active</span> '
+                '<button type="submit" class="bascule-poste" formaction="{}" formmethod="post" '
+                'name="basculer" value="{}" title="Désactiver la borne">Désactiver</button>',
+                url, obj.pk,
+            )
+        return format_html(
+            '<span class="etat-poste inactif">Désactivée</span> '
+            '<button type="submit" class="bascule-poste activer" formaction="{}" formmethod="post" '
+            'name="basculer" value="{}" title="Activer la borne">Activer</button>',
+            url, obj.pk,
+        )
+
+    def basculer(self, request, pk):
+        if request.method != "POST":
+            return HttpResponseNotAllowed(["POST"])
+        borne = self.get_queryset(request).filter(pk=pk).first()   # isolation par centre
+        if borne is None:
+            raise Http404
+        if not self.has_change_permission(request, borne):
+            raise PermissionDenied
+        borne.actif = not borne.actif
+        borne.save(update_fields=["actif"])
+        etat = "activée" if borne.actif else "désactivée"
+        self.log_change(request, borne, f"Borne {etat} (bouton de la liste).")
+        self.message_user(request, f"Borne « {borne.libelle} » {etat}.", messages.SUCCESS)
+        retour = request.META.get("HTTP_REFERER", "")
+        if not url_has_allowed_host_and_scheme(retour, allowed_hosts={request.get_host()}):
+            retour = reverse("admin:centres_borne_changelist")
+        return redirect(retour)
+
+    @admin.action(description="Activer les bornes sélectionnées", permissions=["change"])
+    def activer(self, request, queryset):
+        nombre = queryset.update(actif=True)
+        self.message_user(request, f"{nombre} borne(s) activée(s).", messages.SUCCESS)
+
+    @admin.action(description="Désactiver les bornes sélectionnées", permissions=["change"])
+    def desactiver(self, request, queryset):
+        nombre = queryset.update(actif=False)
+        self.message_user(request, f"{nombre} borne(s) désactivée(s).", messages.SUCCESS)
 
     def save_model(self, request, obj, form, change):
         cle = None

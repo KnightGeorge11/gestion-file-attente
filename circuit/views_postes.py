@@ -15,6 +15,7 @@ from types import SimpleNamespace
 from django.conf import settings
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
+from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -55,7 +56,11 @@ def _poste_connecte(request, modele, cle_session):
         return None
     poste = modele.objects.select_related("centre").filter(pk=poste_id, actif=True, centre__actif=True).first()
     if poste is None:
-        request.session.pop(cle_session, None)
+        # Poste supprimé : on l'oublie. Poste seulement désactivé par
+        # l'administrateur : la session est gardée, pour qu'il reprenne dès
+        # sa réactivation, sans ressaisir la clé.
+        if not modele.objects.filter(pk=poste_id).exists():
+            request.session.pop(cle_session, None)
         return None
     if request.session.get_expiry_age() < DUREE_SESSION_POSTE // 2:
         request.session.set_expiry(DUREE_SESSION_POSTE)
@@ -89,8 +94,24 @@ def _connexion_poste(request, modele, cle_session, gabarit, titre):
 # Borne
 # ---------------------------------------------------------------------------
 
+def _borne_desactivee(request):
+    """Borne activée sur cet appareil, mais désactivée par l'administrateur."""
+    borne_id = request.session.get(SESSION_BORNE)
+    if not borne_id:
+        return None
+    return Borne.objects.select_related("centre").filter(pk=borne_id).filter(
+        Q(actif=False) | Q(centre__actif=False)
+    ).first()
+
+
 def borne(request):
     poste = _poste_connecte(request, Borne, SESSION_BORNE)
+    if poste is None and request.method == "GET":
+        fermee = _borne_desactivee(request)
+        if fermee is not None:
+            # Écran « borne fermée » : la page se recharge seule et reprend
+            # dès que l'administrateur réactive la borne.
+            return render(request, "circuit/borne_fermee.html", {"centre": fermee.centre})
     if poste is None:
         reponse = _connexion_poste(request, Borne, SESSION_BORNE, "circuit/poste_connexion.html", "Activer la borne")
         return reponse or redirect("circuit:borne")
