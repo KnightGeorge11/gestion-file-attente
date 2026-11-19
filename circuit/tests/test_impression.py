@@ -209,6 +209,16 @@ class ImpressionReseauTests(TestCase):
         self.assertEqual(vieux.statut, Ticket.Statut.CLOTURE)
         self.assertEqual(Ticket.objects.filter(statut__in=Ticket.STATUTS_OUVERTS).count(), 1)
 
+    def test_etat_de_l_imprimante_visible_sur_la_borne(self):
+        self.assertContains(self.client.get(reverse("circuit:borne")), "Imprimante prête")
+        self.imprimante.port = port_ferme()
+        self.imprimante.save()
+        self._prendre_ticket()
+        self.assertContains(self.client.get(reverse("circuit:borne")), "Imprimante indisponible")
+        self.borne.imprimante = None
+        self.borne.save()
+        self.assertContains(self.client.get(reverse("circuit:borne")), "Impression par la tablette")
+
     def test_accents_et_pages_de_codes(self):
         self._prendre_ticket()
         ticket = Ticket.objects.get()

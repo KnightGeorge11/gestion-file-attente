@@ -1,94 +1,122 @@
+{% load interface %}
 {% if request.headers.HX_Request %}{% include "_messages.html" with oob=True %}{% endif %}
 <div class="grille-guichet">
-    <section class="carte accent">
-        <h2>Patient en cours
-            {% if tenue %}<span class="etiquette {% if tenue.statut == 'APPELE' %}attention{% else %}ok{% endif %}">{{ tenue.get_statut_display }}</span>{% endif %}
-        </h2>
+    <section class="carte panneau-patient">
+        <div class="panneau-entete">
+            <h2>{% icone "utilisateur" %}Patient en cours</h2>
+            {% if tenue %}<span class="etiquette {% if tenue.statut == 'APPELE' %}attention vivant{% else %}ok{% endif %}">{{ tenue.get_statut_display }}</span>{% endif %}
+        </div>
+        <div class="panneau-corps">
         {% if autre_service %}
-            <p class="etiquette attention">Vous avez déjà un ticket en cours : service {{ autre_service.nom }}{% if autre_service.centre_id != service.centre_id %} du {{ autre_service.centre.nom }}{% endif %}. Terminez-le avant d'en appeler un autre.</p>
+            <div class="encart attention">{% icone "alerte" %}<span>Vous avez déjà un ticket en cours : service {{ autre_service.nom }}{% if autre_service.centre_id != service.centre_id %} du {{ autre_service.centre.nom }}{% endif %}. Terminez-le avant d'en appeler un autre.</span></div>
         {% endif %}
         {% if tenue %}
-            <div class="patient-en-cours">
+            <div class="patient-en-cours apparition {% if tenue.statut == 'APPELE' %}appele{% endif %}">
                 <span class="numero enorme">{{ ticket.numero }}</span>
-                <div>
+                <div class="details">
                     {% if ticket.est_autre %}<div class="nom-patient">Demande « Autre » : {{ ticket.demande.motif|default:"motif non précisé" }}</div>{% endif %}
-                    <div class="ligne" style="gap:4px;margin-top:4px">
+                    <div class="ligne" style="gap:6px">
                         <span class="etiquette">{{ ticket.get_mode_display }}</span>
-                        {% if ticket.parcours %}<span class="etiquette info">{{ ticket.parcours.libelle_borne }}</span>{% endif %}
+                        {% if ticket.parcours %}<span class="etiquette">{% icone ticket.parcours|icone_service %}{{ ticket.parcours.libelle_borne }}</span>{% endif %}
                         {% if tenue.reintegration %}<span class="etiquette attention">Réintégré</span>{% endif %}
                         {% if reservation %}<span class="etiquette">Quota : {{ reservation.get_statut_display|lower }}{% if reservation.derogation %} (dérogation){% endif %}</span>{% endif %}
                     </div>
+                    {% if tenue.statut == "APPELE" %}
+                    <div class="chrono">{% icone "appel" %}Appelé {{ tenue.nb_appels }} fois · depuis <span data-depuis="{{ tenue.date_dernier_appel|date:'c' }}" data-format="chrono">—</span></div>
+                    {% else %}
+                    <div class="chrono">{% icone "horloge" %}Prise en charge depuis <span class="chrono-grand" data-depuis="{{ tenue.date_debut|date:'c' }}" data-format="chrono">—</span></div>
+                    {% endif %}
                 </div>
             </div>
-            <p class="discret">Arrivé à {{ tenue.passage.date_arrivee|time:"H:i" }} ·
-                {% if tenue.statut == "APPELE" %}appelé {{ tenue.nb_appels }} fois (dernier à {{ tenue.date_dernier_appel|time:"H:i:s" }})
-                {% else %}pris en charge à {{ tenue.date_debut|time:"H:i" }}{% endif %}
-                · <a href="{% url 'circuit:ticket' ticket.pk %}">historique</a></p>
+
+            <div class="mesures">
+                <div class="mesure"><div class="libelle">Arrivée</div><div class="valeur">{{ tenue.passage.date_arrivee|time:"H:i" }}</div></div>
+                <div class="mesure"><div class="libelle">Attente</div><div class="valeur">{% if tenue.date_premier_appel %}{{ tenue.passage.date_arrivee|timesince:tenue.date_premier_appel }}{% else %}—{% endif %}</div></div>
+                <div class="mesure"><div class="libelle">{% if tenue.statut == "APPELE" %}Dernier appel{% else %}Début{% endif %}</div><div class="valeur">{% if tenue.statut == "APPELE" %}{{ tenue.date_dernier_appel|time:"H:i:s" }}{% else %}{{ tenue.date_debut|time:"H:i" }}{% endif %}</div></div>
+            </div>
+            <p class="discret ligne">{% icone "historique" %}<a href="{% url 'circuit:ticket' ticket.pk %}">historique</a> du ticket{% if suivante %}<span class="pousse etape-suivante">Étape suivante : <strong>{{ suivante.service.nom }}</strong>{% icone "fleche-droite" %}</span>{% endif %}</p>
 
             {% if tenue.statut == "APPELE" %}
             <div class="actions">
                 <form hx-post="{% url 'circuit:guichet_action' service.pk 'prendre' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'prendre' %}">
                     {% csrf_token %}<input type="hidden" name="entree" value="{{ tenue.pk }}"><input type="hidden" name="file" value="{{ file.pk }}">
-                    <button class="principal grand">Patient présent : prendre en charge</button>
+                    <button class="succes grand large">{% icone "check" %}Patient présent : prendre en charge</button>
                 </form>
                 {% if not appels_max %}
                 <form hx-post="{% url 'circuit:guichet_action' service.pk 'rappeler' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'rappeler' %}">
                     {% csrf_token %}<input type="hidden" name="entree" value="{{ tenue.pk }}"><input type="hidden" name="file" value="{{ file.pk }}">
-                    <button class="grand">Rappeler</button>
+                    <button class="grand large">{% icone "rappel" %}Rappeler</button>
                 </form>
                 {% endif %}
                 {% if peut_absent and appels_max %}
                 <form hx-post="{% url 'circuit:guichet_action' service.pk 'absent' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'absent' %}">
                     {% csrf_token %}<input type="hidden" name="entree" value="{{ tenue.pk }}"><input type="hidden" name="file" value="{{ file.pk }}">
-                    <button class="danger grand">Marquer absent</button>
+                    <button class="danger grand large">{% icone "absent" %}Marquer absent</button>
                 </form>
                 {% endif %}
             </div>
-            {% if prochain_appel and prochain_appel > maintenant %}<p class="discret" style="margin-top:8px">Nouvel appel possible à {{ prochain_appel|time:"H:i:s" }}.</p>{% endif %}
+            {% if prochain_appel and prochain_appel > maintenant %}<p class="discret" style="margin:10px 0 0">{% icone "horloge" %} Nouvel appel possible à {{ prochain_appel|time:"H:i:s" }}.</p>{% endif %}
+            {% if not appels_max %}<p class="discret" style="margin:6px 0 0">« Marquer absent » apparaît après {{ file.nb_appels_avant_absence }} appels sans réponse.</p>{% endif %}
             {% else %}
                 {% if service.est_accueil and ticket.est_autre %}
                     <p>Demande : <span class="etiquette {% if ticket.demande.statut == 'NOUVELLE' %}alerte{% else %}ok{% endif %}">{{ ticket.demande.get_statut_display }}</span></p>
                 {% endif %}
                 <div class="actions">
                     {% if service.est_accueil and ticket.est_autre and ticket.demande.statut == 'NOUVELLE' and peut_orienter %}
-                        <a class="bouton principal grand" href="{% url 'circuit:demandes' %}">Orienter la demande</a>
+                        <a class="bouton accent grand large" href="{% url 'circuit:demandes' %}">{% icone "envoyer" %}Orienter la demande</a>
                     {% endif %}
-                    <form hx-post="{% url 'circuit:guichet_action' service.pk 'terminer' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'terminer' %}">
+                    <form hx-post="{% url 'circuit:guichet_action' service.pk 'terminer' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'terminer' %}" style="flex:1 1 100%">
                         {% csrf_token %}<input type="hidden" name="entree" value="{{ tenue.pk }}"><input type="hidden" name="file" value="{{ file.pk }}">
                         {% include "circuit/_derogation.html" %}
-                        <button class="{% if not service.est_accueil or not ticket.est_autre or ticket.demande.statut != 'NOUVELLE' %}principal {% endif %}grand" {% if service.est_accueil and ticket.est_autre and ticket.demande.statut == 'NOUVELLE' %}disabled{% endif %}{% if etat_quota and not etat_quota.2 and not peut_deroger %}disabled{% endif %}>
-                            {% if service.est_accueil and not ticket.est_autre %}Valider le ticket{% else %}Terminer{% endif %}{% if suivante %} et orienter vers {{ suivante.service.nom }}{% else %} (fin du parcours){% endif %}
+                        <button class="{% if not service.est_accueil or not ticket.est_autre or ticket.demande.statut != 'NOUVELLE' %}principal {% endif %}grand large" {% if service.est_accueil and ticket.est_autre and ticket.demande.statut == 'NOUVELLE' %}disabled{% endif %}{% if etat_quota and not etat_quota.2 and not peut_deroger %}disabled{% endif %}>
+                            {% icone "check-cercle" %}{% if service.est_accueil and not ticket.est_autre %}Valider le ticket{% else %}Terminer{% endif %}{% if suivante %} et orienter vers {{ suivante.service.nom }}{% else %} (fin du parcours){% endif %}
                         </button>
                     </form>
                 </div>
                 {% if transfert_possible and peut_transferer %}
                 <details>
-                    <summary>Transférer à la pharmacie</summary>
+                    <summary>{% icone "pharmacie" %}Transférer à la pharmacie</summary>
                     <form hx-post="{% url 'circuit:guichet_action' service.pk 'terminer' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'terminer' %}">
                         {% csrf_token %}<input type="hidden" name="entree" value="{{ tenue.pk }}"><input type="hidden" name="file" value="{{ file.pk }}">
                         <input type="hidden" name="pharmacie" value="1">
                         <label for="motif-pha">Motif (facultatif)</label>
                         <div class="ligne">
                             <input id="motif-pha" name="motif" maxlength="500" style="flex:1;min-width:200px">
-                            <button class="principal">Terminer et transférer à la pharmacie</button>
+                            <button class="accent">{% icone "transfert" %}Terminer et transférer à la pharmacie</button>
                         </div>
                     </form>
                 </details>
                 {% endif %}
             {% endif %}
         {% else %}
-            <p class="vide">Aucun patient en cours.</p>
+            <div class="attente-vide">
+                {% icone "appel" %}
+                <strong>Aucun patient en cours</strong>
+                <span class="discret">Appelez le patient suivant : son numéro s'affiche sur l'écran de la salle d'attente.</span>
+            </div>
             {% if peut_appeler and not autre_service %}
-            <form hx-post="{% url 'circuit:guichet_action' service.pk 'appeler' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'appeler' %}" class="ligne">
+            <form hx-post="{% url 'circuit:guichet_action' service.pk 'appeler' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'appeler' %}" class="appel-suivant">
                 {% csrf_token %}<input type="hidden" name="file" value="{{ file.pk }}">
-                <input name="poste" maxlength="50" placeholder="Guichet / salle (facultatif)" aria-label="Guichet ou salle" style="flex:1;min-width:160px;max-width:240px">
-                <button class="principal grand">Appeler le suivant</button>
+                <input name="poste" maxlength="50" placeholder="Guichet / salle (facultatif)" aria-label="Guichet ou salle">
+                <button class="principal grand">{% icone "appel" %}Appeler le suivant</button>
             </form>
             {% endif %}
         {% endif %}
+
+        {% if derniers_appels %}
+        <div class="section-titre">{% icone "historique" %}Derniers appels du service</div>
+        <ul class="chronologie">
+            {% for a in derniers_appels %}
+            <li><span class="heure">{{ a.date|time:"H:i:s" }}</span><span class="jeton">{{ a.numero_ticket }}</span>
+                <span class="discret">{{ a.get_mode_display }}{% if a.numero_appel > 1 %} · {{ a.numero_appel }}e appel{% endif %}{% if a.poste %} · {{ a.poste }}{% endif %}</span>
+                <span class="discret pousse">{{ a.agent }}</span></li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        </div>
     </section>
 
-    <section class="carte" hx-get="{% url 'circuit:guichet_liste' service.pk %}?file={{ file.pk }}" hx-trigger="every 5s" hx-swap="innerHTML">
+    <section class="carte" id="liste-file" hx-get="{% url 'circuit:guichet_liste' service.pk %}?file={{ file.pk }}" hx-trigger="every 5s" hx-swap="innerHTML">
         {% include "circuit/_liste_file.html" %}
     </section>
 </div>

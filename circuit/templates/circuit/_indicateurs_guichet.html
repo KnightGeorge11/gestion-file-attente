@@ -1,0 +1,13 @@
+{% load interface durees %}
+<div class="indicateurs">
+    <div class="indicateur"><span class="pictogramme">{% icone "groupe" %}</span>
+        <div><div class="valeur">{{ indicateurs.en_attente }}</div><div class="libelle">en attente</div></div></div>
+    <div class="indicateur accent"><span class="pictogramme">{% icone "appel" %}</span>
+        <div><div class="valeur">{{ indicateurs.en_cours }}</div><div class="libelle">appelé{{ indicateurs.en_cours|pluralize }} / en cours</div></div></div>
+    <div class="indicateur ok"><span class="pictogramme">{% icone "check-cercle" %}</span>
+        <div><div class="valeur">{{ indicateurs.traites }}</div><div class="libelle">traité{{ indicateurs.traites|pluralize }} aujourd'hui · {{ indicateurs.traites_par_moi }} par vous</div></div></div>
+    <div class="indicateur"><span class="pictogramme">{% icone "sablier" %}</span>
+        <div><div class="valeur">{% if indicateurs.attente_moyenne is not None %}{{ indicateurs.attente_moyenne|duree }}{% else %}—{% endif %}</div><div class="libelle">attente moyenne du jour</div></div></div>
+    <div class="indicateur attention"><span class="pictogramme">{% icone "horloge" %}</span>
+        <div><div class="valeur">{% if indicateurs.plus_ancien %}<span data-depuis="{{ indicateurs.plus_ancien|date:'c' }}" data-alerte-minutes="30">—</span>{% else %}—{% endif %}</div><div class="libelle">plus longue attente actuelle</div></div></div>
+</div>

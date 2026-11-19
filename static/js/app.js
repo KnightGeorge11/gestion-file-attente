@@ -1,0 +1,198 @@
+/* ==========================================================================
+   SMIE FUNTOA · Files d'attente — comportements communs (sans dépendance,
+   en complément de HTMX).
+
+   - notifications discrètes (messages Django affichés en « toasts ») ;
+   - durées et chronomètres mis à jour chaque seconde ([data-depuis]) ;
+   - horloges ([data-horloge]) ;
+   - mise en évidence des nouveaux éléments d'une liste rafraîchie
+     ([data-suivi] contenant des [data-id]) ;
+   - barre de chargement et état de connexion pendant les requêtes HTMX.
+
+   L'heure de référence est celle du serveur (attribut data-maintenant du
+   <body>) : une tablette dont l'horloge est fausse affiche quand même des
+   durées justes.
+   ========================================================================== */
+(function () {
+  "use strict";
+
+  var decalage = 0;   // heure serveur - heure de l'appareil (ms)
+
+  function maintenant() { return Date.now() + decalage; }
+
+  function initialiserHeure() {
+    var serveur = document.body && document.body.dataset.maintenant;
+    if (serveur) {
+      var t = Date.parse(serveur);
+      if (!isNaN(t)) { decalage = t - Date.now(); }
+    }
+  }
+
+  /* ---------------- Notifications (toasts) ---------------- */
+
+  function zoneToasts() {
+    var zone = document.getElementById("toasts");
+    if (!zone) {
+      zone = document.createElement("div");
+      zone.id = "toasts";
+      zone.className = "toasts";
+      zone.setAttribute("role", "status");
+      zone.setAttribute("aria-live", "polite");
+      document.body.appendChild(zone);
+    }
+    return zone;
+  }
+
+  function toast(texte, genre) {
+    var element = document.createElement("div");
+    element.className = "toast " + (genre || "info");
+    var icone = {success: "check-cercle", error: "alerte", warning: "alerte"}[genre] || "info";
+    element.innerHTML = '<svg class="ic" aria-hidden="true"><use href="#i-' + icone + '"></use></svg>' +
+      '<span></span><button type="button" class="toast-fermer" aria-label="Fermer">' +
+      '<svg class="ic" aria-hidden="true"><use href="#i-croix"></use></svg></button>';
+    element.querySelector("span").textContent = texte;
+    element.querySelector("button").addEventListener("click", function () { fermer(element); });
+    zoneToasts().appendChild(element);
+    setTimeout(function () { fermer(element); }, genre === "error" ? 9000 : 5000);
+  }
+
+  function fermer(element) {
+    if (!element.parentNode) { return; }
+    element.classList.add("sortie");
+    setTimeout(function () { if (element.parentNode) { element.parentNode.removeChild(element); } }, 250);
+  }
+
+  /** Les messages Django de la page deviennent des notifications. */
+  function messagesEnToasts(racine) {
+    var listes = (racine || document).querySelectorAll("ul.messages[data-toasts]");
+    listes.forEach(function (liste) {
+      liste.querySelectorAll("li").forEach(function (li) {
+        var genre = ["success", "error", "warning"].filter(function (g) { return li.classList.contains(g); })[0];
+        toast(li.textContent.trim(), genre || "info");
+        li.parentNode.removeChild(li);
+      });
+    });
+  }
+  window.notifier = toast;
+
+  /* ---------------- Durées et horloges ---------------- */
+
+  function formaterDuree(secondes, format) {
+    secondes = Math.max(0, Math.floor(secondes));
+    var h = Math.floor(secondes / 3600), m = Math.floor((secondes % 3600) / 60), s = secondes % 60;
+    if (format === "chrono") {
+      return (h ? h + ":" + String(m).padStart(2, "0") : String(m)) + ":" + String(s).padStart(2, "0");
+    }
+    if (h) { return h + " h " + String(m).padStart(2, "0"); }
+    if (m) { return m + " min"; }
+    return "< 1 min";
+  }
+
+  function majDurees() {
+    var t = maintenant();
+    document.querySelectorAll("[data-depuis]").forEach(function (el) {
+      var debut = Date.parse(el.dataset.depuis);
+      if (isNaN(debut)) { return; }
+      var secondes = (t - debut) / 1000;
+      el.textContent = formaterDuree(secondes, el.dataset.format);
+      if (el.dataset.alerteMinutes) {
+        el.classList.toggle("depasse", secondes >= Number(el.dataset.alerteMinutes) * 60);
+      }
+    });
+    document.querySelectorAll("[data-horloge]").forEach(function (el) {
+      var options = {timeZone: el.dataset.fuseau || undefined};
+      if (el.dataset.horloge === "date") {
+        options.weekday = "long"; options.day = "numeric"; options.month = "long"; options.year = "numeric";
+        el.textContent = new Date(t).toLocaleDateString("fr-FR", options);
+      } else {
+        options.hour = "2-digit"; options.minute = "2-digit";
+        if (el.dataset.horloge === "secondes") { options.second = "2-digit"; }
+        el.textContent = new Date(t).toLocaleTimeString("fr-FR", options);
+      }
+    });
+  }
+
+  /* ---------------- Nouveaux éléments d'une liste ---------------- */
+
+  var dejaVus = {};
+
+  function suivreNouveaux(racine) {
+    (racine || document).querySelectorAll("[data-suivi]").forEach(function (liste) {
+      var cle = liste.dataset.suivi;
+      var connus = dejaVus[cle];
+      var actuels = {};
+      liste.querySelectorAll("[data-id]").forEach(function (el) {
+        actuels[el.dataset.id] = true;
+        if (connus && !connus[el.dataset.id]) { el.classList.add("arrivee"); }
+      });
+      dejaVus[cle] = actuels;
+    });
+  }
+
+  /* ---------------- HTMX : chargement, erreurs, connexion ---------------- */
+
+  function estActionUtilisateur(detail) {
+    // Les rafraîchissements périodiques ne montrent pas la barre de chargement.
+    var declencheur = detail && detail.requestConfig && detail.requestConfig.triggeringEvent;
+    return !!(declencheur && declencheur.type !== "every" && declencheur.type !== "load" && detail.elt &&
+      (detail.elt.tagName === "FORM" || detail.elt.tagName === "BUTTON" || detail.elt.tagName === "A"));
+  }
+
+  var enCours = 0;
+  function barre(actif) {
+    var b = document.getElementById("barre-chargement");
+    if (!b) { return; }
+    enCours = Math.max(0, enCours + (actif ? 1 : -1));
+    b.classList.toggle("actif", enCours > 0);
+  }
+
+  function horsLigne(etat) {
+    document.body.classList.toggle("hors-ligne", etat);
+  }
+
+  document.addEventListener("htmx:beforeRequest", function (e) {
+    if (estActionUtilisateur(e.detail)) {
+      e.detail.elt.classList.add("en-cours");
+      barre(true);
+      e.detail.elt.dataset.barre = "1";
+    }
+  });
+  document.addEventListener("htmx:afterRequest", function (e) {
+    var elt = e.detail.elt;
+    if (elt && elt.dataset && elt.dataset.barre) {
+      delete elt.dataset.barre;
+      elt.classList.remove("en-cours");
+      barre(false);
+    }
+    if (e.detail.successful) { horsLigne(false); }
+  });
+  document.addEventListener("htmx:sendError", function () {
+    horsLigne(true);
+  });
+  document.addEventListener("htmx:responseError", function (e) {
+    var statut = e.detail.xhr ? e.detail.xhr.status : 0;
+    if (statut === 403) {
+      toast("Action non autorisée. Votre session a peut-être expiré : rechargez la page.", "error");
+    } else if (statut >= 500) {
+      toast("Le serveur a rencontré une erreur. Réessayez ; si cela persiste, prévenez l'administrateur.", "error");
+    }
+  });
+  document.addEventListener("htmx:afterSettle", function (e) {
+    messagesEnToasts(document);
+    suivreNouveaux(e.detail.elt);
+    majDurees();
+  });
+  document.addEventListener("htmx:oobAfterSwap", function () {
+    messagesEnToasts(document);
+  });
+
+  /* ---------------- Démarrage ---------------- */
+
+  document.addEventListener("DOMContentLoaded", function () {
+    initialiserHeure();
+    messagesEnToasts(document);
+    suivreNouveaux(document);
+    majDurees();
+    setInterval(majDurees, 1000);
+  });
+})();

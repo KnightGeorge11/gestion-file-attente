@@ -8,7 +8,7 @@ permission) sont faites côté serveur.
 
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
-from django.db.models import Q
+from django.db.models import Avg, F, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -25,6 +25,7 @@ from core.timeutils import maintenant_centre
 
 from . import services
 from .models import (
+    Appel,
     DemandeAutre,
     EntreeFile,
     Notification,
@@ -74,18 +75,55 @@ def _file_du_service(request, service):
 def guichets(request):
     centre = request.centre_actif
     services.cloture_automatique(centre)
-    liste = []
+    jour = maintenant_centre(centre).date()
+    liste, chiffres = [], {}
     for service in Service.objects.filter(centre=centre, actif=True).order_by("ordre", "nom"):
         if utilisateur_peut_acceder_service(request.user, centre, service):
             en_attente = EntreeFile.objects.filter(
                 file__service=service, statut=EntreeFile.Statut.EN_ATTENTE
             ).count()
             liste.append((service, en_attente))
+            chiffres[service.pk] = {
+                "en_cours": EntreeFile.objects.filter(
+                    file__service=service, statut__in=EntreeFile.STATUTS_TENUS
+                ).count(),
+                "traites": Passage.objects.filter(
+                    service=service, statut=Passage.Statut.TERMINE, ticket__jour=jour
+                ).count(),
+            }
     return render(
         request,
         "circuit/guichets.html",
-        {"services": liste, "voit_tickets": bool(services_operationnels(request.user, centre))},
+        {
+            "services": [(service, en_attente, chiffres[service.pk]) for service, en_attente in liste],
+            "voit_tickets": bool(services_operationnels(request.user, centre)),
+            "total_attente": sum(en_attente for _, en_attente in liste),
+        },
     )
+
+
+def _indicateurs_service(service, file, agent, jour):
+    """Chiffres du jour affichés en tête de l'interface d'un service."""
+    passages_du_jour = Passage.objects.filter(service=service, ticket__jour=jour)
+    termines = passages_du_jour.filter(statut=Passage.Statut.TERMINE)
+    attente_moyenne = passages_du_jour.filter(date_debut__isnull=False).aggregate(
+        moyenne=Avg(F("date_debut") - F("date_arrivee"))
+    )["moyenne"]
+    plus_ancien = (
+        EntreeFile.objects.filter(file=file, statut=EntreeFile.Statut.EN_ATTENTE)
+        .order_by("date_entree")
+        .values_list("date_entree", flat=True)
+        .first()
+    )
+    return {
+        "en_attente": EntreeFile.objects.filter(file=file, statut=EntreeFile.Statut.EN_ATTENTE).count(),
+        "en_cours": EntreeFile.objects.filter(file=file, statut__in=EntreeFile.STATUTS_TENUS).count(),
+        "traites": termines.count(),
+        "traites_par_moi": termines.filter(termine_par=agent).count(),
+        "attente_moyenne": attente_moyenne,
+        "plus_ancien": plus_ancien,
+        "absents": passages_du_jour.filter(statut=Passage.Statut.ABSENT).count(),
+    }
 
 
 def _contexte_guichet(request, service, file):
@@ -126,6 +164,13 @@ def _contexte_guichet(request, service, file):
         "peut_annuler": a_droit(agent, "circuit.annuler_ticket", request.centre_actif, service),
         "peut_orienter": a_droit(agent, "circuit.orienter_demande", request.centre_actif, service),
         "maintenant": timezone.now(),
+        "indicateurs": _indicateurs_service(service, file, agent, jour),
+        # Historique des derniers appels du service (aujourd'hui).
+        "derniers_appels": list(
+            Appel.objects.filter(service=service, ticket__jour=jour)
+            .select_related("agent")
+            .order_by("-date", "-id")[:8]
+        ),
         # Patients qui viendront dans ce service (vus à l'avance).
         "a_venir": list(tickets_a_venir(service)[:30]),
     }
@@ -183,9 +228,25 @@ def guichet_liste(request, service_id):
     return render(request, "circuit/_liste_file.html", _contexte_guichet(request, service, file))
 
 
+@centre_actif_requis
+def guichet_indicateurs(request, service_id):
+    """Fragment HTMX : chiffres du jour du service (rafraîchis automatiquement)."""
+    service = _service_autorise(request, service_id)
+    file, _ = _file_du_service(request, service)
+    jour = maintenant_centre(request.centre_actif).date()
+    return render(
+        request,
+        "circuit/_indicateurs_guichet.html",
+        {"service": service, "indicateurs": _indicateurs_service(service, file, request.user, jour)},
+    )
+
+
 def _reponse_guichet(request, service, file):
     if _est_htmx(request):
-        return render(request, "circuit/_zone_guichet.html", _contexte_guichet(request, service, file))
+        reponse = render(request, "circuit/_zone_guichet.html", _contexte_guichet(request, service, file))
+        # Les chiffres du service se mettent à jour aussitôt après l'action.
+        reponse["HX-Trigger"] = "guichet-maj"
+        return reponse
     url = reverse("circuit:guichet", args=[service.pk])
     return redirect(f"{url}?file={file.pk}")
 

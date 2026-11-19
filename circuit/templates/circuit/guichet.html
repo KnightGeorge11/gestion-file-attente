@@ -1,8 +1,18 @@
 {% extends "base.html" %}
+{% load interface %}
 {% block titre %}{{ service.nom }}{% endblock %}
 {% block contenu %}
 <div class="entete-page">
-    <h1>{{ service.nom }}{% if files|length > 1 %} <span class="discret">· {{ file.nom }}</span>{% endif %}</h1>
+    <div>
+        <div class="fil"><a href="{% url 'circuit:guichets' %}">Services</a>{% icone "fleche-droite" %}<span>{{ service.nom }}</span></div>
+        <div class="service-entete">
+            <span class="tuile-icone">{% icone service|icone_service %}</span>
+            <div>
+                <h1>{{ service.nom }}{% if files|length > 1 %} <span class="discret">· {{ file.nom }}</span>{% endif %}</h1>
+                <span class="etiquette ok vivant">Actualisation automatique</span>
+            </div>
+        </div>
+    </div>
     {% if files|length > 1 %}
     <form method="get" class="ligne">
         <label for="choix-file" style="margin:0">File</label>
@@ -12,6 +22,11 @@
     </form>
     {% endif %}
 </div>
+
+<div id="indicateurs-guichet" hx-get="{% url 'circuit:guichet_indicateurs' service.pk %}?file={{ file.pk }}" hx-trigger="every 10s, guichet-maj from:body" hx-swap="innerHTML">
+    {% include "circuit/_indicateurs_guichet.html" %}
+</div>
+
 <div id="zone-guichet">
     {% include "circuit/_zone_guichet.html" %}
 </div>

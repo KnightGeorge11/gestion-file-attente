@@ -1,0 +1,36 @@
+{% extends "admin/index.html" %}
+{% load interface %}
+{# Tableau de bord de l'administration : accès rapides + modules habituels (droits Django respectés : seuls les modèles autorisés apparaissent). #}
+{% block content %}
+<div id="content-main">
+  <section class="accueil-admin">
+    <div>
+      <p class="surtitre">Administration</p>
+      <h1>Bonjour {{ user.get_full_name|default:user.username }}</h1>
+      <p>Paramétrez les centres, les services, les postes (bornes, écrans, imprimantes), les parcours et les comptes du personnel.</p>
+    </div>
+    <div class="accueil-admin-liens">
+      <a class="lien-clair" href="{% url 'accueil' %}">{% icone "fleche-gauche" %}Retour à l'application</a>
+      <a class="lien-clair" href="{% url 'circuit:ecran' %}" target="_blank" rel="noopener">{% icone "ecran" %}Écran principal</a>
+    </div>
+  </section>
+
+  <h2 class="titre-section-admin">Accès rapides</h2>
+  <div class="raccourcis-admin">
+    {% for app in app_list %}{% for model in app.models %}
+      {% with cle="|"|add:model.object_name|add:"|" %}
+      {% if cle in "|Borne|ImprimanteTicket|EcranAffichage|Service|Parcours|QuotaParcours|MotifDemande|Utilisateur|AffectationUtilisateur|JournalAudit|" %}
+      <a class="raccourci-admin" href="{{ model.admin_url }}">
+        <span class="raccourci-icone">{% if model.object_name == "Borne" %}{% icone "tickets" %}{% elif model.object_name == "ImprimanteTicket" %}{% icone "imprimante" %}{% elif model.object_name == "EcranAffichage" %}{% icone "ecran" %}{% elif model.object_name == "Service" %}{% icone "services" %}{% elif model.object_name == "Parcours" %}{% icone "transfert" %}{% elif model.object_name == "QuotaParcours" %}{% icone "calendrier" %}{% elif model.object_name == "MotifDemande" %}{% icone "message" %}{% elif model.object_name == "JournalAudit" %}{% icone "bouclier" %}{% else %}{% icone "groupe" %}{% endif %}</span>
+        <span><strong>{{ model.name }}</strong><small>{{ app.name }}</small></span>
+        {% if model.add_url %}<span class="raccourci-ajout" title="Ajouter">+</span>{% endif %}
+      </a>
+      {% endif %}
+      {% endwith %}
+    {% endfor %}{% endfor %}
+  </div>
+
+  <h2 class="titre-section-admin">Tous les modules</h2>
+  {% include "admin/app_list.html" with app_list=app_list show_changelinks=True %}
+</div>
+{% endblock %}

@@ -1,39 +1,39 @@
-{% load static %}<!DOCTYPE html>
+{% load static interface %}<!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block titre %}Files d'attente{% endblock %} - SMIE FUNTOA</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0a1d42">
+    <title>{% block titre %}Files d'attente{% endblock %} · SMIE FUNTOA</title>
     <link rel="stylesheet" href="{% static 'css/app.css' %}">
     <script src="{% static 'js/htmx.min.js' %}" defer></script>
+    <script src="{% static 'js/app.js' %}" defer></script>
     {% block entete %}{% endblock %}
 </head>
-<body class="{% block classe_body %}{% endblock %}" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+<body class="{% block classe_body %}{% endblock %}" data-maintenant="{% now 'c' %}" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+{% include "_icones.html" %}
+<div id="barre-chargement" aria-hidden="true"></div>
 {% block barre %}
 {% if user.is_authenticated %}
 {% with page=request.resolver_match.url_name espace=request.resolver_match.namespace %}
 <header class="barre">
     <div class="barre-gauche">
-        <a class="marque" href="{% url 'accueil' %}"><span class="logo">F</span><span>Files d'attente</span></a>
-        {% if centre_actif %}
-        <a class="centre-actif" href="{% url 'centres:selection' %}" title="Changer de centre">{{ centre_actif.nom }} <span aria-hidden="true">▾</span></a>
-        {% else %}
-        <a class="centre-actif" href="{% url 'centres:selection' %}">Choisir un centre</a>
-        {% endif %}
+        <a class="marque" href="{% url 'accueil' %}"><span class="logo">F</span><span class="titre">Files d'attente<small>SMIE FUNTOA</small></span></a>
+        <a class="centre-actif" href="{% url 'centres:selection' %}" title="Changer de centre">{% icone "centre" %}{% if centre_actif %}{{ centre_actif.nom }}{% else %}Choisir un centre{% endif %}{% icone "chevron" %}</a>
     </div>
     {% if centre_actif %}
     <nav class="menu" aria-label="Navigation principale">
-        <a href="{% url 'circuit:guichets' %}" class="{% if page == 'guichets' or page == 'guichet' %}actif{% endif %}">Services</a>
-        {% if voit_tickets %}<a href="{% url 'circuit:tickets' %}" class="{% if page == 'tickets' or page == 'ticket' %}actif{% endif %}">Tickets</a>{% endif %}
-        {% if peut_statistiques %}<a href="{% url 'statistiques:tableau' %}" class="{% if espace == 'statistiques' %}actif{% endif %}">Statistiques</a>{% endif %}
-        <a href="{% url 'circuit:notifications' %}" class="{% if page == 'notifications' %}actif{% endif %}">Notifications<span hx-get="{% url 'circuit:badge_notifications' %}" hx-trigger="every 15s" hx-swap="innerHTML">{% if nb_notifications %}<span class="pastille">{{ nb_notifications }}</span>{% endif %}</span></a>
-        <a href="{% url 'circuit:ecran' %}" target="_blank" rel="noopener">Écran ↗</a>
-        {% if user.is_staff %}<a href="{% url 'admin:index' %}">Administration</a>{% endif %}
+        <a href="{% url 'circuit:guichets' %}" class="{% if page == 'guichets' or page == 'guichet' %}actif{% endif %}">{% icone "services" %}Services</a>
+        {% if voit_tickets %}<a href="{% url 'circuit:tickets' %}" class="{% if page == 'tickets' or page == 'ticket' %}actif{% endif %}">{% icone "tickets" %}Tickets</a>{% endif %}
+        {% if peut_statistiques %}<a href="{% url 'statistiques:tableau' %}" class="{% if espace == 'statistiques' %}actif{% endif %}">{% icone "stats" %}Statistiques</a>{% endif %}
+        <a href="{% url 'circuit:notifications' %}" class="{% if page == 'notifications' %}actif{% endif %}">{% icone "cloche" %}Notifications<span hx-get="{% url 'circuit:badge_notifications' %}" hx-trigger="every 15s" hx-swap="innerHTML">{% if nb_notifications %}<span class="pastille">{{ nb_notifications }}</span>{% endif %}</span></a>
+        <a href="{% url 'circuit:ecran' %}" target="_blank" rel="noopener">{% icone "ecran" %}Écran</a>
+        {% if user.is_staff %}<a href="{% url 'admin:index' %}">{% icone "reglages" %}Administration</a>{% endif %}
     </nav>
     {% endif %}
     <div class="barre-droite">
         <span class="utilisateur" title="{{ user.username }}"><span class="avatar">{{ user.get_full_name|default:user.username|slice:":1"|upper }}</span><span class="nom">{{ user.get_full_name|default:user.username }}</span></span>
-        <form method="post" action="{% url 'deconnexion' %}">{% csrf_token %}<button type="submit" class="discret-bouton">Déconnexion</button></form>
+        <form method="post" action="{% url 'deconnexion' %}">{% csrf_token %}<button type="submit" class="discret-bouton" title="Déconnexion">{% icone "sortie" %}<span class="visuellement-cache">Déconnexion</span></button></form>
     </div>
 </header>
 {% endwith %}
@@ -43,6 +43,7 @@
     {% include "_messages.html" %}
     {% block contenu %}{% endblock %}
 </main>
+<div class="bandeau-connexion" role="status"><span class="point"></span>Connexion au serveur perdue · nouvel essai automatique…</div>
 {% block scripts %}{% endblock %}
 </body>
 </html>

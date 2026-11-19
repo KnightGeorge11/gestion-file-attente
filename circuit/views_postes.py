@@ -26,7 +26,7 @@ from core.timeutils import fuseau_horaire_centre
 from parcours.models import Parcours
 
 from . import services
-from .impression import contenu_ticket, imprimer_ticket, resultat_impression_android
+from .impression import contenu_ticket, etat_imprimante_borne, imprimer_ticket, resultat_impression_android
 from .models import Appel, MotifDemande, Ticket
 from .services import ErreurCircuit
 
@@ -111,6 +111,7 @@ def borne(request):
             "parcours": parcours,
             "motifs": MotifDemande.objects.filter(centre=centre, actif=True),
             "modes": Ticket.Mode.choices,
+            "etat_imprimante": etat_imprimante_borne(poste)[0],
         },
     )
 
@@ -281,6 +282,7 @@ def appels_a_afficher(centre, nombre=8):
             date__gte=limite,
             service__afficher_ecran_principal=True,
         )
+        .select_related("service")
         .order_by("-date", "-id")[: nombre * 5]
     )
     appels, vus = [], set()

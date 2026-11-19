@@ -179,6 +179,25 @@ Si l'imprimante ne répond pas, le ticket reste valable : la tablette affiche le
 
 **Dernier recours, imprimante Bluetooth** : une petite application Android ([`borne_android/`](borne_android/README.md)) affiche la même page de borne et envoie le ticket, préparé par le serveur, à une imprimante Bluetooth appairée. L'APK est compilé automatiquement par GitHub Actions. **Non testé sur du matériel réel.**
 
+## Interface (système de design)
+
+- **Une seule feuille de style** : `static/css/app.css`. Les couleurs (bleu profond, turquoise, gris clairs), espacements, rayons et ombres y sont des variables : changer une valeur suffit pour toute l'application. L'administration Django reprend les mêmes couleurs avec `static/css/admin.css`.
+- **Icônes locales** dans `templates/_icones.html`, utilisées avec `{% load interface %}{% icone "nom" %}`. Le filtre `|icone_service` choisit l'icône d'un service ou d'un parcours.
+- **Script commun** `static/js/app.js`, sans dépendance, en complément de HTMX :
+  - messages affichés en notifications ;
+  - durées et chronomètres mis à jour chaque seconde, calés sur l'heure du serveur ;
+  - horloges ;
+  - nouveaux tickets surlignés ;
+  - barre de chargement pendant les actions ;
+  - bandeau « connexion perdue ».
+- **Actualisation automatique** :
+  - file d'un service toutes les 5 s, chiffres du service toutes les 10 s et juste après chaque action ;
+  - liste des services toutes les 10 s ;
+  - tickets du jour toutes les 15 s ;
+  - statistiques toutes les minutes ;
+  - écran principal toutes les 3 s.
+- **Aucune ressource externe** : polices du système, pas de CDN. Tout fonctionne hors Internet.
+
 ## Postes
 
 - **Borne** : `http://<serveur>/circuit/borne/`. Activer une fois (code centre + code borne + clé). Ne pas se connecter comme agent sur le navigateur de la borne : la déconnexion d'un agent désactiverait aussi la borne.

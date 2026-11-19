@@ -1,9 +1,23 @@
 {% extends "base.html" %}
+{% load interface %}
 {% block titre %}Borne{% endblock %}
 {% block classe_body %}borne{% endblock %}
 {% block barre %}{% endblock %}
 {% block contenu %}
-<h1>Bienvenue au {{ centre.nom }}</h1>
+<header class="borne-entete">
+    <div class="marque"><span class="logo">F</span><span class="titre">{{ centre.nom }}<small>SMIE FUNTOA</small></span></div>
+    <div class="heure" data-horloge="minutes" data-fuseau="{{ centre.fuseau_horaire }}">{% now "H:i" %}</div>
+</header>
+
+<h1>Bienvenue</h1>
+<p class="accroche">Prenez votre ticket en quelques secondes.</p>
+
+<div class="etapes-borne" aria-hidden="true">
+    <span id="pastille-1" class="actif"><b>1</b><span class="texte">Vous êtes</span></span>
+    <span id="pastille-2"><b>2</b><span class="texte">Service</span></span>
+    <span id="pastille-3"><b>3</b><span class="texte">Ticket</span></span>
+</div>
+
 <form method="post" action="{% url 'circuit:borne_emettre' %}" id="formulaire-borne">
     {% csrf_token %}
     <input type="hidden" name="mode" id="champ-mode">
@@ -11,62 +25,132 @@
     <input type="hidden" name="motif" id="champ-motif">
 
     <section id="etape-mode">
-        <h2 style="font-size:1.8rem">1. Vous êtes :</h2>
+        <h2>Vous êtes :</h2>
         <div class="choix">
             {% for valeur, libelle in modes %}
-            <button type="button" data-mode="{{ valeur }}">{{ libelle }}</button>
+            <button type="button" data-mode="{{ valeur }}" data-libelle="{{ libelle }}">
+                {% if valeur == "INTERNE" %}{% icone "interne" %}{% elif valeur == "EXTERNE" %}{% icone "externe-patient" %}{% else %}{% icone "autre" %}{% endif %}
+                {{ libelle }}{% if valeur == "AUTRE" %}<small>Rendez-vous, visite, renseignement…</small>{% endif %}
+            </button>
             {% endfor %}
         </div>
     </section>
 
     <section id="etape-service" hidden>
-        <h2 style="font-size:1.8rem">2. Choisissez votre service :</h2>
+        <h2>Choisissez votre service :</h2>
         <div class="choix">
             {% for p in parcours %}
-            <button type="submit" data-parcours="{{ p.pk }}">{{ p.libelle_borne }}</button>
-            {% empty %}<p>Aucun service disponible.</p>{% endfor %}
+            <button type="button" data-parcours="{{ p.pk }}" data-libelle="{{ p.libelle_borne }}" data-icone="{{ p|icone_service }}">{% icone p|icone_service %}{{ p.libelle_borne }}</button>
+            {% empty %}<p class="vide">Aucun service disponible pour le moment. Présentez-vous à l'accueil.</p>{% endfor %}
         </div>
     </section>
 
     <section id="etape-motif" hidden>
-        <h2 style="font-size:1.8rem">2. Objet de votre demande :</h2>
-        <div class="choix">
+        <h2>Objet de votre demande :</h2>
+        <div class="choix motifs">
             {% for m in motifs %}
-            <button type="submit" data-motif="{{ m.pk }}">{{ m.libelle }}</button>
+            <button type="button" data-motif="{{ m.pk }}" data-libelle="{{ m.libelle }}" data-icone="autre">{% icone "message" %}{{ m.libelle }}</button>
             {% endfor %}
-            <button type="submit" data-motif="">Autre demande</button>
+            <button type="button" data-motif="" data-libelle="Autre demande" data-icone="autre">{% icone "autre" %}Autre demande</button>
         </div>
     </section>
 
-    <p id="retour" hidden><button type="button" class="grand" onclick="window.location.reload()">← Recommencer</button></p>
+    <section id="etape-confirmation" hidden>
+        <div class="confirmation-borne">
+            <svg class="ic grande" aria-hidden="true"><use id="confirmation-icone" href="#i-autre"></use></svg>
+            <div class="choisi" id="confirmation-choix"></div>
+            <p class="mode" id="confirmation-mode"></p>
+        </div>
+        <div class="actions-borne">
+            <button type="submit" class="bouton-imprimer" id="bouton-imprimer">{% icone "imprimante" %}Prendre mon ticket</button>
+        </div>
+    </section>
+
+    <div class="actions-borne" id="retour" hidden style="margin-top:22px">
+        <button type="button" class="bouton-retour" id="bouton-retour">{% icone "fleche-gauche" %}Revenir en arrière</button>
+    </div>
 </form>
+
+<footer class="borne-pied">
+    <span>Gardez votre ticket et surveillez l'écran d'appel.</span>
+    {% if etat_imprimante == "echec" %}
+    <span class="etat-imprimante echec"><span class="point"></span>Imprimante indisponible : notez bien votre numéro</span>
+    {% elif etat_imprimante == "pret" %}
+    <span class="etat-imprimante"><span class="point"></span>Imprimante prête</span>
+    {% else %}
+    <span class="etat-imprimante navigateur"><span class="point"></span>Impression par la tablette</span>
+    {% endif %}
+</footer>
 {% endblock %}
 {% block scripts %}
 <script>
 (function () {
     const form = document.getElementById("formulaire-borne");
     const mode = document.getElementById("champ-mode");
+    const etapes = ["etape-mode", "etape-service", "etape-motif", "etape-confirmation"];
+    let historique = ["etape-mode"];
     let envoye = false;
+
+    function afficher(id) {
+        etapes.forEach(function (e) { document.getElementById(e).hidden = (e !== id); });
+        const rang = id === "etape-mode" ? 1 : (id === "etape-confirmation" ? 3 : 2);
+        [1, 2, 3].forEach(function (n) {
+            const p = document.getElementById("pastille-" + n);
+            p.classList.toggle("actif", n === rang);
+            p.classList.toggle("fait", n < rang);
+        });
+        document.getElementById("retour").hidden = (id === "etape-mode");
+        window.scrollTo({top: 0, behavior: "smooth"});
+    }
+    function aller(id) { historique.push(id); afficher(id); }
+
+    function confirmer(bouton) {
+        document.getElementById("confirmation-choix").textContent = bouton.dataset.libelle;
+        const libelleMode = form.querySelector('[data-mode="' + mode.value + '"]');
+        document.getElementById("confirmation-mode").textContent = libelleMode ? libelleMode.dataset.libelle : "";
+        document.getElementById("confirmation-icone").setAttribute("href", "#i-" + (bouton.dataset.icone || "autre"));
+        aller("etape-confirmation");
+    }
+
     form.querySelectorAll("[data-mode]").forEach(function (b) {
         b.addEventListener("click", function () {
             mode.value = b.dataset.mode;
-            document.getElementById("etape-mode").hidden = true;
-            document.getElementById(b.dataset.mode === "AUTRE" ? "etape-motif" : "etape-service").hidden = false;
-            document.getElementById("retour").hidden = false;
+            aller(b.dataset.mode === "AUTRE" ? "etape-motif" : "etape-service");
         });
     });
     form.querySelectorAll("[data-parcours]").forEach(function (b) {
-        b.addEventListener("click", function () { document.getElementById("champ-parcours").value = b.dataset.parcours; });
+        b.addEventListener("click", function () {
+            document.getElementById("champ-parcours").value = b.dataset.parcours;
+            document.getElementById("champ-motif").value = "";
+            confirmer(b);
+        });
     });
     form.querySelectorAll("[data-motif]").forEach(function (b) {
-        b.addEventListener("click", function () { document.getElementById("champ-motif").value = b.dataset.motif; });
+        b.addEventListener("click", function () {
+            document.getElementById("champ-motif").value = b.dataset.motif;
+            document.getElementById("champ-parcours").value = "";
+            confirmer(b);
+        });
+    });
+    document.getElementById("bouton-retour").addEventListener("click", function () {
+        if (historique.length > 1) { historique.pop(); }
+        afficher(historique[historique.length - 1]);
     });
     form.addEventListener("submit", function (e) {
         if (envoye) { e.preventDefault(); return; }
         envoye = true;
+        const bouton = document.getElementById("bouton-imprimer");
+        bouton.classList.add("en-cours");
     });
-    // Retour automatique à l'écran d'accueil après 60 s d'inactivité.
-    setTimeout(function () { window.location.reload(); }, 60000);
+
+    // Retour automatique à l'accueil de la borne après 45 s sans action.
+    let minuterie;
+    function relancer() {
+        clearTimeout(minuterie);
+        minuterie = setTimeout(function () { if (!envoye) { window.location.reload(); } }, 45000);
+    }
+    document.addEventListener("pointerdown", relancer);
+    relancer();
 })();
 </script>
 {% endblock %}

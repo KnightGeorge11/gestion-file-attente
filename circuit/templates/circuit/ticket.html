@@ -1,65 +1,81 @@
 {% extends "base.html" %}
-{% load durees %}
+{% load durees interface %}
 {% block titre %}Ticket {{ ticket.numero }}{% endblock %}
 {% block contenu %}
-<h1>Ticket <span class="numero">{{ ticket.numero }}</span> du {{ ticket.jour|date:"d/m/Y" }}
-    <span class="etiquette {% if ticket.ouvert %}info{% else %}ok{% endif %}">{{ ticket.get_statut_display }}</span></h1>
-<div class="grille">
+<div class="entete-page">
+    <div>
+        <div class="fil">{% if voit_tickets %}<a href="{% url 'circuit:tickets' %}">Tickets du jour</a>{% icone "fleche-droite" %}{% endif %}<span>Ticket {{ ticket.numero }}</span></div>
+        <div class="resume-ticket">
+            <span class="jeton">{{ ticket.numero }}</span>
+            <div>
+                <h1 style="margin:0">Ticket du {{ ticket.jour|date:"d/m/Y" }}</h1>
+                <span class="etiquette {% if ticket.ouvert %}info vivant{% else %}ok{% endif %}">{{ ticket.get_statut_display }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="indicateurs">
+    <div class="indicateur"><span class="pictogramme">{% icone "tickets" %}</span><div><div class="valeur" style="font-size:1.1rem">{{ ticket.get_mode_display }}</div><div class="libelle">mode</div></div></div>
+    <div class="indicateur accent"><span class="pictogramme">{% icone ticket.parcours|icone_service %}</span><div><div class="valeur" style="font-size:1.1rem">{% if ticket.parcours %}{{ ticket.parcours.libelle_borne }}{% else %}{{ ticket.demande.motif|default:"Autre" }}{% endif %}</div><div class="libelle">{% if ticket.parcours %}parcours (v{{ ticket.parcours_version.numero }}){% else %}demande{% endif %}</div></div></div>
+    <div class="indicateur"><span class="pictogramme">{% icone "horloge" %}</span><div><div class="valeur">{{ ticket.date_emission|time:"H:i:s" }}</div><div class="libelle">émission</div></div></div>
+    <div class="indicateur ok"><span class="pictogramme">{% icone "sablier" %}</span><div><div class="valeur">{% if ticket.date_fin %}{{ ticket.duree_totale|duree }}{% else %}<span data-depuis="{{ ticket.date_emission|date:'c' }}">—</span>{% endif %}</div><div class="libelle">{% if ticket.date_fin %}durée totale (fin à {{ ticket.date_fin|time:"H:i" }}){% else %}depuis l'émission{% endif %}</div></div></div>
+</div>
+
+<div class="grille-guichet">
 <section class="carte">
-    <p>Mode : <strong>{{ ticket.get_mode_display }}</strong>
-    {% if ticket.parcours %} · Parcours : <strong>{{ ticket.parcours.libelle_borne }}</strong> (v{{ ticket.parcours_version.numero }}){% endif %}</p>
-    {% if ticket.est_autre %}<p>Demande : {{ ticket.demande.motif|default:"—" }} · {{ ticket.demande.get_statut_display }}</p>{% endif %}
-    <p>Émis à {{ ticket.date_emission|time:"H:i:s" }}{% if ticket.date_fin %} · terminé à {{ ticket.date_fin|time:"H:i:s" }} · durée totale {{ ticket.duree_totale|duree }}{% endif %}</p>
-    {% if ticket.motif_annulation %}<p class="etiquette alerte">Annulé par {{ ticket.annule_par }} : {{ ticket.motif_annulation }}</p>{% endif %}
+    <div class="carte-entete"><h2><span class="titre-icone">{% icone "transfert" %}</span>Passages</h2></div>
+    <div class="tableau-defilant">
+    <table>
+        <thead><tr><th>Service</th><th>Arrivée</th><th>Attente</th><th>Prise en charge</th><th>Statut</th></tr></thead>
+        <tbody>
+        {% for p in passages %}
+        <tr>
+            <td><strong>{{ p.nom_service }}</strong>{% if p.origine == "TRANSFERT" %} <span class="etiquette info">transfert</span>{% endif %}<br><span class="discret">{{ p.pris_en_charge_par|default:"" }}</span></td>
+            <td>{{ p.date_arrivee|time:"H:i:s" }}</td>
+            <td>{{ p.duree_attente|duree }}</td>
+            <td>{{ p.duree_prise_en_charge|duree }}</td>
+            <td><span class="etiquette {% if p.statut == 'TERMINE' %}ok{% elif p.statut == 'ABSENT' or p.statut == 'ANNULE' %}alerte{% elif p.statut == 'EN_ATTENTE' %}{% else %}info{% endif %}">{{ p.get_statut_display }}</span></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% if ticket.est_autre %}<p class="discret" style="margin-top:12px">Demande : {{ ticket.demande.motif|default:"—" }} · {{ ticket.demande.get_statut_display }}</p>{% endif %}
+    {% if ticket.motif_annulation %}<div class="encart alerte" style="margin-top:12px">{% icone "alerte" %}<span>Annulé par {{ ticket.annule_par }} : {{ ticket.motif_annulation }}</span></div>{% endif %}
+    {% if reservations %}
+    <div class="section-titre">{% icone "calendrier" %}Quota</div>
+    <ul class="chronologie">{% for r in reservations %}
+        <li>{{ r.jour|date:"d/m" }} {{ r.periode|lower }} · <span class="etiquette">{{ r.get_statut_display }}</span>{% if r.derogation %} · dérogation : {{ r.motif_derogation }}{% endif %}{% if r.motif_liberation %} · libérée : {{ r.motif_liberation }}{% endif %}</li>
+    {% endfor %}</ul>
+    {% endif %}
 
     {% if peut_annuler %}
-    <details><summary>Annuler le ticket</summary>
+    <details><summary>{% icone "croix" %}Annuler le ticket</summary>
         <form method="post" action="{% url 'circuit:ticket_action' ticket.pk 'annuler' %}">{% csrf_token %}
             <label>Motif obligatoire</label><input name="motif" required maxlength="500">
-            <p><button class="danger">Annuler le ticket</button></p>
+            <p style="margin-top:10px"><button class="danger">Annuler le ticket</button></p>
         </form>
     </details>
     {% endif %}
     {% if peut_liberer %}
-    <details><summary>Libérer la place de quota (patient absent)</summary>
+    <details><summary>{% icone "calendrier" %}Libérer la place de quota (patient absent)</summary>
         <form method="post" action="{% url 'circuit:ticket_action' ticket.pk 'liberer' %}">{% csrf_token %}
             <label>Motif obligatoire</label><input name="motif" required maxlength="500">
-            <p><button class="danger">Libérer la place</button></p>
+            <p style="margin-top:10px"><button class="danger">Libérer la place</button></p>
         </form>
     </details>
     {% endif %}
 </section>
 
 <section class="carte">
-    <h2>Passages</h2>
-    <table>
-        <thead><tr><th>Service</th><th>Arrivée</th><th>Attente</th><th>Prise en charge</th><th>Statut</th></tr></thead>
-        {% for p in passages %}
-        <tr>
-            <td>{{ p.nom_service }}{% if p.origine == "TRANSFERT" %} <span class="etiquette info">transfert</span>{% endif %}<br><span class="discret">{{ p.pris_en_charge_par|default:"" }}</span></td>
-            <td>{{ p.date_arrivee|time:"H:i:s" }}</td>
-            <td>{{ p.duree_attente|duree }}</td>
-            <td>{{ p.duree_prise_en_charge|duree }}</td>
-            <td>{{ p.get_statut_display }}</td>
-        </tr>
-        {% endfor %}
-    </table>
-    {% if reservations %}
-    <h2 style="margin-top:16px">Quota</h2>
-    <ul class="chronologie">{% for r in reservations %}
-        <li>{{ r.jour|date:"d/m" }} {{ r.periode|lower }} · {{ r.get_statut_display }}{% if r.derogation %} · dérogation : {{ r.motif_derogation }}{% endif %}{% if r.motif_liberation %} · libérée : {{ r.motif_liberation }}{% endif %}</li>
-    {% endfor %}</ul>
-    {% endif %}
-</section>
-</div>
-
-<section class="carte" style="margin-top:16px">
-    <h2>Historique</h2>
-    <ul class="chronologie">
+    <div class="carte-entete"><h2><span class="titre-icone">{% icone "historique" %}</span>Historique</h2></div>
+    <ul class="frise">
         {% for e in evenements %}
-        <li><strong>{{ e.date|time:"H:i:s" }}</strong> · {{ e.get_type_display }}{% if e.agent %} · {{ e.agent }}{% endif %}
-            {% if e.details.motif %}<span class="discret"> · {{ e.details.motif }}</span>{% endif %}</li>
+        <li><span class="heure">{{ e.date|time:"H:i:s" }}</span>{{ e.get_type_display }}{% if e.agent %} <span class="discret">· {{ e.agent }}</span>{% endif %}
+            {% if e.details.motif %}<div class="discret">{{ e.details.motif }}</div>{% endif %}</li>
         {% endfor %}
     </ul>
 </section>
+</div>
 {% endblock %}

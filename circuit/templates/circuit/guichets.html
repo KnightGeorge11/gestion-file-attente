@@ -1,26 +1,51 @@
 {% extends "base.html" %}
+{% load interface %}
 {% block titre %}Services{% endblock %}
 {% block contenu %}
 <div class="entete-page">
-    <h1>Services</h1>
+    <div>
+        <h1>Services</h1>
+        <p class="sous-titre">Choisissez votre poste de travail · {{ centre_actif.nom }}</p>
+    </div>
     <div class="ligne">
-        {% if voit_tickets %}<a class="bouton" href="{% url 'circuit:tickets' %}">Tickets du jour</a>{% endif %}
-        <a class="bouton" href="{% url 'circuit:notifications' %}">Mes notifications</a>
+        {% if voit_tickets %}<a class="bouton" href="{% url 'circuit:tickets' %}">{% icone "tickets" %}Tickets du jour</a>{% endif %}
+        <a class="bouton" href="{% url 'circuit:notifications' %}">{% icone "cloche" %}Mes notifications</a>
     </div>
 </div>
-<div class="tuiles">
-    {% for service, en_attente in services %}
-    <a class="carte tuile" href="{% url 'circuit:guichet' service.pk %}">
-        <h2>{{ service.nom }}
-            {% if service.suspendu %}<span class="etiquette alerte">Suspendu</span>
-            {% elif service.est_accueil %}<span class="etiquette info">Accueil</span>
-            {% elif service.est_pharmacie %}<span class="etiquette info">Pharmacie</span>{% endif %}
-        </h2>
-        <div class="valeur">{{ en_attente }}</div>
-        <div class="libelle">en attente</div>
-    </a>
-    {% empty %}
-    <p class="vide">Aucun service ne vous est attribué dans ce centre.</p>
-    {% endfor %}
+
+{# Rafraîchi toutes les 10 s sans recharger la page (hx-select : seule cette zone est remplacée). #}
+<div id="zone-services" hx-get="{% url 'circuit:guichets' %}" hx-trigger="every 10s" hx-select="#zone-services" hx-swap="outerHTML">
+    {% if services %}
+    <div class="indicateurs">
+        <div class="indicateur"><span class="pictogramme">{% icone "groupe" %}</span><div><div class="valeur">{{ total_attente }}</div><div class="libelle">patients en attente</div></div></div>
+        <div class="indicateur accent"><span class="pictogramme">{% icone "services" %}</span><div><div class="valeur">{{ services|length }}</div><div class="libelle">service{{ services|length|pluralize }} accessible{{ services|length|pluralize }}</div></div></div>
+        <div class="indicateur ok"><span class="pictogramme">{% icone "horloge" %}</span><div><div class="valeur" data-horloge="minutes" data-fuseau="{{ centre_actif.fuseau_horaire }}">{% now "H:i" %}</div><div class="libelle">heure du centre</div></div></div>
+    </div>
+    {% endif %}
+    <div class="tuiles" data-suivi="services">
+        {% for service, en_attente, chiffres in services %}
+        <a class="carte tuile" href="{% url 'circuit:guichet' service.pk %}" data-id="{{ service.pk }}-{{ en_attente }}">
+            <div class="tuile-haut">
+                <span class="tuile-icone">{% icone service|icone_service %}</span>
+                <div>
+                    <h2>{{ service.nom }}</h2>
+                    {% if service.suspendu %}<span class="etiquette alerte">Suspendu</span>
+                    {% elif service.est_accueil %}<span class="etiquette info">Accueil</span>
+                    {% elif service.est_pharmacie %}<span class="etiquette accent">Pharmacie</span>
+                    {% else %}<span class="etiquette">{{ chiffres.traites }} traité{{ chiffres.traites|pluralize }} aujourd'hui</span>{% endif %}
+                </div>
+            </div>
+            <div class="tuile-bas">
+                <div>
+                    <div class="valeur">{{ en_attente }}</div>
+                    <div class="libelle">en attente{% if chiffres.en_cours %} · {{ chiffres.en_cours }} en cours{% endif %}</div>
+                </div>
+                <span class="tuile-fleche">{% icone "fleche-droite" "grande" %}</span>
+            </div>
+        </a>
+        {% empty %}
+        <div class="carte vide">Aucun service ne vous est attribué dans ce centre.</div>
+        {% endfor %}
+    </div>
 </div>
 {% endblock %}

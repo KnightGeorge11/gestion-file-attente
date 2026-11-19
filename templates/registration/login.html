@@ -1,21 +1,39 @@
 {% extends "base.html" %}
+{% load interface %}
 {% block titre %}Connexion{% endblock %}
+{% block classe_body %}page-pleine{% endblock %}
+{% block barre %}{% endblock %}
 {% block contenu %}
-<div class="page-connexion">
-    <div class="carte">
-        <div class="marque"><span class="logo">F</span><span>SMIE FUNTOA · Files d'attente</span></div>
-        <h1>Connexion du personnel</h1>
-        <p class="discret" style="text-align:center">Chaque agent se connecte avec son compte individuel.</p>
-        {% if form.errors %}<ul class="messages">{% for erreur in form.non_field_errors %}<li class="error">{{ erreur }}</li>{% empty %}<li class="error">Identifiant ou mot de passe incorrect.</li>{% endfor %}</ul>{% endif %}
-        <form method="post">
-            {% csrf_token %}
-            <label for="id_username">Identifiant</label>
-            <input type="text" name="username" id="id_username" autocomplete="username" autofocus required>
-            <label for="id_password">Mot de passe</label>
-            <input type="password" name="password" id="id_password" autocomplete="current-password" required>
-            <input type="hidden" name="next" value="{{ next }}">
-            <p style="margin-top:16px"><button class="principal grand" type="submit" style="width:100%">Se connecter</button></p>
-        </form>
-    </div>
+<div class="ecran-connexion">
+    <section class="vitrine">
+        <div class="marque"><span class="logo">F</span><span class="titre">Files d'attente<small>SMIE FUNTOA</small></span></div>
+        <div>
+            <h2>Un parcours patient fluide, de la borne au dernier service.</h2>
+            <p>Tickets, appels, orientations et statistiques en temps réel, sur le réseau local du centre.</p>
+            <ul class="points">
+                <li>{% icone "tickets" %}Tickets numérotés, sans information personnelle</li>
+                <li>{% icone "appel" %}Appels affichés sur l'écran de la salle d'attente</li>
+                <li>{% icone "bouclier" %}Accès personnel et limité à votre centre</li>
+            </ul>
+        </div>
+        <div class="bas">Fonctionne sans Internet · réseau local uniquement</div>
+        <div class="decor" aria-hidden="true">M012</div>
+    </section>
+    <section class="formulaire">
+        <div class="carte">
+            <h1>Connexion du personnel</h1>
+            <p class="discret">Chaque agent se connecte avec son compte individuel.</p>
+            {% if form.errors %}<ul class="messages">{% for erreur in form.non_field_errors %}<li class="error">{{ erreur }}</li>{% empty %}<li class="error">Identifiant ou mot de passe incorrect.</li>{% endfor %}</ul>{% endif %}
+            <form method="post">
+                {% csrf_token %}
+                <label for="id_username">Identifiant</label>
+                <div class="champ-icone">{% icone "utilisateur" %}<input type="text" name="username" id="id_username" value="{{ form.username.value|default:'' }}" autocomplete="username" autocapitalize="none" autofocus required></div>
+                <label for="id_password">Mot de passe</label>
+                <div class="champ-icone">{% icone "cle" %}<input type="password" name="password" id="id_password" autocomplete="current-password" required></div>
+                <input type="hidden" name="next" value="{{ next }}">
+                <p style="margin-top:22px"><button class="principal grand large" type="submit">Se connecter {% icone "fleche-droite" %}</button></p>
+            </form>
+        </div>
+    </section>
 </div>
 {% endblock %}

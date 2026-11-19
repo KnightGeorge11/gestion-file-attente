@@ -1,30 +1,39 @@
 {% extends "base.html" %}
+{% load interface %}
 {% block titre %}Mes notifications{% endblock %}
 {% block contenu %}
-<h1>Mes notifications</h1>
-<div class="grille">
+<div class="entete-page">
+    <div>
+        <h1>Mes notifications</h1>
+        <p class="sous-titre">Demandes « Autre » qui vous ont été transmises par l'accueil.</p>
+    </div>
+</div>
+<div class="cartes-demandes">
 {% for n in notifications %}
-<section class="carte {% if not n.date_lecture %}accent{% endif %}">
-    <h2><span class="numero">{{ n.demande.ticket.numero }}</span> · {{ n.demande.motif|default:"Demande" }}</h2>
-    <p class="discret">Transmise par {{ n.transmise_par }} à {{ n.date|time:"H:i" }} le {{ n.date|date:"d/m" }}{% if n.service %} (service {{ n.service.nom }}){% endif %}</p>
-    {% if n.message %}<p>{{ n.message }}</p>{% endif %}
+<section class="carte {% if not n.date_lecture %}accent{% endif %} apparition">
+    <div class="carte-entete">
+        <h2><span class="jeton">{{ n.demande.ticket.numero }}</span>{{ n.demande.motif|default:"Demande" }}</h2>
+        {% if not n.date_lecture %}<span class="etiquette alerte">Nouvelle</span>{% endif %}
+    </div>
+    <p class="discret">{% icone "envoyer" %} Transmise par {{ n.transmise_par }} à {{ n.date|time:"H:i" }} le {{ n.date|date:"d/m" }}{% if n.service %} (service {{ n.service.nom }}){% endif %}</p>
+    {% if n.message %}<div class="encart">{% icone "message" %}<span>{{ n.message }}</span></div>{% endif %}
     {% if n.demande.precision %}<p>{{ n.demande.precision }}</p>{% endif %}
     {% for r in n.reponses.all %}
-        <div><span class="etiquette info">{{ r.get_statut_display }}</span> {{ r.message }} <span class="discret">{{ r.date|time:"H:i" }}</span></div>
+        <div class="reponse"><span class="etiquette info">{{ r.get_statut_display }}</span> {{ r.message }} <span class="discret pousse">{{ r.date|time:"H:i" }}</span></div>
     {% endfor %}
     {% if n.demande.statut != 'CLOTUREE' %}
-    <form method="post">
+    <form method="post" style="margin-top:8px">
         {% csrf_token %}<input type="hidden" name="notification" value="{{ n.pk }}">
         <label>Statut</label>
         <select name="statut" required>{% for v, l in statuts %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
         <label>Message (facultatif)</label>
         <input name="message" maxlength="500">
-        <p><button class="principal">Répondre</button></p>
+        <p style="margin-top:12px"><button class="principal large">{% icone "message" %}Répondre</button></p>
     </form>
     {% endif %}
 </section>
 {% empty %}
-<p class="vide">Aucune notification.</p>
+<div class="carte vide">{% icone "cloche" %} Aucune notification.</div>
 {% endfor %}
 </div>
 {% endblock %}

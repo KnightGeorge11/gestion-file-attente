@@ -1,17 +1,31 @@
 {% extends "base.html" %}
+{% load interface %}
 {% block titre %}{{ titre }}{% endblock %}
+{% block classe_body %}page-pleine{% endblock %}
 {% block barre %}{% endblock %}
 {% block contenu %}
-<div class="carte" style="max-width:440px;margin:40px auto;">
-    <h1>{{ titre }}</h1>
-    <p class="discret">Poste sans compte utilisateur : saisissez le code du centre, le code du poste et sa clé (fournis par l'administrateur).</p>
-    {% if erreur %}<ul class="messages"><li class="error">{{ erreur }}</li></ul>{% endif %}
-    <form method="post">
-        {% csrf_token %}
-        <label for="poste-centre">Code du centre</label><input id="poste-centre" name="centre" required>
-        <label for="poste-code">Code du poste</label><input id="poste-code" name="code" required>
-        <label for="poste-cle">Clé</label><input id="poste-cle" name="cle" type="password" required autocomplete="off">
-        <p><button class="principal grand" style="width:100%">Activer</button></p>
-    </form>
+<div class="ecran-connexion">
+    <section class="vitrine">
+        <div class="marque"><span class="logo">F</span><span class="titre">Files d'attente<small>SMIE FUNTOA</small></span></div>
+        <div>
+            <h2>{{ titre }}</h2>
+            <p>Poste sans compte utilisateur. Une fois activé, il le reste : le formulaire ne réapparaît pas devant le public.</p>
+        </div>
+        <div class="bas">Réseau local uniquement</div>
+    </section>
+    <section class="formulaire">
+        <div class="carte">
+            <h1>Activation du poste</h1>
+            <p class="discret">Saisissez le code du centre, le code du poste et sa clé (fournis par l'administrateur).</p>
+            {% if erreur %}<ul class="messages"><li class="error">{{ erreur }}</li></ul>{% endif %}
+            <form method="post">
+                {% csrf_token %}
+                <label for="poste-centre">Code du centre</label><div class="champ-icone">{% icone "centre" %}<input id="poste-centre" name="centre" required autocapitalize="characters"></div>
+                <label for="poste-code">Code du poste</label><div class="champ-icone">{% icone "ecran" %}<input id="poste-code" name="code" required autocapitalize="characters"></div>
+                <label for="poste-cle">Clé</label><div class="champ-icone">{% icone "cle" %}<input id="poste-cle" name="cle" type="password" required autocomplete="off"></div>
+                <p style="margin-top:22px"><button class="principal grand large">Activer</button></p>
+            </form>
+        </div>
+    </section>
 </div>
 {% endblock %}

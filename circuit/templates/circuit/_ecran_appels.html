@@ -1,13 +1,34 @@
-<div class="ecran-appels">
-{% for appel in appels %}
-    <div class="ecran-appel {% if appel.date >= recents %}nouveau{% endif %}" data-appel="{{ appel.pk }}"
-         data-annonce="{% if annonce %}1{% else %}0{% endif %}"
-         data-texte="Ticket {{ appel.numero_ticket|join:' ' }}, {{ appel.nom_service }}{% if appel.poste %}, {{ appel.poste }}{% endif %}">
-        <span class="num">{{ appel.numero_ticket }}</span>
-        <span>{{ appel.nom_service }}</span>
-        <span class="poste">{{ appel.poste }}</span>
-    </div>
-{% empty %}
-    <div class="ecran-vide">En attente des appels…</div>
-{% endfor %}
+{% load interface %}
+{# Fragment rafraîchi toutes les 3 s : le dernier appel en grand, les précédents à côté. Aucune information personnelle. #}
+{% if appels %}
+{% with dernier=appels.0 %}
+<div class="ecran-corps">
+    <section class="appel-vedette {% if dernier.date >= recents %}nouveau{% endif %}" data-appel="{{ dernier.pk }}"
+             data-annonce="{% if annonce %}1{% else %}0{% endif %}"
+             data-texte="Ticket {{ dernier.numero_ticket|join:' ' }}, {{ dernier.nom_service }}{% if dernier.poste %}, {{ dernier.poste }}{% endif %}">
+        <div class="invitation">Ticket appelé</div>
+        <div class="num">{{ dernier.numero_ticket }}</div>
+        <div class="destination">{% icone dernier.service|icone_service %}{{ dernier.nom_service }}</div>
+        {% if dernier.poste %}<div class="poste">{{ dernier.poste }}</div>{% endif %}
+    </section>
+    <section class="historique-appels">
+        <h2>Appels précédents</h2>
+        <div class="ecran-appels">
+        {% for appel in appels|slice:"1:" %}
+            <div class="ecran-appel {% if appel.date >= recents %}nouveau{% endif %}">
+                <span class="num">{{ appel.numero_ticket }}</span>
+                <span class="service">{% icone appel.service|icone_service %}{{ appel.nom_service }}</span>
+                <span class="poste">{{ appel.poste }}</span>
+            </div>
+        {% empty %}
+            <div class="ecran-appel" style="opacity:.5"><span class="service">Les appels précédents s'afficheront ici.</span></div>
+        {% endfor %}
+        </div>
+    </section>
 </div>
+{% endwith %}
+{% else %}
+<div class="ecran-vide">
+    <div>{% icone "ecran" %}<p>En attente des appels…</p><small>Votre numéro s'affichera ici dès qu'un service vous appellera.</small></div>
+</div>
+{% endif %}

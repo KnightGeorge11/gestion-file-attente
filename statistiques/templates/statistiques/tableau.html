@@ -1,62 +1,90 @@
 {% extends "base.html" %}
+{% load interface %}
 {% block titre %}Statistiques{% endblock %}
 {% block contenu %}
-<div class="entete-page"><h1>Tableau de bord <span class="discret">· {{ libelle_centres }}</span></h1></div>
-<form method="get" class="ligne carte" style="margin-bottom:16px">
-    <label style="margin:0">Du <input type="date" name="du" value="{{ du|date:'Y-m-d' }}" style="width:auto"></label>
-    <label style="margin:0">au <input type="date" name="au" value="{{ au|date:'Y-m-d' }}" style="width:auto"></label>
-    {% if peut_reseau %}<label style="margin:0"><input type="checkbox" name="reseau" value="1" style="width:auto" {% if reseau %}checked{% endif %}> Tous les centres</label>{% endif %}
+<div class="entete-page">
+    <div>
+        <h1>Tableau de bord</h1>
+        <p class="sous-titre">{{ libelle_centres }} · du {{ du|date:"d/m/Y" }} au {{ au|date:"d/m/Y" }}. Aucune donnée personnelle.</p>
+    </div>
+    <span class="etiquette ok vivant">Mise à jour chaque minute</span>
+</div>
+<form method="get" class="carte compacte barre-filtres" style="margin-bottom:20px">
+    <label class="case" style="margin:0">{% icone "calendrier" %}Du <input type="date" name="du" value="{{ du|date:'Y-m-d' }}" style="width:auto;min-width:0"></label>
+    <label class="case" style="margin:0">au <input type="date" name="au" value="{{ au|date:'Y-m-d' }}" style="width:auto;min-width:0"></label>
+    {% if peut_reseau %}<label class="case" style="margin:0"><input type="checkbox" name="reseau" value="1" {% if reseau %}checked{% endif %}> Tous les centres</label>{% endif %}
     <button class="principal">Afficher</button>
-    <a class="bouton" href="{% url 'statistiques:export_excel' %}?{{ requete }}">Export Excel</a>
-    <a class="bouton" href="{% url 'statistiques:export_pdf' %}?{{ requete }}">Export PDF</a>
+    <span class="pousse ligne">
+        <a class="bouton" href="{% url 'statistiques:export_excel' %}?{{ requete }}">{% icone "telecharger" %}Excel</a>
+        <a class="bouton" href="{% url 'statistiques:export_pdf' %}?{{ requete }}">{% icone "telecharger" %}PDF</a>
+    </span>
 </form>
 
+<div id="stats-contenu" hx-get="{{ request.get_full_path }}" hx-trigger="every 60s" hx-select="#stats-contenu" hx-swap="outerHTML">
+<div class="indicateurs">
+    <div class="indicateur"><span class="pictogramme">{% icone "tickets" %}</span><div><div class="valeur">{{ stats.total_tickets }}</div><div class="libelle">tickets émis</div></div></div>
+    <div class="indicateur accent"><span class="pictogramme">{% icone "sablier" %}</span><div><div class="valeur">{{ stats.duree_totale_moy|default:"—" }}{% if stats.duree_totale_moy %} <small>min</small>{% endif %}</div><div class="libelle">durée totale moyenne par ticket terminé</div></div></div>
+    <div class="indicateur ok"><span class="pictogramme">{% icone "calendrier" %}</span><div><div class="valeur">{{ stats.quotas.consommees }} <small>/ {{ stats.quotas.reservees }}</small></div><div class="libelle">places dentiste consommées / réservées</div></div></div>
+    <div class="indicateur attention"><span class="pictogramme">{% icone "bouclier" %}</span><div><div class="valeur">{{ stats.quotas.derogations }}</div><div class="libelle">dérogation{{ stats.quotas.derogations|pluralize }} au quota</div></div></div>
+</div>
+
 <div class="grille">
-    <section class="carte tuile accent"><h2>Tickets émis</h2><div class="valeur">{{ stats.total_tickets }}</div><div class="libelle">sur la période</div></section>
-    <section class="carte tuile accent"><h2>Durée totale moyenne</h2><div class="valeur">{{ stats.duree_totale_moy|default:"—" }}</div><div class="libelle">minutes par ticket terminé</div></section>
-    <section class="carte"><h2>Par statut</h2>
-        <ul class="chronologie">{% for k, v in stats.par_statut.items %}<li>{{ k }} : <strong>{{ v }}</strong></li>{% endfor %}</ul></section>
-    <section class="carte"><h2>Par mode</h2>
-        <ul class="chronologie">{% for k, v in stats.par_mode.items %}<li>{{ k }} : <strong>{{ v }}</strong></li>{% endfor %}</ul></section>
-    <section class="carte"><h2>Quota dentiste</h2>
+    <section class="carte"><div class="carte-entete"><h2><span class="titre-icone">{% icone "check-cercle" %}</span>Par statut</h2></div>
+        <ul class="chronologie">{% for k, v in stats.par_statut.items %}<li style="display:block"><div class="ligne"><span>{{ k }}</span><strong class="pousse">{{ v }}</strong></div>
+            <div class="jauge"><span style="width:{% if stats.total_tickets %}{% widthratio v stats.total_tickets 100 %}{% else %}0{% endif %}%"></span></div></li>{% endfor %}</ul></section>
+    <section class="carte"><div class="carte-entete"><h2><span class="titre-icone">{% icone "groupe" %}</span>Par mode</h2></div>
+        <ul class="chronologie">{% for k, v in stats.par_mode.items %}<li style="display:block"><div class="ligne"><span>{{ k }}</span><strong class="pousse">{{ v }}</strong></div>
+            <div class="jauge accent"><span style="width:{% if stats.total_tickets %}{% widthratio v stats.total_tickets 100 %}{% else %}0{% endif %}%"></span></div></li>{% endfor %}</ul></section>
+    <section class="carte"><div class="carte-entete"><h2><span class="titre-icone">{% icone "dentiste" %}</span>Quota dentiste</h2></div>
         <ul class="chronologie">
-            <li>Réservées : <strong>{{ stats.quotas.reservees }}</strong></li>
-            <li>Consommées : <strong>{{ stats.quotas.consommees }}</strong></li>
-            <li>Libérées : <strong>{{ stats.quotas.liberees }}</strong></li>
-            <li>Dérogations : <strong>{{ stats.quotas.derogations }}</strong></li>
+            <li>Réservées <strong class="pousse">{{ stats.quotas.reservees }}</strong></li>
+            <li>Consommées <strong class="pousse">{{ stats.quotas.consommees }}</strong></li>
+            <li>Libérées <strong class="pousse">{{ stats.quotas.liberees }}</strong></li>
+            <li>Dérogations <strong class="pousse">{{ stats.quotas.derogations }}</strong></li>
         </ul></section>
 </div>
 
-<section class="carte tableau-defilant" style="margin-top:16px">
-    <h2>Par service (minutes)</h2>
+<section class="carte sans-marge" style="margin-top:20px">
+    <div class="carte-entete" style="padding:16px 20px 0"><h2><span class="titre-icone">{% icone "services" %}</span>Par service <span class="discret">(minutes)</span></h2></div>
+    <div class="tableau-defilant" style="margin-top:12px">
     <table>
-        <thead><tr><th>Service</th><th>Passages</th><th>Terminés</th><th>Absences</th><th>Transferts reçus</th><th>Attente moy.</th><th>Attente max</th><th>Prise en charge moy.</th></tr></thead>
+        <thead><tr><th>Service</th><th class="nombre">Passages</th><th class="nombre">Terminés</th><th class="nombre">Absences</th><th class="nombre">Transferts reçus</th><th class="nombre">Attente moy.</th><th class="nombre">Attente max</th><th class="nombre">Prise en charge moy.</th></tr></thead>
+        <tbody>
         {% for l in stats.par_service %}
-        <tr><td>{{ l.service }}</td><td>{{ l.passages }}</td><td>{{ l.termines }}</td><td>{{ l.absences }}</td><td>{{ l.transferts_recus }}</td>
-            <td>{{ l.attente_moy|default:"—" }}</td><td>{{ l.attente_max|default:"—" }}</td><td>{{ l.prise_en_charge_moy|default:"—" }}</td></tr>
+        <tr><td><strong>{{ l.service }}</strong></td><td class="nombre">{{ l.passages }}</td><td class="nombre">{{ l.termines }}</td><td class="nombre">{{ l.absences }}</td><td class="nombre">{{ l.transferts_recus }}</td>
+            <td class="nombre">{{ l.attente_moy|default:"—" }}</td><td class="nombre">{{ l.attente_max|default:"—" }}</td><td class="nombre">{{ l.prise_en_charge_moy|default:"—" }}</td></tr>
         {% empty %}<tr><td colspan="8" class="vide">Aucune donnée.</td></tr>{% endfor %}
+        </tbody>
     </table>
+    </div>
 </section>
 
-<div class="grille" style="margin-top:16px">
-<section class="carte tableau-defilant">
-    <h2>Par parcours</h2>
-    <table><thead><tr><th>Parcours</th><th>Tickets</th><th>Terminés</th><th>Durée moy. (min)</th></tr></thead>
-        {% for l in stats.par_parcours %}<tr><td>{{ l.parcours }}</td><td>{{ l.tickets }}</td><td>{{ l.termines }}</td><td>{{ l.duree_totale_moy|default:"—" }}</td></tr>
-        {% empty %}<tr><td colspan="4" class="vide">Aucune donnée.</td></tr>{% endfor %}</table>
+<div class="grille" style="margin-top:20px">
+<section class="carte sans-marge">
+    <div class="carte-entete" style="padding:16px 20px 0"><h2><span class="titre-icone">{% icone "transfert" %}</span>Par parcours</h2></div>
+    <div class="tableau-defilant" style="margin-top:12px">
+    <table><thead><tr><th>Parcours</th><th class="nombre">Tickets</th><th class="nombre">Terminés</th><th class="nombre">Durée moy. (min)</th></tr></thead>
+        <tbody>{% for l in stats.par_parcours %}<tr><td><strong>{{ l.parcours }}</strong></td><td class="nombre">{{ l.tickets }}</td><td class="nombre">{{ l.termines }}</td><td class="nombre">{{ l.duree_totale_moy|default:"—" }}</td></tr>
+        {% empty %}<tr><td colspan="4" class="vide">Aucune donnée.</td></tr>{% endfor %}</tbody></table>
+    </div>
 </section>
-<section class="carte tableau-defilant">
-    <h2>Transferts vers la pharmacie</h2>
-    <table><thead><tr><th>Service d'origine</th><th>Transferts</th></tr></thead>
-        {% for l in stats.transferts %}<tr><td>{{ l.service_origine }}</td><td>{{ l.transferts }}</td></tr>
-        {% empty %}<tr><td colspan="2" class="vide">Aucun transfert.</td></tr>{% endfor %}</table>
+<section class="carte sans-marge">
+    <div class="carte-entete" style="padding:16px 20px 0"><h2><span class="titre-icone">{% icone "pharmacie" %}</span>Transferts vers la pharmacie</h2></div>
+    <div class="tableau-defilant" style="margin-top:12px">
+    <table><thead><tr><th>Service d'origine</th><th class="nombre">Transferts</th></tr></thead>
+        <tbody>{% for l in stats.transferts %}<tr><td>{{ l.service_origine }}</td><td class="nombre">{{ l.transferts }}</td></tr>
+        {% empty %}<tr><td colspan="2" class="vide">Aucun transfert.</td></tr>{% endfor %}</tbody></table>
+    </div>
 </section>
 </div>
 
-<section class="carte tableau-defilant" style="margin-top:16px">
-    <h2>Activité par agent</h2>
-    <table><thead><tr><th>Agent</th><th>Service</th><th>Prises en charge</th><th>Durée moy. (min)</th></tr></thead>
-        {% for l in stats.par_agent %}<tr><td>{{ l.agent }}</td><td>{{ l.service }}</td><td>{{ l.prises_en_charge }}</td><td>{{ l.prise_en_charge_moy|default:"—" }}</td></tr>
-        {% empty %}<tr><td colspan="4" class="vide">Aucune donnée.</td></tr>{% endfor %}</table>
+<section class="carte sans-marge" style="margin-top:20px">
+    <div class="carte-entete" style="padding:16px 20px 0"><h2><span class="titre-icone">{% icone "utilisateur" %}</span>Activité par agent</h2></div>
+    <div class="tableau-defilant" style="margin-top:12px">
+    <table><thead><tr><th>Agent</th><th>Service</th><th class="nombre">Prises en charge</th><th class="nombre">Durée moy. (min)</th></tr></thead>
+        <tbody>{% for l in stats.par_agent %}<tr><td><strong>{{ l.agent }}</strong></td><td>{{ l.service }}</td><td class="nombre">{{ l.prises_en_charge }}</td><td class="nombre">{{ l.prise_en_charge_moy|default:"—" }}</td></tr>
+        {% empty %}<tr><td colspan="4" class="vide">Aucune donnée.</td></tr>{% endfor %}</tbody></table>
+    </div>
 </section>
+</div>
 {% endblock %}

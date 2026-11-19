@@ -132,6 +132,37 @@ def imprimer_test(imprimante):
     envoyer(imprimante, donnees)
 
 
+def _derniere_impression(borne):
+    return (
+        Evenement.objects.filter(
+            centre_id=borne.centre_id,
+            type__in=[Evenement.Type.IMPRESSION, Evenement.Type.ECHEC_IMPRESSION],
+            details__borne=borne.code,
+        )
+        .order_by("-date", "-id")
+        .first()
+    )
+
+
+def etat_imprimante_borne(borne):
+    """
+    État de l'imprimante d'une borne, affiché sur la borne elle-même :
+    « pret », « echec » (dernière impression ratée) ou « navigateur »
+    (aucune imprimante suivie : impression par la tablette).
+    Retourne (état, dernier événement d'impression ou None).
+    """
+    dernier = _derniere_impression(borne)
+    # Imprimante réseau rattachée, ou imprimante Bluetooth de l'application Android.
+    suivie = (borne.imprimante_id is not None and borne.imprimante.actif) or bool(
+        dernier and dernier.details.get("bluetooth")
+    )
+    if not suivie:
+        return "navigateur", dernier
+    if dernier is not None and dernier.type == Evenement.Type.ECHEC_IMPRESSION:
+        return "echec", dernier
+    return "pret", dernier
+
+
 def etat_imprimantes(centre):
     """
     Bornes du centre dont la dernière tentative d'impression a échoué
@@ -141,16 +172,7 @@ def etat_imprimantes(centre):
 
     alertes = []
     for borne in Borne.objects.filter(centre=centre, actif=True).select_related("imprimante"):
-        dernier = (
-            Evenement.objects.filter(
-                centre=centre,
-                type__in=[Evenement.Type.IMPRESSION, Evenement.Type.ECHEC_IMPRESSION],
-                details__borne=borne.code,
-            )
-            .order_by("-date", "-id")
-            .first()
-        )
-        # Imprimante réseau rattachée, ou imprimante Bluetooth de l'application Android.
+        dernier = _derniere_impression(borne)
         if borne.imprimante_id is None and not (dernier and dernier.details.get("bluetooth")):
             continue
         if dernier is not None and dernier.type == Evenement.Type.ECHEC_IMPRESSION:

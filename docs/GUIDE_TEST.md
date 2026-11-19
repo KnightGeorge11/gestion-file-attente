@@ -64,19 +64,19 @@ Tous les comptes de test ont le mot de passe **1234** :
 ## 4. Scénario de démonstration (environ 15 minutes)
 
 **A. Parcours médecin, avec pharmacie**
-1. Borne : *Interne* → *Médecin* → ticket **M00x**.
-2. Accueil : le ticket apparaît aussitôt → **Appeler le suivant** (montrer l'écran TV) → **Prendre en charge** → **Valider le ticket et orienter vers Infirmerie**.
+1. Borne : *Interne* → *Médecin* → écran de confirmation → **Prendre mon ticket** → ticket **M00x**. En bas de la borne, l'état de l'imprimante est affiché.
+2. Accueil : le ticket apparaît en quelques secondes (surligné), les chiffres du jour se mettent à jour → **Appeler le suivant** (montrer l'écran TV) → **Prendre en charge** → **Valider le ticket et orienter vers Infirmerie**.
 3. Montrer, avec `medecintest1`, que le médecin voit déjà ce ticket dans **« À venir »**.
 4. Infirmerie (`infirmiertest1`) : appeler → prendre en charge → **Terminer et orienter vers Médecins** (pas de pharmacie à cette étape).
 5. Médecin (`medecintest1`) : appeler → prendre en charge → ouvrir **« Transférer à la pharmacie »** → terminer.
 6. Pharmacie (`pharmacietest1`) : **Appel oral** (prise en charge directe) → Terminer. Le ticket est fini.
 7. Ouvrir l'**historique** du ticket (lien « historique ») : attente et durée de chaque étape.
 
-**B. Parcours direct** : Borne → *Externe* → *Échographie* → accueil valide → échographie (`echographietest1`) appelle.
+**B. Parcours direct** : Borne → *Externe* → *Échographie* → **Prendre mon ticket** → accueil valide → échographie (`echographietest1`) appelle.
 
 **C. Dentiste et quota** : Borne → *Dentiste*. Avant de valider, l'accueil voit le quota (7 places le matin, 4 l'après-midi ; ex. « 2 réservée(s) sur 7 · 5 restante(s) »). Quota atteint : seul un responsable (`responsabletest1`) peut accorder une dérogation, avec un motif.
 
-**D. Mode Autre** : Borne → *Autre* → *Visite d'embauche* → ticket **A00x**. Accueil : appeler, prendre en charge → **Orienter la demande** → choisir une personne ou un service (au centre 002, chaque service a un agent désigné : `…test1`) → revenir à l'accueil → **Terminer**. Le destinataire répond depuis **Notifications** (statut + message), et l'accueil voit la réponse dans « Demandes ».
+**D. Mode Autre** : Borne → *Autre* → *Visite d'embauche* → **Prendre mon ticket** → ticket **A00x**. Accueil : appeler, prendre en charge → **Orienter la demande** → choisir une personne ou un service (au centre 002, chaque service a un agent désigné : `…test1`) → revenir à l'accueil → **Terminer**. Le destinataire répond depuis **Notifications** (statut + message), et l'accueil voit la réponse dans « Demandes ».
 
 **E. Deux agents en même temps** : `accueiltest1` et `accueiltest2` appellent chacun un ticket différent (2 agents minimum par service).
 

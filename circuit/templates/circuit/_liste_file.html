@@ -1,66 +1,72 @@
-<h2>File d'attente <span class="etiquette {% if attente %}info{% endif %}">{{ attente|length }} en attente</span></h2>
+{% load interface %}
+<div class="carte-entete">
+    <h2><span class="titre-icone">{% icone "groupe" %}</span>File d'attente</h2>
+    <span class="etiquette {% if attente %}info{% endif %}">{{ attente|length }} en attente</span>
+</div>
 {% for alerte in alertes_imprimante %}
-<p class="messages" style="margin-bottom:8px"><span style="display:block;padding:8px 12px;border-radius:7px;background:var(--alerte-fond);color:var(--alerte);border-left:4px solid currentColor">
+<div class="encart alerte">{% icone "imprimante" %}<span>
     Imprimante de la borne « {{ alerte.borne.libelle }} » injoignable (dernier échec à {{ alerte.date|time:"H:i" }}, ticket {{ alerte.ticket }}). Les patients doivent noter leur numéro : vérifiez le papier, l'alimentation et {% if alerte.bluetooth %}le Bluetooth de la tablette{% else %}le réseau{% endif %}.
-</span></p>
+</span></div>
 {% endfor %}
 {% if service.est_accueil and nb_demandes_nouvelles or service.est_accueil and nb_reponses_non_lues %}
 <p class="ligne">
-    {% if nb_demandes_nouvelles %}<a class="etiquette alerte" href="{% url 'circuit:demandes' %}">{{ nb_demandes_nouvelles }} demande(s) « Autre » à orienter</a>{% endif %}
-    {% if nb_reponses_non_lues %}<a class="etiquette info" href="{% url 'circuit:demandes' %}">{{ nb_reponses_non_lues }} réponse(s) reçue(s)</a>{% endif %}
+    {% if nb_demandes_nouvelles %}<a class="etiquette alerte" href="{% url 'circuit:demandes' %}">{% icone "message" %}{{ nb_demandes_nouvelles }} demande(s) « Autre » à orienter</a>{% endif %}
+    {% if nb_reponses_non_lues %}<a class="etiquette info" href="{% url 'circuit:demandes' %}">{% icone "message" %}{{ nb_reponses_non_lues }} réponse(s) reçue(s)</a>{% endif %}
 </p>
 {% endif %}
-<div class="tableau-defilant">
+<div class="tableau-defilant liste-file">
 <table>
-    <thead><tr><th>Ticket</th><th>Parcours</th><th>Arrivée</th><th></th></tr></thead>
-    <tbody>
+    <thead><tr><th>Ticket</th><th>Parcours</th><th>Arrivée</th><th>Attente</th><th></th></tr></thead>
+    <tbody data-suivi="file-{{ file.pk }}">
     {% for entree in attente %}
-        <tr>
-            <td><span class="numero">{{ entree.passage.ticket.numero }}</span>
+        <tr data-id="{{ entree.pk }}">
+            <td><span class="rang">{{ forloop.counter }}</span><span class="numero">{{ entree.passage.ticket.numero }}</span>
                 {% if entree.reintegration %}<span class="etiquette attention">réintégré</span>{% endif %}
                 {% if entree.passage.origine == "TRANSFERT" %}<span class="etiquette info">transfert</span>{% endif %}</td>
             <td class="discret">{{ entree.passage.ticket.parcours.libelle_borne|default:"Autre" }}</td>
             <td class="discret">{{ entree.date_entree|time:"H:i" }}</td>
-            <td style="text-align:right">
+            <td class="attente"><span data-depuis="{{ entree.date_entree|date:'c' }}" data-alerte-minutes="30">—</span></td>
+            <td class="actions-ligne">
                 {% if not tenue and not autre_service and peut_appeler %}
                     {% if not file.ordre_strict and not forloop.first %}
                     <form hx-post="{% url 'circuit:guichet_action' service.pk 'appeler' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'appeler' %}">
                         {% csrf_token %}<input type="hidden" name="entree" value="{{ entree.pk }}"><input type="hidden" name="file" value="{{ file.pk }}">
-                        <button>Appeler</button>
+                        <button class="petit">{% icone "appel" %}Appeler</button>
                     </form>
                     {% endif %}
                     {% if service.appel_oral_autorise and forloop.first or service.appel_oral_autorise and not file.ordre_strict %}
                     <form hx-post="{% url 'circuit:guichet_action' service.pk 'prendre' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'prendre' %}">
                         {% csrf_token %}<input type="hidden" name="entree" value="{{ entree.pk }}"><input type="hidden" name="file" value="{{ file.pk }}"><input type="hidden" name="oral" value="1">
-                        <button title="Appel oral : prise en charge directe">Appel oral</button>
+                        <button class="petit principal" title="Appel oral : prise en charge directe">{% icone "son" %}Appel oral</button>
                     </form>
                     {% endif %}
                 {% endif %}
             </td>
         </tr>
     {% empty %}
-        <tr><td colspan="4" class="vide">Personne en attente.</td></tr>
+        <tr><td colspan="5" class="vide">{% icone "check-cercle" %} Personne en attente.</td></tr>
     {% endfor %}
     </tbody>
 </table>
 </div>
 
 {% if en_cours %}
-<div class="section-titre">Appelés / en cours</div>
+<div class="section-titre">{% icone "appel" %}Appelés / en cours<span class="compteur etiquette">{{ en_cours|length }}</span></div>
 <ul class="chronologie">
-    {% for e in en_cours %}<li><strong>{{ e.passage.ticket.numero }}</strong> <span class="etiquette {% if e.statut == 'APPELE' %}attention{% else %}ok{% endif %}">{{ e.get_statut_display }}</span> <span class="discret">{{ e.agent }}{% if e.poste %} · {{ e.poste }}{% endif %}</span></li>{% endfor %}
+    {% for e in en_cours %}<li><span class="jeton">{{ e.passage.ticket.numero }}</span> <span class="etiquette {% if e.statut == 'APPELE' %}attention{% else %}ok{% endif %}">{{ e.get_statut_display }}</span> <span class="discret">{{ e.agent }}{% if e.poste %} · {{ e.poste }}{% endif %}</span>
+        <span class="discret pousse">{% if e.statut == 'APPELE' %}<span data-depuis="{{ e.date_dernier_appel|date:'c' }}" data-format="chrono">—</span>{% elif e.date_debut %}<span data-depuis="{{ e.date_debut|date:'c' }}" data-format="chrono">—</span>{% endif %}</span></li>{% endfor %}
 </ul>
 {% endif %}
 
 {% if absents %}
-<div class="section-titre">Absents du jour</div>
+<div class="section-titre">{% icone "absent" %}Absents du jour<span class="compteur etiquette">{{ absents|length }}</span></div>
 <ul class="chronologie">
     {% for p in absents %}
-    <li><strong>{{ p.ticket.numero }}</strong>
+    <li><span class="jeton">{{ p.ticket.numero }}</span>
         {% if peut_reintegrer %}
         <form hx-post="{% url 'circuit:guichet_action' service.pk 'reintegrer' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'reintegrer' %}" style="margin-left:auto">
             {% csrf_token %}<input type="hidden" name="passage" value="{{ p.pk }}"><input type="hidden" name="file" value="{{ file.pk }}">
-            <button>Réintégrer</button>
+            <button class="petit">{% icone "rappel" %}Réintégrer</button>
         </form>
         {% endif %}
     </li>
@@ -69,11 +75,11 @@
 {% endif %}
 
 {% if a_venir %}
-<div class="section-titre">À venir · {{ a_venir|length }}</div>
+<div class="section-titre">{% icone "fleche-droite" %}À venir · {{ a_venir|length }}</div>
 <p class="discret" style="margin:0 0 4px">Tickets dont le parcours passe ensuite par ce service.</p>
-<ul class="chronologie">
+<ul class="chronologie" data-suivi="a-venir-{{ service.pk }}">
     {% for t in a_venir %}
-    <li><strong>{{ t.numero }}</strong> <span class="etiquette" style="margin-left:auto">actuellement : {{ t.service_actuel }}</span></li>
+    <li data-id="{{ t.pk }}"><span class="jeton">{{ t.numero }}</span> <span class="etiquette" style="margin-left:auto">actuellement : {{ t.service_actuel }}</span></li>
     {% endfor %}
 </ul>
 {% endif %}

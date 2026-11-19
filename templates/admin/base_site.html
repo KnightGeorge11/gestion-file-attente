@@ -1,0 +1,18 @@
+{% extends "admin/base.html" %}
+{% load static %}
+{# Administration Django aux couleurs de l'application (static/css/admin.css). #}
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'css/admin.css' %}">{% endblock %}
+
+{% block branding %}
+{% include "_icones.html" %}
+<div id="site-name"><a href="{% url 'admin:index' %}"><span class="logo-admin">F</span>{{ site_header|default:_('Django administration') }}</a></div>
+{% if user.is_anonymous %}
+  {% include "admin/color_theme_toggle.html" %}
+{% endif %}
+{% endblock %}
+
+{% block userlinks %}<a href="{% url 'accueil' %}">Retour à l'application</a> / {{ block.super }}{% endblock %}
+
+{% block nav-global %}{% endblock %}

@@ -1,0 +1,192 @@
+/* ==========================================================================
+   Administration Django aux couleurs de l'application (voir static/css/app.css).
+   Seule l'apparence change : les écrans, droits et actions de l'administration
+   restent ceux de Django.
+   ========================================================================== */
+
+:root, html[data-theme="light"] {
+  --primary: #0d2a5c;
+  --secondary: #1546a0;
+  --accent: #22d3ee;
+  --primary-fg: #ffffff;
+  --body-bg: #f2f5f9;
+  --header-color: rgba(255, 255, 255, .8);
+  --header-branding-color: #ffffff;
+  --header-bg: #0a1d42;
+  --header-link-color: #ffffff;
+  --breadcrumbs-fg: #c7d4ea;
+  --breadcrumbs-link-fg: #ffffff;
+  --breadcrumbs-bg: #123a7c;
+  --link-fg: #1546a0;
+  --link-hover-color: #0f3680;
+  --link-selected-fg: #0ea5b7;
+  --button-bg: #1546a0;
+  --button-hover-bg: #0f3680;
+  --default-button-bg: #0ea5b7;
+  --default-button-hover-bg: #0b8c9c;
+  --selected-bg: #e8effc;
+  --selected-row: #eef4ff;
+  --darkened-bg: #f7f9fc;
+  --hairline-color: #e2e8f0;
+  --border-color: #d5dde8;
+  --object-tools-bg: #5f6f86;
+  --object-tools-hover-bg: #334155;
+  --font-family-primary: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --admin-rayon: 14px;
+  --admin-ombre: 0 1px 2px rgba(10, 29, 66, .05), 0 1px 3px rgba(10, 29, 66, .07);
+  --admin-ombre-2: 0 6px 18px rgba(10, 29, 66, .09);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --link-fg: #7cc4ff; --link-hover-color: #a5d8ff; --selected-row: #1e3a5f; --selected-bg: #1e3a5f;
+    --breadcrumbs-bg: #0d2a5c; --body-bg: #0b1222; --darkened-bg: #111a2e;
+  }
+}
+html[data-theme="dark"] {
+  --link-fg: #7cc4ff; --link-hover-color: #a5d8ff; --selected-row: #1e3a5f; --selected-bg: #1e3a5f;
+  --breadcrumbs-bg: #0d2a5c; --body-bg: #0b1222; --darkened-bg: #111a2e;
+}
+
+body { -webkit-font-smoothing: antialiased; font-size: 14.5px; }
+
+/* En-tête et fil d'Ariane */
+#header { box-shadow: 0 6px 18px rgba(6, 20, 48, .18); height: auto; }
+#header #user-tools { line-height: 1.8; }
+#site-name { font-size: 1.05rem; }
+#site-name a { display: inline-flex; align-items: center; gap: 10px; font-weight: 650; }
+.logo-admin {
+  display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 10px;
+  background: linear-gradient(135deg, #22d3ee, #0ea5b7 45%, #1546a0); color: #fff; font-weight: 800; font-size: 15px;
+}
+#user-tools { font-size: .82rem; letter-spacing: 0; text-transform: none; }
+#user-tools a { border-bottom: 0; padding: 4px 8px; border-radius: 6px; }
+#user-tools a:hover { background: rgba(255, 255, 255, .1); text-decoration: none; }
+div.breadcrumbs { padding: 10px 28px; font-size: .85rem; }
+#content { padding: 24px 28px; }
+#content h1 { font-weight: 700; letter-spacing: -.02em; color: var(--body-fg); }
+
+/* Barre latérale */
+#nav-sidebar { background: var(--body-bg); border-right: 1px solid var(--hairline-color); }
+#nav-sidebar .module { box-shadow: none; border-radius: 0; }
+#nav-sidebar .current-app .section:link, #nav-sidebar .current-app .section:visited { color: var(--secondary); font-weight: 700; }
+#nav-sidebar .current-model { background: var(--selected-bg); }
+.toggle-nav-sidebar { background: var(--body-bg); border-color: var(--hairline-color); }
+#nav-filter { border-radius: 8px; padding: 6px 10px; }
+
+/* Modules en cartes */
+.module, .inline-group {
+  border-radius: var(--admin-rayon); overflow: hidden; box-shadow: var(--admin-ombre);
+  border: 1px solid var(--hairline-color); background: var(--body-bg);
+}
+.module h2, .module caption, .inline-group h2 {
+  background: linear-gradient(90deg, #0d2a5c, #1546a0); font-size: .82rem; letter-spacing: .04em; padding: 10px 14px;
+}
+.module caption a.section { color: #fff; }
+.module table { width: 100%; }
+.module th, .module td { padding: 10px 14px; }
+.module tr:hover td, .module tr:hover th { background: var(--darkened-bg); }
+fieldset.module { background: var(--body-bg); }
+
+/* Tableau de bord */
+.dashboard #content { max-width: 1280px; }
+.dashboard #content > h1 { display: none; }  /* remplacé par le bandeau d'accueil */
+.accueil-admin {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; flex-wrap: wrap;
+  padding: 26px 28px; margin-bottom: 26px; border-radius: 18px; color: #fff;
+  background:
+    radial-gradient(60% 90% at 100% 0%, rgba(34, 211, 238, .3), transparent 70%),
+    linear-gradient(140deg, #123a7c, #0a1d42);
+  box-shadow: var(--admin-ombre-2);
+}
+.accueil-admin h1 { color: #fff !important; font-size: 1.7rem; margin: 2px 0 8px; }
+.accueil-admin p { color: rgba(255, 255, 255, .75); margin: 0; max-width: 620px; font-size: .98rem; }
+.accueil-admin .surtitre { text-transform: uppercase; letter-spacing: .1em; font-size: .74rem; font-weight: 700; color: #67e8f9; }
+.accueil-admin-liens { display: flex; gap: 10px; flex-wrap: wrap; }
+.lien-clair:link, .lien-clair:visited {
+  display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 10px;
+  background: rgba(255, 255, 255, .12); color: #fff; font-weight: 600; border: 1px solid rgba(255, 255, 255, .2);
+}
+.lien-clair:hover { background: rgba(255, 255, 255, .2); text-decoration: none; color: #fff; }
+.titre-section-admin { font-size: .78rem !important; text-transform: uppercase; letter-spacing: .08em; color: var(--body-quiet-color) !important; margin: 0 0 12px !important; background: none !important; padding: 0 !important; }
+.raccourcis-admin { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); margin-bottom: 30px; }
+.raccourci-admin:link, .raccourci-admin:visited {
+  display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: var(--admin-rayon);
+  background: var(--body-bg); border: 1px solid var(--hairline-color); box-shadow: var(--admin-ombre); color: var(--body-fg);
+  transition: transform .15s, box-shadow .15s, border-color .15s; position: relative;
+}
+.raccourci-admin:hover { transform: translateY(-2px); box-shadow: var(--admin-ombre-2); border-color: #b9c8e0; text-decoration: none; }
+.raccourci-admin strong { display: block; font-size: .95rem; }
+.raccourci-admin small { color: var(--body-quiet-color); font-size: .78rem; }
+.raccourci-icone { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; flex: none; background: linear-gradient(135deg, #e8effc, #dff3f6); color: #1546a0; }
+.raccourci-ajout { margin-left: auto; width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: #e9f8f1; color: #047857; font-weight: 800; }
+.dashboard #content-main { float: none; width: auto; }
+.dashboard .module table th { width: auto; }
+.dashboard .app-list, .dashboard #content-main > div.app-list { display: grid; gap: 18px; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); }
+.dashboard #content-main .module { margin-bottom: 18px; }
+#recent-actions-module { border-radius: var(--admin-rayon); }
+
+/* Icônes partagées avec l'application */
+.ic { width: 1.15em; height: 1.15em; flex: none; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; vertical-align: -.2em; }
+.raccourci-icone .ic { width: 21px; height: 21px; }
+
+/* Listes (changelist) */
+#changelist .actions { padding: 10px 14px; border-radius: 10px 10px 0 0; background: var(--darkened-bg); }
+#changelist #toolbar { padding: 12px 14px; border-radius: 12px; background: var(--darkened-bg); border: 1px solid var(--hairline-color); margin-bottom: 14px; }
+#changelist #toolbar form input[type="text"], #changelist-search input[type="text"] { border-radius: 8px; padding: 7px 10px; min-width: 260px; }
+#changelist .results { border-radius: 0 0 12px 12px; border: 1px solid var(--hairline-color); }
+#result_list thead th { background: var(--darkened-bg); text-transform: uppercase; font-size: .72rem; letter-spacing: .05em; color: var(--body-quiet-color); }
+#result_list tbody tr:hover td, #result_list tbody tr:hover th { background: var(--selected-row); }
+#result_list td, #result_list th { padding: 10px 12px; }
+#changelist-filter { border-radius: var(--admin-rayon); overflow: hidden; border: 1px solid var(--hairline-color); box-shadow: var(--admin-ombre); }
+#changelist-filter h2 { background: linear-gradient(90deg, #0d2a5c, #1546a0); }
+#changelist-filter li.selected a { color: var(--secondary) !important; font-weight: 700; }
+.paginator { padding: 12px 0; }
+
+/* Boutons */
+.button, input[type=submit], input[type=button], .submit-row input, a.button {
+  border-radius: 9px; padding: 9px 16px; font-weight: 600; transition: background .15s, transform .08s;
+}
+.button:active, input[type=submit]:active { transform: translateY(1px); }
+.submit-row {
+  border-radius: var(--admin-rayon); padding: 14px 16px; background: var(--darkened-bg); border: 1px solid var(--hairline-color);
+}
+/* Sur grand écran, les boutons d'enregistrement restent visibles en bas. */
+@media (min-width: 1024px) {
+  .submit-row { position: sticky; bottom: 0; z-index: 5; box-shadow: 0 -6px 16px rgba(10, 29, 66, .06); }
+}
+.submit-row a.deletelink { border-radius: 9px; padding: 9px 16px; }
+.object-tools a:link, .object-tools a:visited { border-radius: 999px; padding: 6px 14px; font-size: .76rem; }
+
+/* Champs */
+input[type=text], input[type=password], input[type=email], input[type=url], input[type=number], input[type=tel],
+textarea, select, .vTextField, .vURLField, .vIntegerField {
+  border-radius: 8px; border: 1px solid var(--border-color); padding: 7px 10px;
+  transition: border-color .15s, box-shadow .15s;
+}
+input:focus, textarea:focus, select:focus { border-color: #1546a0 !important; box-shadow: 0 0 0 3px rgba(21, 70, 160, .18); outline: none; }
+.form-row { padding: 12px 14px; }
+.help, p.help, form .help { color: var(--body-quiet-color); }
+.errornote { border-radius: 10px; }
+ul.messagelist li { border-radius: 10px; margin: 0 0 8px; padding: 12px 16px 12px 42px; }
+
+/* Connexion à l'administration */
+body.connexion-admin {
+  background:
+    radial-gradient(60% 60% at 90% 10%, rgba(34, 211, 238, .22), transparent 70%),
+    linear-gradient(165deg, #0d2a5c, #061430 75%);
+  min-height: 100vh;
+}
+body.connexion-admin #container {
+  border-radius: 18px; overflow: hidden; box-shadow: 0 18px 40px rgba(3, 10, 30, .4); border: 0; margin-top: 10vh;
+}
+body.connexion-admin #header { box-shadow: none; }
+body.connexion-admin #content { padding: 24px 28px 28px; }
+body.connexion-admin .submit-row { position: static; background: none; border: 0; box-shadow: none; padding: 12px 0 0; }
+body.connexion-admin .submit-row input { width: 100%; padding: 11px; }
+
+@media (max-width: 767px) {
+  #content { padding: 16px 12px; }
+  .accueil-admin { padding: 20px; }
+  .accueil-admin h1 { font-size: 1.35rem; }
+  #changelist #toolbar form input[type="text"] { min-width: 0; }
+}

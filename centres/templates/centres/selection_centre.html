@@ -1,29 +1,32 @@
 {% extends "base.html" %}
+{% load interface %}
 {% block titre %}Choisir un centre{% endblock %}
 {% block contenu %}
-<div class="carte" style="max-width:560px;">
-    <h1>Choisir un centre actif</h1>
+<div class="page-connexion">
+    <div class="carte">
+        <div class="marque-carte"><span class="titre-icone">{% icone "centre" %}</span>Centre de travail</div>
+        <h1>Choisir le centre actif</h1>
+        {% if centre_actif %}
+            <p class="discret">Centre actuel : <strong>{{ centre_actif.nom }}</strong></p>
+        {% endif %}
 
-    {% if centre_actif %}
-        <p>Centre actuellement actif : <strong>{{ centre_actif.nom }}</strong></p>
-    {% endif %}
-
-    {% if centres %}
-        <form method="post">
-            {% csrf_token %}
-            <label for="centre_id">Sélectionner un centre :</label>
-            <select name="centre_id" id="centre_id" required>
-                <option value="">-- Choisir --</option>
-                {% for centre in centres %}
-                    <option value="{{ centre.id }}" {% if centre_actif.id == centre.id %}selected{% endif %}>
-                        {{ centre.code }} - {{ centre.nom }}
-                    </option>
-                {% endfor %}
-            </select>
-            <p><button class="principal" type="submit">Valider le centre</button></p>
-        </form>
-    {% else %}
-        <p>Aucun centre ne vous est actuellement attribué.</p>
-    {% endif %}
+        {% if centres %}
+            <form method="post">
+                {% csrf_token %}
+                <label for="centre_id">Centre</label>
+                <select name="centre_id" id="centre_id" required>
+                    <option value="">— Choisir —</option>
+                    {% for centre in centres %}
+                        <option value="{{ centre.id }}" {% if centre_actif.id == centre.id %}selected{% endif %}>
+                            {{ centre.code }} - {{ centre.nom }}
+                        </option>
+                    {% endfor %}
+                </select>
+                <p style="margin-top:18px"><button class="principal grand large" type="submit">Valider le centre</button></p>
+            </form>
+        {% else %}
+            <div class="encart attention">{% icone "alerte" %}<span>Aucun centre ne vous est actuellement attribué. Contactez l'administrateur.</span></div>
+        {% endif %}
+    </div>
 </div>
 {% endblock %}

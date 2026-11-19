@@ -811,3 +811,43 @@ class MotifsAutreTests(BaseVues):
         ticket = Ticket.objects.get(mode="AUTRE", demande__motif=embauche)
         self.assertEqual(ticket.numero, "A001")
         self.assertIsNone(ticket.parcours)  # hors parcours de soins
+
+
+class InterfaceDynamiqueTests(BaseVues):
+    """Refonte visuelle : chiffres du service, mise à jour après action, état de l'imprimante."""
+
+    def test_indicateurs_du_service(self):
+        ticket = self.d.ticket("M")
+        self.connecter(self.accueil, self.d.centre)
+        url = reverse("circuit:guichet_indicateurs", args=[self.d.svc["ACC"].pk])
+        reponse = self.client.get(url)
+        self.assertContains(reponse, "en attente")
+        self.assertEqual(reponse.context["indicateurs"]["en_attente"], 1)
+        self.d.accueillir(ticket, self.accueil)
+        indicateurs = self.client.get(url).context["indicateurs"]
+        self.assertEqual(indicateurs["en_attente"], 0)
+        self.assertEqual(indicateurs["traites"], 1)
+        self.assertEqual(indicateurs["traites_par_moi"], 1)
+        self.assertIsNotNone(indicateurs["attente_moyenne"])
+        # Un agent d'un autre centre n'y a pas accès.
+        self.connecter(self.agent_b, self.b.centre)
+        self.assertEqual(self.client.get(url).status_code, 404)
+
+    def test_action_htmx_declenche_la_mise_a_jour_des_chiffres(self):
+        self.d.ticket("M")
+        self.connecter(self.accueil, self.d.centre)
+        reponse = self.client.post(
+            reverse("circuit:guichet_action", args=[self.d.svc["ACC"].pk, "appeler"]),
+            {"file": self.d.file("ACC").pk},
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertEqual(reponse["HX-Trigger"], "guichet-maj")
+        self.assertContains(reponse, "Derniers appels du service")
+
+    def test_icones_des_services(self):
+        from core.templatetags.interface import icone, icone_service
+
+        self.assertEqual(icone_service(self.d.svc["MED"]), "medecin")
+        self.assertEqual(icone_service(self.d.svc["PHA"]), "pharmacie")
+        self.assertEqual(icone_service(None), "autre")
+        self.assertIn('href="#i-tickets"', icone("tickets"))

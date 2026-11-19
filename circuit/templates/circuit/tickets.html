@@ -1,30 +1,40 @@
 {% extends "base.html" %}
+{% load interface %}
 {% block titre %}Tickets du jour{% endblock %}
 {% block contenu %}
 <div class="entete-page">
-    <div><h1>Tickets du {{ jour|date:"d/m/Y" }}</h1>
-    <p class="discret" style="margin:2px 0 0">Seuls les tickets passés par vos services sont affichés.</p></div>
+    <div>
+        <h1>Tickets du jour</h1>
+        <p class="sous-titre">{{ jour|date:"l d F Y"|capfirst }} · seuls les tickets passés par vos services sont affichés.</p>
+    </div>
+    <span class="etiquette ok vivant">Actualisation automatique</span>
 </div>
-<form method="get" class="ligne carte" style="margin-bottom:12px;padding:10px 12px">
-    <input name="numero" value="{{ numero }}" placeholder="Numéro (ex. M012)" style="max-width:200px">
-    <select name="statut" style="max-width:220px">
+<form method="get" class="carte compacte barre-filtres" style="margin-bottom:16px">
+    <div class="champ-icone" style="flex:1 1 200px;max-width:280px">{% icone "recherche" %}<input name="numero" value="{{ numero }}" placeholder="Numéro (ex. M012)" aria-label="Numéro de ticket" style="max-width:none"></div>
+    <select name="statut" aria-label="Statut">
         <option value="">Tous les statuts</option>
         {% for v, l in statuts %}<option value="{{ v }}" {% if v == statut %}selected{% endif %}>{{ l }}</option>{% endfor %}
     </select>
-    <button>Filtrer</button>
+    <button class="principal">Filtrer</button>
+    {% if numero or statut %}<a class="bouton fantome" href="{% url 'circuit:tickets' %}">Effacer</a>{% endif %}
 </form>
-<div class="carte tableau-defilant" style="padding:0">
+<div id="liste-tickets" hx-get="{{ request.get_full_path }}" hx-trigger="every 15s" hx-select="#liste-tickets" hx-swap="outerHTML">
+<div class="carte sans-marge tableau-defilant">
 <table>
-    <thead><tr><th>Ticket</th><th>Mode</th><th>Parcours</th><th>Émis</th><th>Statut</th></tr></thead>
+    <thead><tr><th>Ticket</th><th>Mode</th><th>Parcours</th><th>Émis</th><th>Depuis</th><th>Statut</th></tr></thead>
+    <tbody data-suivi="tickets">
     {% for t in tickets %}
-    <tr>
+    <tr data-id="{{ t.pk }}-{{ t.statut }}">
         <td><a class="numero" href="{% url 'circuit:ticket' t.pk %}">{{ t.numero }}</a></td>
         <td>{{ t.get_mode_display }}</td>
-        <td>{{ t.parcours.libelle_borne|default:"—" }}</td>
-        <td>{{ t.date_emission|time:"H:i" }}</td>
+        <td>{% if t.parcours %}<span class="ligne" style="gap:6px">{% icone t.parcours|icone_service %}{{ t.parcours.libelle_borne }}</span>{% else %}—{% endif %}</td>
+        <td class="discret">{{ t.date_emission|time:"H:i" }}</td>
+        <td class="discret">{% if t.ouvert %}<span data-depuis="{{ t.date_emission|date:'c' }}">—</span>{% else %}—{% endif %}</td>
         <td><span class="etiquette {% if t.statut == 'TERMINE' %}ok{% elif t.statut == 'ANNULE' or t.statut == 'CLOTURE' %}alerte{% else %}info{% endif %}">{{ t.get_statut_display }}</span></td>
     </tr>
-    {% empty %}<tr><td colspan="5" class="vide">Aucun ticket.</td></tr>{% endfor %}
+    {% empty %}<tr><td colspan="6" class="vide">Aucun ticket.</td></tr>{% endfor %}
+    </tbody>
 </table>
+</div>
 </div>
 {% endblock %}

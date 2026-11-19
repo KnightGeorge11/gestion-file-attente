@@ -1,26 +1,26 @@
 {% extends "base.html" %}
+{% load interface %}
 {% block titre %}Écran principal{% endblock %}
 {% block classe_body %}ecran{% endblock %}
 {% block barre %}{% endblock %}
 {% block contenu %}
-<div class="ecran-entete">
-    <span>{{ centre.nom }}</span>
-    <span id="horloge"></span>
-</div>
+<header class="ecran-entete">
+    <div class="marque"><span class="logo">F</span><span class="titre">{{ centre.nom }}<small>Salle d'attente · SMIE FUNTOA</small></span></div>
+    <div class="temps">
+        <div class="heure" data-horloge="minutes" data-fuseau="{{ centre.fuseau_horaire }}">{% now "H:i" %}</div>
+        <div class="date" data-horloge="date" data-fuseau="{{ centre.fuseau_horaire }}"></div>
+    </div>
+</header>
 <div id="zone-appels" hx-get="{% url 'circuit:ecran_appels' %}" hx-trigger="load, every 3s" hx-swap="innerHTML"></div>
-<p class="non-imprime" id="activer-son" style="position:fixed;bottom:8px;right:8px;">
-    <button onclick="activerSon()">Activer le son</button>
-</p>
+<footer class="ecran-pied">
+    <span>{% icone "info" %} Gardez votre ticket et surveillez cet écran : votre numéro s'affiche quand un service vous appelle.</span>
+    <span>Merci de votre patience</span>
+</footer>
+<button class="bouton-son non-imprime" id="activer-son" type="button" onclick="activerSon()">{% icone "son" %}Activer le son</button>
 {% endblock %}
 {% block scripts %}
 <script>
 (function () {
-    const fuseau = "{{ centre.fuseau_horaire }}";
-    function horloge() {
-        document.getElementById("horloge").textContent = new Date().toLocaleTimeString("fr-FR", {timeZone: fuseau, hour: "2-digit", minute: "2-digit"});
-    }
-    horloge(); setInterval(horloge, 10000);
-
     let contexte = null;
     let dernierId = null;
     window.activerSon = function () {
@@ -48,6 +48,8 @@
         const premier = e.target.querySelector("[data-appel]");
         if (!premier) return;
         if (dernierId !== null && premier.dataset.appel !== dernierId) {
+            // Nouvel appel : animation relancée, carillon et annonce vocale.
+            premier.classList.remove("nouveau"); void premier.offsetWidth; premier.classList.add("nouveau");
             carillon();
             if (premier.dataset.annonce === "1") annoncer(premier.dataset.texte);
         }

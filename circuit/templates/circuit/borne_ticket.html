@@ -1,36 +1,52 @@
 {% extends "base.html" %}
+{% load interface %}
 {% block titre %}Ticket {{ ticket.numero }}{% endblock %}
 {% block classe_body %}borne{% endblock %}
 {% block barre %}{% endblock %}
 {% block contenu %}
+<header class="borne-entete non-imprime">
+    <div class="marque"><span class="logo">F</span><span class="titre">{{ centre.nom }}<small>SMIE FUNTOA</small></span></div>
+    <div class="heure" data-horloge="minutes" data-fuseau="{{ centre.fuseau_horaire }}">{% now "H:i" %}</div>
+</header>
+<div class="ticket-resultat">
 {% if impression == "serveur" %}
-    <h1 style="margin-bottom:4px">Votre ticket s'imprime</h1>
-    <p style="font-size:1.3rem;opacity:.9">Récupérez-le sous la tablette.</p>
+    <div class="non-imprime">
+        <span class="statut-impression ok">{% icone "check" %}</span>
+        <h1>Votre ticket s'imprime</h1>
+        <p class="accroche">Récupérez-le sous la tablette, puis présentez-vous à l'accueil.</p>
+    </div>
 {% elif impression == "echec" %}
-    <h1 style="margin-bottom:4px">Notez votre numéro</h1>
-    <p style="font-size:1.3rem;opacity:.9">L'imprimante ne répond pas. Votre ticket est bien enregistré.</p>
+    <div class="non-imprime">
+        <span class="statut-impression echec">{% icone "alerte" %}</span>
+        <h1>Notez votre numéro</h1>
+        <p class="accroche">L'imprimante ne répond pas. Votre ticket est bien enregistré.</p>
+    </div>
 {% else %}
     <div id="etat-android" class="non-imprime" hidden>
-        <h1 id="etat-android-titre" style="margin-bottom:4px">Impression en cours…</h1>
-        <p id="etat-android-texte" style="font-size:1.3rem;opacity:.9">Récupérez votre ticket sous la tablette.</p>
-        <button id="etat-android-reessayer" class="grand" type="button" hidden>Réessayer l'impression</button>
+        <span class="statut-impression ok" id="etat-android-icone">{% icone "imprimante" %}</span>
+        <h1 id="etat-android-titre">Impression en cours…</h1>
+        <p id="etat-android-texte" class="accroche">Récupérez votre ticket sous la tablette.</p>
+        <button id="etat-android-reessayer" class="bouton-retour" type="button" hidden>{% icone "rappel" %}Réessayer l'impression</button>
     </div>
 {% endif %}
 <div class="ticket-imprime" style="margin-top:16px">
-    <div>{{ centre.nom }}</div>
+    <div class="centre-ticket">{{ centre.nom }}</div>
     <div class="numero">{{ ticket.numero }}</div>
-    <div><strong>{% if ticket.parcours %}{{ ticket.parcours.libelle_borne }}{% else %}{{ ticket.demande.motif|default:"Autre demande" }}{% endif %}</strong> · {{ ticket.get_mode_display }}</div>
-    <div>{{ ticket.date_emission|date:"d/m/Y H:i" }}</div>
-    <div style="margin-top:3mm">Présentez-vous à l'accueil.<br>{{ devant }} personne(s) avant vous.</div>
+    <div class="service-ticket">{% if ticket.parcours %}{{ ticket.parcours.libelle_borne }}{% else %}{{ ticket.demande.motif|default:"Autre demande" }}{% endif %}</div>
+    <div>{{ ticket.get_mode_display }} · {{ ticket.date_emission|date:"d/m/Y H:i" }}</div>
+    <div class="separateur"></div>
+    <div><strong>Présentez-vous à l'accueil.</strong><br>{{ devant }} personne(s) avant vous.</div>
     <div style="margin-top:2mm;font-size:9pt">Surveillez l'écran d'appel.</div>
 </div>
-<div class="non-imprime ligne" style="margin-top:24px;justify-content:center">
+<div class="non-imprime actions-borne" style="margin-top:28px">
     {% if peut_reessayer %}
     <form method="post" action="{% url 'circuit:borne_reimprimer' ticket.pk %}">{% csrf_token %}
-        <button class="grand" type="submit">Réessayer l'impression</button>
+        <button class="bouton-retour" type="submit">{% icone "rappel" %}Réessayer l'impression</button>
     </form>
     {% endif %}
-    <a class="bouton grand" href="{% url 'circuit:borne' %}">Terminé</a>
+    <a class="bouton bouton-retour" href="{% url 'circuit:borne' %}">{% icone "check" %}Terminé</a>
+</div>
+<div class="compte-a-rebours non-imprime" aria-hidden="true"><span id="rebours"></span></div>
 </div>
 {% endblock %}
 {% block scripts %}
@@ -53,12 +69,21 @@ window.addEventListener("load", function () {
 var minuterieRetour = null;
 function planifierRetour(delai) {
     clearTimeout(minuterieRetour);
+    // Barre de compte à rebours avant le retour à l'accueil de la borne.
+    var barre = document.getElementById("rebours");
+    if (barre) {
+        barre.style.animation = "none"; void barre.offsetWidth;
+        barre.style.animation = "rebours " + (delai / 1000) + "s linear forwards";
+    }
     minuterieRetour = setTimeout(function () { window.location.href = "{% url 'circuit:borne' %}"; }, delai);
 }
 
 {% if impression == "navigateur" %}
 function afficherEtatAndroid(titre, texte, reessayer) {
     document.getElementById("etat-android").hidden = false;
+    var icone = document.getElementById("etat-android-icone");
+    icone.className = "statut-impression " + (reessayer ? "echec" : "ok");
+    icone.querySelector("use").setAttribute("href", reessayer ? "#i-alerte" : (titre.indexOf("cours") > 0 ? "#i-imprimante" : "#i-check"));
     document.getElementById("etat-android-titre").textContent = titre;
     document.getElementById("etat-android-texte").textContent = texte;
     document.getElementById("etat-android-reessayer").hidden = !reessayer;
