@@ -1,4 +1,5 @@
 import datetime
+import re
 
 from django.contrib.admin.models import LogEntry
 from django.contrib.auth.models import Permission
@@ -946,3 +947,16 @@ class ActivationBorneEnUnClicTests(BaseVues):
         self.assertEqual(reponse.status_code, 404)
         self.borne.refresh_from_db()
         self.assertFalse(self.borne.actif)
+
+    def test_zones_actualisees_ne_transmettent_pas_hx_select_a_leurs_liens(self):
+        """
+        Régression (19/11/2026) : un lien dans une zone actualisée avec
+        hx-select héritait de ce hx-select ; la navigation sans rechargement
+        affichait alors une page blanche (ex. ouvrir un service).
+        """
+        self.connecter(self.accueil, self.d.centre)
+        for url in (reverse("circuit:guichets"), reverse("circuit:tickets"),
+                    reverse("circuit:demandes"), reverse("circuit:notifications")):
+            page = self.client.get(url).content.decode()
+            for balise in re.findall(r"<[^>]*hx-select=[^>]*>", page):
+                self.assertIn('hx-disinherit="hx-select hx-swap hx-target"', balise, url)

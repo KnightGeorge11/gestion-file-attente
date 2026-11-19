@@ -16,7 +16,7 @@
 </div>
 
 {# Historique et passages actualisés automatiquement (suspendu pendant une saisie). #}
-<div id="zone-ticket" hx-get="{{ request.get_full_path }}" hx-trigger="every 10s [pasDeSaisie()]" hx-select="#zone-ticket" hx-swap="outerHTML">
+<div id="zone-ticket" hx-get="{{ request.get_full_path }}" hx-trigger="every 10s [pasDeSaisie()]" hx-select="#zone-ticket" hx-swap="outerHTML" hx-disinherit="hx-select hx-swap hx-target">
 <div class="indicateurs">
     <div class="indicateur"><span class="pictogramme">{% icone "tickets" %}</span><div><div class="valeur" style="font-size:1.1rem">{{ ticket.get_mode_display }}</div><div class="libelle">mode</div></div></div>
     <div class="indicateur accent"><span class="pictogramme">{% icone ticket.parcours|icone_service %}</span><div><div class="valeur" style="font-size:1.1rem">{% if ticket.parcours %}{{ ticket.parcours.libelle_borne }}{% else %}{{ ticket.demande.motif|default:"Autre" }}{% endif %}</div><div class="libelle">{% if ticket.parcours %}parcours (v{{ ticket.parcours_version.numero }}){% else %}demande{% endif %}</div></div></div>

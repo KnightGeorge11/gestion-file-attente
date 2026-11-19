@@ -14,7 +14,7 @@
 </div>
 
 {# Rafraîchi toutes les 10 s sans recharger la page (hx-select : seule cette zone est remplacée). #}
-<div id="zone-services" hx-get="{% url 'circuit:guichets' %}" hx-trigger="every 10s" hx-select="#zone-services" hx-swap="outerHTML">
+<div id="zone-services" hx-get="{% url 'circuit:guichets' %}" hx-trigger="every 10s" hx-select="#zone-services" hx-swap="outerHTML" hx-disinherit="hx-select hx-swap hx-target">
     {% if services %}
     <div class="indicateurs">
         <div class="indicateur"><span class="pictogramme">{% icone "groupe" %}</span><div><div class="valeur">{{ total_attente }}</div><div class="libelle">patients en attente</div></div></div>

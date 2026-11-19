@@ -18,7 +18,7 @@
     <button class="principal">Filtrer</button>
     {% if numero or statut %}<a class="bouton fantome" href="{% url 'circuit:tickets' %}">Effacer</a>{% endif %}
 </form>
-<div id="liste-tickets" hx-get="{{ request.get_full_path }}" hx-trigger="every 15s" hx-select="#liste-tickets" hx-swap="outerHTML">
+<div id="liste-tickets" hx-get="{{ request.get_full_path }}" hx-trigger="every 15s" hx-select="#liste-tickets" hx-swap="outerHTML" hx-disinherit="hx-select hx-swap hx-target">
 <div class="carte sans-marge tableau-defilant">
 <table>
     <thead><tr><th>Ticket</th><th>Mode</th><th>Parcours</th><th>Émis</th><th>Depuis</th><th>Statut</th></tr></thead>

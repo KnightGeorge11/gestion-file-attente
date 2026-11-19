@@ -9,7 +9,7 @@
     </div>
 </div>
 {# Actualisation automatique, suspendue pendant une saisie. #}
-<div id="zone-demandes" hx-get="{{ request.get_full_path }}" hx-trigger="every 10s [pasDeSaisie()]" hx-select="#zone-demandes" hx-swap="outerHTML">
+<div id="zone-demandes" hx-get="{{ request.get_full_path }}" hx-trigger="every 10s [pasDeSaisie()]" hx-select="#zone-demandes" hx-swap="outerHTML" hx-disinherit="hx-select hx-swap hx-target">
 <div class="cartes-demandes" data-suivi="demandes">
 {% for d in demandes %}
 <section class="carte {% if d.statut == 'NOUVELLE' %}accent{% endif %}" data-id="{{ d.pk }}-{{ d.statut }}-{{ d.notifications.count }}">

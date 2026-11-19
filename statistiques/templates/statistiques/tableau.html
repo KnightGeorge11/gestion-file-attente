@@ -20,7 +20,7 @@
     </span>
 </form>
 
-<div id="stats-contenu" hx-get="{{ request.get_full_path }}" hx-trigger="every 60s" hx-select="#stats-contenu" hx-swap="outerHTML">
+<div id="stats-contenu" hx-get="{{ request.get_full_path }}" hx-trigger="every 60s" hx-select="#stats-contenu" hx-swap="outerHTML" hx-disinherit="hx-select hx-swap hx-target">
 <div class="indicateurs">
     <div class="indicateur"><span class="pictogramme">{% icone "tickets" %}</span><div><div class="valeur">{{ stats.total_tickets }}</div><div class="libelle">tickets émis</div></div></div>
     <div class="indicateur accent"><span class="pictogramme">{% icone "sablier" %}</span><div><div class="valeur">{{ stats.duree_totale_moy|default:"—" }}{% if stats.duree_totale_moy %} <small>min</small>{% endif %}</div><div class="libelle">durée totale moyenne par ticket terminé</div></div></div>
