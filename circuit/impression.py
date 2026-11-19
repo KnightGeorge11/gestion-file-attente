@@ -140,7 +140,7 @@ def etat_imprimantes(centre):
     from centres.models import Borne
 
     alertes = []
-    for borne in Borne.objects.filter(centre=centre, actif=True, imprimante__isnull=False).select_related("imprimante"):
+    for borne in Borne.objects.filter(centre=centre, actif=True).select_related("imprimante"):
         dernier = (
             Evenement.objects.filter(
                 centre=centre,
@@ -150,6 +150,30 @@ def etat_imprimantes(centre):
             .order_by("-date", "-id")
             .first()
         )
+        # Imprimante réseau rattachée, ou imprimante Bluetooth de l'application Android.
+        if borne.imprimante_id is None and not (dernier and dernier.details.get("bluetooth")):
+            continue
         if dernier is not None and dernier.type == Evenement.Type.ECHEC_IMPRESSION:
-            alertes.append({"borne": borne, "date": dernier.date, "ticket": dernier.ticket.numero})
+            alertes.append({
+                "borne": borne, "date": dernier.date, "ticket": dernier.ticket.numero,
+                "bluetooth": bool(dernier.details.get("bluetooth")),
+            })
     return alertes
+
+
+def resultat_impression_android(ticket, borne, reussi, erreur=""):
+    """
+    Résultat signalé par l'application Android (imprimante Bluetooth) : il
+    est inscrit dans l'historique comme une impression réseau, pour que
+    l'accueil voie l'alerte si l'imprimante ne répond plus.
+    """
+    details = {"borne": borne.code, "imprimante": "Bluetooth (application Android)", "bluetooth": True}
+    if not reussi:
+        details["erreur"] = (erreur or "Imprimante Bluetooth injoignable")[:200]
+    Evenement.objects.create(
+        centre_id=ticket.centre_id,
+        ticket=ticket,
+        type=Evenement.Type.IMPRESSION if reussi else Evenement.Type.ECHEC_IMPRESSION,
+        date=timezone.now(),
+        details=details,
+    )

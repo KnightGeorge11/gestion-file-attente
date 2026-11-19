@@ -25,7 +25,7 @@ python manage.py cloturer_tickets
 python manage.py runserver 0.0.0.0:8000
 ```
 
-- `cloturer_tickets` **est obligatoire le matin** : sur ce PC, aucune tâche automatique ne ferme les tickets de la veille. Sans cette commande, les tickets d'hier restent dans les files et des comptes de test peuvent rester « occupés ».
+- `cloturer_tickets` est désormais **facultatif** : les tickets de la veille se ferment tout seuls dès qu'on ouvre la borne, un guichet ou l'écran. La commande ne fait pas de mal, et elle affiche combien de tickets ont été fermés.
 - Si `activate` est bloqué par PowerShell, utiliser directement `.venv\Scripts\python.exe manage.py ...`.
 - Si le port 8000 est déjà utilisé, le serveur tourne déjà : ouvrir simplement http://localhost:8000.
 - Laisser cette fenêtre ouverte pendant toute la démonstration (la fermer arrête l'application).
@@ -98,7 +98,7 @@ Tous les comptes de test ont le mot de passe **1234** :
 | Borne : « Accès refusé » | Adresse hors réseau local | Utiliser localhost ou l'IP locale du PC |
 | Écran TV muet | Les navigateurs bloquent le son | Cliquer une fois « Activer le son » |
 | Une fenêtre « Imprimer » s'ouvre | Pas d'imprimante réseau sur la borne | Annuler la fenêtre, ou utiliser l'imprimante simulée |
-| Tickets d'hier dans les files | Clôture non lancée ce matin | `python manage.py cloturer_tickets` |
+| Tickets d'hier dans les files | Page ouverte depuis moins d'une minute (vérification une fois par minute) | Recharger la page une minute plus tard, ou `python manage.py cloturer_tickets` |
 | Page qui ne répond plus | Serveur arrêté | Relancer `python manage.py runserver 0.0.0.0:8000` |
 
 Tickets fermés automatiquement à **20 h 00** (clôture).

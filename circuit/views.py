@@ -73,6 +73,7 @@ def _file_du_service(request, service):
 @centre_actif_requis
 def guichets(request):
     centre = request.centre_actif
+    services.cloture_automatique(centre)
     liste = []
     for service in Service.objects.filter(centre=centre, actif=True).order_by("ordre", "nom"):
         if utilisateur_peut_acceder_service(request.user, centre, service):
@@ -88,6 +89,7 @@ def guichets(request):
 
 
 def _contexte_guichet(request, service, file):
+    services.cloture_automatique(request.centre_actif)
     agent = request.user
     tenue = services.entree_tenue_par(agent)
     if tenue is not None and tenue.file.service_id != service.pk:
@@ -319,6 +321,7 @@ def ticket_action(request, ticket_id, action):
 def tickets_du_jour(request):
     """Recherche d'un ticket du jour (accueil)."""
     centre = request.centre_actif
+    services.cloture_automatique(centre)
     jour = maintenant_centre(centre).date()
     tickets = (
         tickets_visibles(request.user, centre)

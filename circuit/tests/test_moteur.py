@@ -508,6 +508,32 @@ class ClotureTests(BaseCircuit):
         self.assertIsNone(services.entree_tenue_par(self.accueil))
 
 
+    def test_cloture_automatique_sans_commande(self):
+        """Les tickets de la veille sont fermés au fil des pages, au plus une fois par minute."""
+        from django.core.cache import cache
+
+        cache.clear()
+        with a_heure(LUNDI_MATIN):
+            vieux = self.d.ticket("M")
+            services.appeler(self.d.file("ACC"), self.accueil)
+        mardi = LUNDI_MATIN + datetime.timedelta(days=1)
+        with a_heure(mardi):
+            self.assertEqual(services.cloture_automatique(self.d.centre), 1)
+        vieux.refresh_from_db()
+        self.assertEqual(vieux.statut, Ticket.Statut.CLOTURE)
+        self.assertIsNone(services.entree_tenue_par(self.accueil))
+        # Moins d'une minute après : aucune nouvelle recherche.
+        with a_heure(LUNDI_MATIN):
+            autre = self.d.ticket("M")
+        with a_heure(mardi):
+            self.assertEqual(services.cloture_automatique(self.d.centre), 0)
+        autre.refresh_from_db()
+        self.assertTrue(autre.ouvert)
+        cache.clear()
+        with a_heure(mardi):
+            self.assertEqual(services.cloture_automatique(self.d.centre), 1)
+        self.assertEqual(services.cloture_automatique(None), 0)
+
 class IntegriteBaseDeDonneesTests(BaseCircuit):
     def test_evenement_en_ajout_seulement(self):
         ticket = self.d.ticket("M")

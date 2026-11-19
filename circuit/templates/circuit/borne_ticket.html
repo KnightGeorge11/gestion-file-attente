@@ -78,6 +78,14 @@ function imprimerViaAndroid() {
 
 // Appelée par l'application Android quand l'imprimante a répondu.
 window.borneImpressionTerminee = function (ok, message) {
+    // Inscrit le résultat : l'accueil voit une alerte si l'imprimante ne répond plus.
+    var corps = new FormData();
+    corps.append("ok", ok ? "1" : "0");
+    corps.append("erreur", message || "");
+    fetch("{% url 'circuit:borne_impression_android' ticket.pk %}", {
+        method: "POST", body: corps, credentials: "same-origin",
+        headers: {"X-CSRFToken": "{{ csrf_token }}"}
+    }).catch(function () {});
     if (ok) {
         afficherEtatAndroid("Votre ticket s'imprime", "Récupérez-le sous la tablette.", false);
         planifierRetour(8000);

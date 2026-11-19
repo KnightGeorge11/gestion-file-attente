@@ -26,7 +26,7 @@ from core.timeutils import fuseau_horaire_centre
 from parcours.models import Parcours
 
 from . import services
-from .impression import contenu_ticket, imprimer_ticket
+from .impression import contenu_ticket, imprimer_ticket, resultat_impression_android
 from .models import Appel, MotifDemande, Ticket
 from .services import ErreurCircuit
 
@@ -96,6 +96,7 @@ def borne(request):
         return reponse or redirect("circuit:borne")
 
     centre = poste.centre
+    services.cloture_automatique(centre)
     parcours = [
         p for p in Parcours.objects.filter(centre=centre, actif=True, visible_borne=True)
         .order_by("ordre_affichage", "libelle_borne")
@@ -131,6 +132,7 @@ def borne_emettre(request):
         return redirect("circuit:borne")
 
     centre = poste.centre
+    services.cloture_automatique(centre)
     mode = request.POST.get("mode", "")
     parcours = motif = None
     if mode != Ticket.Mode.AUTRE:
@@ -234,6 +236,21 @@ def borne_ticket_escpos(request, ticket_id):
     return JsonResponse({"numero": ticket.numero, "escpos": base64.b64encode(donnees).decode("ascii")})
 
 
+@require_POST
+def borne_impression_android(request, ticket_id):
+    """L'application Android signale si l'imprimante Bluetooth a imprimé le ticket."""
+    poste = _poste_connecte(request, Borne, SESSION_BORNE)
+    if poste is None:
+        raise PermissionDenied
+    ticket = _ticket_de_la_borne(poste, ticket_id)
+    if _etat_impression(ticket, poste) != "navigateur" or (
+        timezone.now() - ticket.date_emission >= timedelta(minutes=3)
+    ):
+        raise PermissionDenied
+    resultat_impression_android(ticket, poste, request.POST.get("ok") == "1", request.POST.get("erreur", ""))
+    return HttpResponse(status=204)
+
+
 # ---------------------------------------------------------------------------
 # Écran principal
 # ---------------------------------------------------------------------------
@@ -291,6 +308,7 @@ def ecran_appels(request):
     centre, poste = _centre_ecran(request)
     if centre is None:
         return HttpResponse(status=403)
+    services.cloture_automatique(centre)
     if poste is not None:
         EcranAffichage.objects.filter(pk=poste.pk).update(derniere_activite=timezone.now())
     nombre = poste.nb_appels_affiches if poste else 8

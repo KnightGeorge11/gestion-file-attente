@@ -162,11 +162,52 @@ class ImpressionReseauTests(TestCase):
         Ticket.objects.filter(pk=ticket.pk).update(date_emission=ticket.date_emission - timedelta(minutes=5))
         self.assertEqual(self.client.get(url).status_code, 403)
 
+    def test_application_android_alerte_l_accueil_si_le_bluetooth_echoue(self):
+        self.borne.imprimante = None
+        self.borne.save()
+        self._prendre_ticket()
+        ticket = Ticket.objects.get()
+        url = reverse("circuit:borne_impression_android", args=[ticket.pk])
+        self.assertEqual(self.client.post(url, {"ok": "0", "erreur": "Imprimante injoignable"}).status_code, 204)
+        echec = ticket.evenements.get(type=Evenement.Type.ECHEC_IMPRESSION)
+        self.assertTrue(echec.details["bluetooth"])
+        alertes = etat_imprimantes(self.d.centre)
+        self.assertEqual(len(alertes), 1)
+        self.assertTrue(alertes[0]["bluetooth"])
+        accueil = self.d.agent("acc_bt", "Accueil", ["ACC"])
+        agent = self.client_class()
+        agent.force_login(accueil)
+        session = agent.session
+        session["centre_actif_id"] = self.d.centre.pk
+        session.save()
+        page = agent.get(reverse("circuit:guichet", args=[self.d.svc["ACC"].pk]))
+        self.assertContains(page, "le Bluetooth de la tablette")
+        # Nouvelle tentative réussie : l'alerte disparaît.
+        self.client.post(url, {"ok": "1"})
+        self.assertEqual(etat_imprimantes(self.d.centre), [])
+        # Seulement la borne qui a émis le ticket, et seulement en POST.
+        self.assertEqual(self.client_class().post(url, {"ok": "1"}).status_code, 403)
+        self.assertEqual(self.client.get(url).status_code, 405)
+
     def test_application_android_inutile_avec_imprimante_reseau(self):
         self._prendre_ticket()
         self.imprimante_reelle.attendre(1)
         ticket = Ticket.objects.get()
         self.assertEqual(self.client.get(reverse("circuit:borne_ticket_escpos", args=[ticket.pk])).status_code, 403)
+
+    def test_la_borne_ferme_les_tickets_de_la_veille(self):
+        from django.core.cache import cache
+
+        cache.clear()
+        self._prendre_ticket()
+        vieux = Ticket.objects.get()
+        Ticket.objects.filter(pk=vieux.pk).update(jour=vieux.jour - timedelta(days=1))
+        cache.clear()
+        Ticket.objects.filter(pk=vieux.pk).update(date_emission=vieux.date_emission - timedelta(days=1))
+        self._prendre_ticket()
+        vieux.refresh_from_db()
+        self.assertEqual(vieux.statut, Ticket.Statut.CLOTURE)
+        self.assertEqual(Ticket.objects.filter(statut__in=Ticket.STATUTS_OUVERTS).count(), 1)
 
     def test_accents_et_pages_de_codes(self):
         self._prendre_ticket()

@@ -24,6 +24,7 @@ urlpatterns = [
     path("borne/ticket/<int:ticket_id>/", views_postes.borne_ticket, name="borne_ticket"),
     path("borne/ticket/<int:ticket_id>/reimprimer/", views_postes.borne_reimprimer, name="borne_reimprimer"),
     path("borne/ticket/<int:ticket_id>/escpos/", views_postes.borne_ticket_escpos, name="borne_ticket_escpos"),
+    path("borne/ticket/<int:ticket_id>/impression-android/", views_postes.borne_impression_android, name="borne_impression_android"),
     path("ecran/", views_postes.ecran, name="ecran"),
     path("ecran/appels/", views_postes.ecran_appels, name="ecran_appels"),
     path("poste/deconnexion/", views_postes.poste_deconnexion, name="poste_deconnexion"),

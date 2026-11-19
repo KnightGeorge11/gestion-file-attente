@@ -59,7 +59,8 @@ Avec Android Studio, on peut aussi ouvrir le dossier `borne_android/`, puis lanc
 - **Sortir de la borne** (maintenance) : dans les réglages, **Quitter la borne**.
   Si l'écran est épinglé, Android peut aussi demander d'appuyer longuement sur Retour et Aperçu.
 - **Imprimante éteinte ou hors de portée** : la borne affiche « Notez votre numéro »
-  et propose « Réessayer l'impression ». Le ticket est bien enregistré.
+  et propose « Réessayer l'impression ». Le ticket est bien enregistré. L'accueil voit
+  une alerte, qui disparaît à la prochaine impression réussie.
 
 ## Mise à jour de l'application
 
@@ -85,6 +86,8 @@ créer une clé de signature et la déclarer dans les secrets GitHub.
 - la vue `circuit.views_postes.borne_ticket_escpos` (`/circuit/borne/ticket/<id>/escpos/`). Elle
   fournit le ticket au format ESC/POS, seulement à la borne qui l'a émis, pendant
   3 minutes, et seulement si aucune imprimante réseau n'est rattachée à cette borne ;
+- la vue `borne_impression_android` (`/circuit/borne/ticket/<id>/impression-android/`). Elle inscrit
+  le résultat de l'impression dans l'historique du ticket, pour l'alerte de l'accueil ;
 - le script de `circuit/templates/circuit/borne_ticket.html`. Quand la page s'ouvre
   dans l'application, il imprime par Bluetooth au lieu d'ouvrir la fenêtre d'impression du navigateur.
 

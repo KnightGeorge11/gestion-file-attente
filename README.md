@@ -32,7 +32,7 @@ Le module `salles` n'a pas été créé : il reste optionnel et non validé (Tre
 - Parcours : **M** accueil → infirmerie → file commune des médecins → consultation ; **D** accueil → dentiste ; **E** accueil → échographie ; **I** accueil → infirmerie → fin. Marche avant.
 - **Progression du patient** (décision du 18/11/2026) : appelé par un service, le patient s'y rend ; quand le service appuie sur « Terminer », le patient peut être appelé par le service suivant de son parcours (celui choisi au départ). Pas de saut d'étape.
 - **Pharmacie : jamais automatique ni obligatoire.** Le service de soins qui termine le parcours (médecin, dentiste, échographie, infirmerie pour le parcours I) peut décider explicitement de l'envoyer à la pharmacie (« Transférer à la pharmacie ») ; le ticket se termine après la pharmacie. Pas de pharmacie depuis une étape intermédiaire (infirmerie du parcours M) ni depuis l'accueil (décisions du 18/11/2026). Aucune version de parcours ne contient la pharmacie.
-- **Clôture** à **20 h 00** des tickets restés ouverts (commande `cloturer_tickets`, heure réglable par centre).
+- **Clôture** à **20 h 00** des tickets restés ouverts (heure réglable par centre). Elle est **automatique** : dès qu'une page de la borne, d'un guichet ou de l'écran est ouverte, les tickets à clôturer sont fermés (vérification au plus une fois par minute). La commande `cloturer_tickets` reste disponible en tâche planifiée de sécurité.
 - **10 secondes** minimum entre deux appels du même patient ; absence après 3 appels.
 - **2 agents minimum par service** (décision du 18/11/2026) : chaque file accepte au moins 2 appels simultanés ; chaque agent ne tient qu'un patient à la fois.
 - Tickets « Autre » : préfixe **A** avec leur propre compteur.
@@ -196,7 +196,7 @@ La borne et l'écran n'acceptent que les adresses du réseau local (`RESEAU_LOCA
 
 ## Tâches planifiées
 
-- `python manage.py cloturer_tickets` à **20 h 05** (clôture à 20 h 00) et une seconde fois la nuit par sécurité (crontab, voir la commande).
+- `python manage.py cloturer_tickets` à **20 h 05** (clôture à 20 h 00) et une seconde fois la nuit, par sécurité (crontab, voir la commande). Ce n'est plus indispensable : l'application clôture aussi d'elle-même à la première page ouverte.
 - Sauvegarde PostgreSQL quotidienne : sur Ubuntu, `pg_dump -Fc` via cron et copie sur un second support ; test de restauration au moins une fois par mois (équivalents des scripts `scripts/*.ps1` écrits pour Windows).
 
 ## Sécurité et intégrité

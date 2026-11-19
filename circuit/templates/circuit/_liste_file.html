@@ -1,7 +1,7 @@
 <h2>File d'attente <span class="etiquette {% if attente %}info{% endif %}">{{ attente|length }} en attente</span></h2>
 {% for alerte in alertes_imprimante %}
 <p class="messages" style="margin-bottom:8px"><span style="display:block;padding:8px 12px;border-radius:7px;background:var(--alerte-fond);color:var(--alerte);border-left:4px solid currentColor">
-    Imprimante de la borne « {{ alerte.borne.libelle }} » injoignable (dernier échec à {{ alerte.date|time:"H:i" }}, ticket {{ alerte.ticket }}). Les patients doivent noter leur numéro : vérifiez le papier, l'alimentation et le réseau.
+    Imprimante de la borne « {{ alerte.borne.libelle }} » injoignable (dernier échec à {{ alerte.date|time:"H:i" }}, ticket {{ alerte.ticket }}). Les patients doivent noter leur numéro : vérifiez le papier, l'alimentation et {% if alerte.bluetooth %}le Bluetooth de la tablette{% else %}le réseau{% endif %}.
 </span></p>
 {% endfor %}
 {% if service.est_accueil and nb_demandes_nouvelles or service.est_accueil and nb_reponses_non_lues %}

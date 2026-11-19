@@ -13,6 +13,7 @@ avec `comptes.permissions.a_droit` ; ce module vérifie les règles métier.
 
 from datetime import timedelta
 
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import connection, transaction
 from django.db.models import Max
@@ -724,6 +725,38 @@ def annuler_ticket(ticket, agent, motif):
     return ticket
 
 
+def _jour_limite_cloture(centre):
+    """Les tickets ouverts d'un jour antérieur à celui-ci sont à clôturer."""
+    maintenant = maintenant_centre(centre)
+    jour = maintenant.date()
+    if centre.heure_cloture_tickets and maintenant.time() >= centre.heure_cloture_tickets:
+        jour = jour + timedelta(days=1)
+    return jour
+
+
+INTERVALLE_CLOTURE_AUTOMATIQUE = 60  # secondes
+
+
+def cloture_automatique(centre):
+    """
+    Clôture sans intervention : appelée au fil des pages (borne, guichets,
+    écran), au plus une fois par minute et par centre. Les tickets de la
+    veille ne restent donc jamais dans les files, même si la tâche planifiée
+    du serveur (cloturer_tickets) n'a pas tourné. Retourne le nombre de
+    tickets clôturés.
+    """
+    if centre is None:
+        return 0
+    cle = f"circuit:cloture_automatique:{centre.pk}"
+    if not cache.add(cle, True, INTERVALLE_CLOTURE_AUTOMATIQUE):
+        return 0
+    if not Ticket.objects.filter(
+        centre=centre, statut__in=Ticket.STATUTS_OUVERTS, jour__lt=_jour_limite_cloture(centre)
+    ).exists():
+        return 0
+    return cloturer_tickets(centre)
+
+
 @transaction.atomic
 def cloturer_tickets(centre, avant_jour=None):
     """
@@ -734,11 +767,8 @@ def cloturer_tickets(centre, avant_jour=None):
     clôture du centre passée, ceux du jour. Les passages en cours sont
     annulés ; les horodatages existants sont conservés.
     """
-    maintenant = maintenant_centre(centre)
     if avant_jour is None:
-        avant_jour = maintenant.date()
-        if centre.heure_cloture_tickets and maintenant.time() >= centre.heure_cloture_tickets:
-            avant_jour = avant_jour + timedelta(days=1)
+        avant_jour = _jour_limite_cloture(centre)
     tickets = Ticket.objects.select_for_update().filter(
         centre=centre, statut__in=Ticket.STATUTS_OUVERTS, jour__lt=avant_jour
     )
