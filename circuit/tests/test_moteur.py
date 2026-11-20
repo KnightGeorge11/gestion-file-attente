@@ -405,6 +405,40 @@ class QuotaTests(BaseCircuit):
                 services.liberer_quota(ticket, self.accueil, "Trop tard")
         self.assertEqual(ReservationQuota.objects.get().statut, ReservationQuota.Statut.CONSOMMEE)
 
+    def test_place_liberee_reprise_si_le_quota_le_permet(self):
+        """Décision du 20/11/2026 : un patient revenu reprend une place, jamais soigné hors quota."""
+        with a_heure(LUNDI_MATIN):
+            ticket = self._valider_dentiste()
+            services.liberer_quota(ticket, self.accueil, "Patient parti")
+            self.assertEqual(services.etat_quota(self.d.parcours["D"])[2], 7)
+            entree = self.d.entree(ticket)
+            services.appeler(self.d.file("DEN"), self.dentiste)
+            services.prendre_en_charge(entree, self.dentiste)
+            self.assertEqual(services.etat_quota(self.d.parcours["D"])[2], 6)   # place reprise
+        reservation = ticket.reservation_active()
+        self.assertEqual(reservation.statut, ReservationQuota.Statut.CONSOMMEE)
+        self.assertEqual(ticket.reservations_quota.filter(statut="LIBEREE").count(), 1)
+
+    def test_place_liberee_quota_atteint_refus_puis_derogation(self):
+        responsable = self.d.agent("resp_q", "Responsable")
+        with a_heure(LUNDI_MATIN):
+            ticket = self._valider_dentiste()
+            services.liberer_quota(ticket, self.accueil, "Patient parti")
+            for _ in range(7):
+                self._valider_dentiste()                      # les 7 places sont reprises par d'autres
+            entree = self.d.entree(ticket)
+            services.appeler(self.d.file("DEN"), self.dentiste)   # premier de la file
+            with self.assertRaisesMessage(ErreurCircuit, "ne peut pas être reprise"):
+                services.prendre_en_charge(entree, self.dentiste)
+            entree.refresh_from_db()
+            self.assertEqual(entree.statut, EntreeFile.Statut.APPELE)   # tout ou rien
+            self.assertIsNone(ticket.reservation_active())
+            services.autoriser_derogation(ticket, responsable, "Revenu, douleur")
+            services.prendre_en_charge(entree, self.dentiste)
+        reservation = ticket.reservation_active()
+        self.assertTrue(reservation.derogation)
+        self.assertEqual(reservation.statut, ReservationQuota.Statut.CONSOMMEE)
+
 
 class ModeAutreTests(BaseCircuit):
     def test_demande_transmise_a_l_agent_designe_et_reponse(self):

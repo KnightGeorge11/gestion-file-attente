@@ -470,14 +470,34 @@ def reintegrer(passage, agent):
     return _ajouter_en_file(passage, passage.file, reintegration=True, agent=agent)
 
 
-def _consommer_quota(ticket, passage):
+def _consommer_quota(ticket, passage, agent=None):
+    """
+    Prise en charge dans le service soumis au quota (dentiste) : la place
+    réservée par l'accueil est consommée.
+
+    Place libérée entre-temps (patient déclaré absent, puis revenu) : le
+    patient reprend une place si le quota en a encore une ; sinon la prise
+    en charge est refusée, et une dérogation (accueil ou responsable) est
+    nécessaire. Un patient n'est jamais soigné sans place décomptée
+    (décision du 20/11/2026).
+    """
+    if passage.origine != Passage.Origine.PARCOURS or passage.service.est_accueil:
+        return
     reservation = ticket.reservation_active()
-    if (
-        reservation is not None
-        and reservation.statut == ReservationQuota.Statut.RESERVEE
-        and passage.origine == Passage.Origine.PARCOURS
-        and not passage.service.est_accueil
-    ):
+    if reservation is None:
+        if not (ticket.parcours_id and ticket.parcours.soumis_quota):
+            return
+        if not ticket.reservations_quota.filter(statut=ReservationQuota.Statut.LIBEREE).exists():
+            return
+        try:
+            reservation = _reserver_quota(ticket, agent)
+        except ErreurCircuit as erreur:
+            raise ErreurCircuit(
+                "La place de ce patient a été libérée et ne peut pas être reprise : "
+                f"{' '.join(erreur.messages)} Une dérogation est nécessaire "
+                "(accueil ou responsable, depuis la page du ticket)."
+            ) from erreur
+    if reservation.statut == ReservationQuota.Statut.RESERVEE:
         reservation.statut = ReservationQuota.Statut.CONSOMMEE
         reservation.save(update_fields=["statut"])
 
@@ -527,7 +547,7 @@ def prendre_en_charge(entree, agent, oral=False):
         ticket.statut = Ticket.Statut.EN_COURS
         ticket.save(update_fields=["statut"])
 
-    _consommer_quota(ticket, passage)
+    _consommer_quota(ticket, passage, agent)
     _evenement(ticket, Evenement.Type.PRISE_EN_CHARGE, agent=agent, passage=passage, entree=entree)
     return entree
 
