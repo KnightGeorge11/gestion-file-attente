@@ -42,6 +42,8 @@ if [ -n "$COPIE_VERS" ]; then
     mkdir -p "$COPIE_VERS"
     cp "$FICHIER" "$COPIE_VERS/"
     echo "$(date '+%F %T') Copie sur le second support : $COPIE_VERS"
+    # Même rotation sur le second support (sinon il finit par se remplir).
+    ls -1t "$COPIE_VERS"/*.dump 2>/dev/null | tail -n +"$((CONSERVER + 1))" | xargs -r rm -f
 fi
 
 # Rotation : on garde les $CONSERVER plus récentes.

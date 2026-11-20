@@ -10,12 +10,15 @@ Si l'imprimante ne répond pas, le ticket reste valable : la borne affiche le
 numéro au patient et l'accueil voit une alerte.
 """
 
+import logging
 import socket
 import unicodedata
 
 from django.utils import timezone
 
 from .models import Evenement
+
+journal = logging.getLogger(__name__)
 
 ESC = b"\x1b"
 GS = b"\x1d"
@@ -40,11 +43,39 @@ class ErreurImpression(Exception):
     """L'imprimante n'a pas pu recevoir le ticket."""
 
 
+# Ponctuation typographique absente des tables de l'imprimante.
+EQUIVALENTS = {
+    "’": "'", "‘": "'", "‚": ",", "“": '"', "”": '"', "„": '"', "«": '"', "»": '"',
+    "–": "-", "—": "-", "…": "...", " ": " ", " ": " ", "œ": "oe", "Œ": "OE",
+    "æ": "ae", "Æ": "AE", "€": "EUR", "•": "-", "·": ".",
+}
+
+
+def _ascii(caractere):
+    """Translittération d'un caractère : « é » -> « e », « ’ » -> « ' »."""
+    if caractere in EQUIVALENTS:
+        return EQUIVALENTS[caractere]
+    decompose = unicodedata.normalize("NFKD", caractere)
+    sans_accents = "".join(c for c in decompose if not unicodedata.combining(c))
+    return sans_accents if sans_accents.isascii() and sans_accents else "?"
+
+
 def _texte(valeur, page_codes):
+    """
+    Encode le texte dans la table de l'imprimante. Un caractère absent de la
+    table (apostrophe typographique, « œ »…) est translittéré, au lieu de
+    sortir en « ? ».
+    """
     if page_codes == "ascii" or page_codes not in TABLES:
-        sans_accents = unicodedata.normalize("NFKD", valeur)
-        return "".join(c for c in sans_accents if not unicodedata.combining(c)).encode("ascii", "replace")
-    return valeur.encode(TABLES[page_codes][1], "replace")
+        return "".join(_ascii(c) for c in valeur).encode("ascii", "replace")
+    codec = TABLES[page_codes][1]
+    morceaux = []
+    for caractere in valeur:
+        try:
+            morceaux.append(caractere.encode(codec))
+        except UnicodeEncodeError:
+            morceaux.append(_ascii(caractere).encode(codec, "replace"))
+    return b"".join(morceaux)
 
 
 def contenu_ticket(ticket, imprimante, devant=0):
@@ -110,6 +141,7 @@ def imprimer_ticket(ticket, borne, devant=0):
     try:
         envoyer(imprimante, contenu_ticket(ticket, imprimante, devant))
     except ErreurImpression as erreur:
+        journal.warning("Échec d'impression du ticket %s (borne %s) : %s", ticket.numero, borne.code, erreur)
         _evenement(ticket, Evenement.Type.ECHEC_IMPRESSION, borne, imprimante, erreur=str(erreur))
         return False
     _evenement(ticket, Evenement.Type.IMPRESSION, borne, imprimante)
@@ -201,6 +233,8 @@ def resultat_impression_android(ticket, borne, reussi, erreur=""):
     details = {"borne": borne.code, "imprimante": "Bluetooth (application Android)", "bluetooth": True}
     if not reussi:
         details["erreur"] = (erreur or "Imprimante Bluetooth injoignable")[:200]
+        journal.warning("Échec d'impression Bluetooth du ticket %s (borne %s) : %s",
+                        ticket.numero, borne.code, details["erreur"])
     Evenement.objects.create(
         centre_id=ticket.centre_id,
         ticket=ticket,

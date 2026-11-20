@@ -27,6 +27,7 @@
         {% endfor %}
     </div>
     {% endif %}
+    {% if appels_masques %}<div class="appels-masques">+ {{ appels_masques }} autre{{ appels_masques|pluralize }} appel{{ appels_masques|pluralize }} en cours</div>{% endif %}
     {% else %}
     <section class="appel-vedette attente">
         <div class="invitation">Ticket appelé</div>

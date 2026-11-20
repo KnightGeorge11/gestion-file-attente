@@ -35,10 +35,10 @@
     {% if n.demande.statut != 'CLOTUREE' %}
     <form method="post" style="margin-top:8px">
         {% csrf_token %}<input type="hidden" name="notification" value="{{ n.pk }}">
-        <label>Statut</label>
-        <select name="statut" required>{% for v, l in statuts %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
-        <label>Message (facultatif)</label>
-        <input name="message" maxlength="500">
+        <label for="statut-{{ n.pk }}">Statut</label>
+        <select id="statut-{{ n.pk }}" name="statut" required>{% for v, l in statuts %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
+        <label for="message-{{ n.pk }}">Message (facultatif)</label>
+        <input id="message-{{ n.pk }}" name="message" maxlength="500">
         <p style="margin-top:12px"><button class="principal large">{% icone "message" %}Répondre</button></p>
     </form>
     {% endif %}

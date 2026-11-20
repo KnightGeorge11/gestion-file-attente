@@ -46,6 +46,8 @@
   function toast(texte, genre) {
     var element = document.createElement("div");
     element.className = "toast " + (genre || "info");
+    // Les erreurs sont annoncées immédiatement par les lecteurs d'écran.
+    if (genre === "error") { element.setAttribute("role", "alert"); }
     var icone = {success: "check-cercle", error: "alerte", warning: "alerte"}[genre] || "info";
     element.innerHTML = '<svg class="ic" aria-hidden="true"><use href="#i-' + icone + '"></use></svg>' +
       '<span></span><button type="button" class="toast-fermer" aria-label="Fermer">' +

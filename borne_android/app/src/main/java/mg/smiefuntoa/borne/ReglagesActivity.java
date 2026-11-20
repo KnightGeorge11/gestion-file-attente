@@ -54,7 +54,10 @@ public class ReglagesActivity extends Activity {
         etat = findViewById(R.id.etat);
 
         url.setText(reglages.url());
-        code.setText(reglages.code());
+        // Le code n'est jamais réaffiché (il n'est conservé que sous forme d'empreinte).
+        if (reglages.aUnCode()) {
+            code.setHint("Laisser vide pour garder le code actuel");
+        }
         largeur.check("32".equals(reglages.largeur()) ? R.id.largeur_58 : R.id.largeur_80);
         page.check("cp858".equals(reglages.page()) ? R.id.page_cp858
                 : "cp850".equals(reglages.page()) ? R.id.page_cp850 : R.id.page_ascii);
@@ -170,7 +173,8 @@ public class ReglagesActivity extends Activity {
             url.setError("Adresse complète attendue, ex. http://192.168.1.10:8000/circuit/borne/");
             return;
         }
-        if (codeSaisi.length() < 4) {
+        if (!(codeSaisi.isEmpty() && reglages.aUnCode()) && codeSaisi.length() < 4) {
+            // Vide avec un code déjà enregistré : le code actuel est conservé.
             code.setError("Au moins 4 chiffres");
             return;
         }

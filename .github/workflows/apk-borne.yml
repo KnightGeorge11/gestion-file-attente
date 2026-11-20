@@ -1,6 +1,11 @@
 # Compile l'application Android de la borne (borne_android/) et met l'APK
 # à disposition dans l'onglet « Actions » de GitHub (artefact « borne-funtoa-apk »).
 # Aucun outil Android n'est nécessaire sur le PC.
+#
+# Signature stable : si les secrets BORNE_KEYSTORE_BASE64, BORNE_KEYSTORE_MOT_DE_PASSE,
+# BORNE_CLE_ALIAS et BORNE_CLE_MOT_DE_PASSE sont définis (Settings → Secrets and
+# variables → Actions), l'APK est signé toujours avec la même clé et s'installe
+# par-dessus la version précédente. Sinon, APK de debug (clé changeante).
 name: APK borne Android
 
 on:
@@ -16,6 +21,8 @@ jobs:
     defaults:
       run:
         working-directory: borne_android
+    env:
+      CLE_PRESENTE: ${{ secrets.BORNE_KEYSTORE_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -25,10 +32,24 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
-      - name: Compiler l'APK
+      - name: Compiler l'APK signé (clé stable)
+        if: env.CLE_PRESENTE == 'true'
+        env:
+          BORNE_KEYSTORE_BASE64: ${{ secrets.BORNE_KEYSTORE_BASE64 }}
+          BORNE_KEYSTORE_MOT_DE_PASSE: ${{ secrets.BORNE_KEYSTORE_MOT_DE_PASSE }}
+          BORNE_CLE_ALIAS: ${{ secrets.BORNE_CLE_ALIAS }}
+          BORNE_CLE_MOT_DE_PASSE: ${{ secrets.BORNE_CLE_MOT_DE_PASSE }}
+        run: |
+          echo "$BORNE_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/borne.jks"
+          BORNE_KEYSTORE="$RUNNER_TEMP/borne.jks" gradle assembleRelease --no-daemon
+          rm -f "$RUNNER_TEMP/borne.jks"
+      - name: Compiler l'APK de debug (sans clé stable)
+        if: env.CLE_PRESENTE != 'true'
         run: gradle assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:
           name: borne-funtoa-apk
-          path: borne_android/app/build/outputs/apk/debug/*.apk
+          path: |
+            borne_android/app/build/outputs/apk/release/*.apk
+            borne_android/app/build/outputs/apk/debug/*.apk
           retention-days: 90

@@ -1,5 +1,6 @@
 {% load interface %}
-{% if request.headers.HX_Request %}{% include "_messages.html" with oob=True %}{% endif %}
+{# Messages en hors-bande seulement pour une action HTMX : une navigation boostée affiche déjà la page complète (sinon deux #messages-page). #}
+{% if request.headers.HX_Request and not request.headers.HX_Boosted and not sans_messages %}{% include "_messages.html" with oob=True %}{% endif %}
 <div class="grille-guichet">
     <section class="carte panneau-patient">
         <div class="panneau-entete">

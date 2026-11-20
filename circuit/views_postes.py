@@ -367,7 +367,9 @@ def appels_ecran(centre, nombre=8):
         else:
             actif = entree.statut in EntreeFile.STATUTS_TENUS
         if actif:
-            if len(en_cours) < nombre:
+            # Tous les appels en cours (au plus 50) : l'écran en affiche
+            # `nombre` et signale les autres (« + N autres appels en cours »).
+            if len(en_cours) < 50:
                 en_cours.append(appel)
         elif appel.date >= limite_historique and len(precedents) < nombre:
             precedents.append(appel)
@@ -395,16 +397,22 @@ def ecran_appels(request):
     if centre is None:
         return HttpResponse(status=403)
     services.cloture_automatique(centre)
-    if poste is not None:
+    if poste is not None and (
+        poste.derniere_activite is None or timezone.now() - poste.derniere_activite > timedelta(minutes=1)
+    ):
+        # Suivi de l'écran : une écriture par minute suffit (et non toutes les 3 s).
         EcranAffichage.objects.filter(pk=poste.pk).update(derniere_activite=timezone.now())
     nombre = poste.nb_appels_affiches if poste else 8
     en_cours, precedents = appels_ecran(centre, nombre)
+    masques = max(0, len(en_cours) - nombre)
+    en_cours = en_cours[:nombre]
     recents = timezone.now() - timedelta(seconds=centre.duree_affichage_appel_secondes)
     return render(
         request,
         "circuit/_ecran_appels.html",
         {
             "en_cours": en_cours,
+            "appels_masques": masques,
             "precedents": precedents,
             "fuseau": fuseau_horaire_centre(centre),
             "recents": recents,

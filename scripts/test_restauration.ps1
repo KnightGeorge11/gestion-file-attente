@@ -35,7 +35,9 @@ if (-not $Sauvegarde) {
 if (-not $Sauvegarde -or -not (Test-Path $Sauvegarde)) { throw "Aucune sauvegarde trouvée." }
 
 $env:PGPASSWORD = $env_["DB_PASSWORD"]
-$connexion = @("-h", $env_["DB_HOST"], "-p", $env_["DB_PORT"], "-U", $env_["DB_USER"])
+$hote = if ($env_["DB_HOST"]) { $env_["DB_HOST"] } else { "127.0.0.1" }
+$port = if ($env_["DB_PORT"]) { $env_["DB_PORT"] } else { "5432" }
+$connexion = @("-h", $hote, "-p", $port, "-U", $env_["DB_USER"])
 $psql = Join-Path $PgBin "psql.exe"
 
 & (Join-Path $PgBin "dropdb.exe") @connexion --if-exists $BaseTest

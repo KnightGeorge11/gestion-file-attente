@@ -25,6 +25,8 @@ import java.util.UUID;
 final class ImprimanteBluetooth {
 
     private static final UUID SPP = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
+    /** Délai maximum d'une tentative de connexion (connect() n'en a pas). */
+    private static final long DELAI_CONNEXION_MS = 6000;
 
     private ImprimanteBluetooth() { }
 
@@ -42,16 +44,22 @@ final class ImprimanteBluetooth {
         if (!adaptateur.isEnabled()) {
             throw new IOException("Bluetooth désactivé");
         }
-        BluetoothDevice appareil = adaptateur.getRemoteDevice(adresse);
-        BluetoothSocket socket;
         try {
-            socket = appareil.createRfcommSocketToServiceRecord(SPP);
-            socket.connect();
+            // Une recherche d'appareils en cours ralentit fortement la connexion.
+            adaptateur.cancelDiscovery();
+        } catch (SecurityException ignore) {
+            // permission de recherche absente : sans importance
+        }
+        BluetoothDevice appareil = adaptateur.getRemoteDevice(adresse);
+        BluetoothSocket socket = appareil.createRfcommSocketToServiceRecord(SPP);
+        try {
+            connecter(socket);
         } catch (IOException premiereErreur) {
+            fermer(socket);
             // Certaines imprimantes bon marché n'acceptent que la connexion « non sécurisée ».
             socket = appareil.createInsecureRfcommSocketToServiceRecord(SPP);
             try {
-                socket.connect();
+                connecter(socket);
             } catch (IOException e) {
                 fermer(socket);
                 throw new IOException("Imprimante injoignable (allumée ? à portée ?)", e);
@@ -67,6 +75,26 @@ final class ImprimanteBluetooth {
             Thread.currentThread().interrupt();
         } finally {
             fermer(socket);
+        }
+    }
+
+    /** connect() avec un délai : passé DELAI_CONNEXION_MS, le socket est fermé et connect() échoue. */
+    @SuppressLint("MissingPermission")
+    private static void connecter(BluetoothSocket socket) throws IOException {
+        Thread minuterie = new Thread(() -> {
+            try {
+                Thread.sleep(DELAI_CONNEXION_MS);
+                fermer(socket);
+            } catch (InterruptedException ignore) {
+                // connexion établie à temps
+            }
+        });
+        minuterie.setDaemon(true);
+        minuterie.start();
+        try {
+            socket.connect();
+        } finally {
+            minuterie.interrupt();
         }
     }
 

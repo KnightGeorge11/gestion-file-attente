@@ -23,6 +23,7 @@ import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -167,7 +168,7 @@ public class MainActivity extends Activity {
                 .setView(saisie)
                 .setNegativeButton("Annuler", null)
                 .setPositiveButton("Ouvrir", (d, w) -> {
-                    if (saisie.getText().toString().equals(reglages.code())) {
+                    if (reglages.verifierCode(saisie.getText().toString())) {
                         startActivity(new Intent(this, ReglagesActivity.class));
                     } else {
                         Toast.makeText(this, "Code incorrect", Toast.LENGTH_SHORT).show();
@@ -219,6 +220,13 @@ public class MainActivity extends Activity {
         public void onPageStarted(WebView vue, String url, Bitmap icone) {
             pageCourante = url == null ? "" : url;
             super.onPageStarted(vue, url, icone);
+        }
+
+        /** Le moteur de la page a planté (mémoire) : on relance la borne au lieu d'un écran figé. */
+        @Override
+        public boolean onRenderProcessGone(WebView vue, RenderProcessGoneDetail detail) {
+            recreate();
+            return true;
         }
 
         @Override

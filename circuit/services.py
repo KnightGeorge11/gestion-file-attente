@@ -244,6 +244,35 @@ def entree_tenue_par(agent):
     )
 
 
+def _verrouiller_agent(agent):
+    """
+    Verrou sur le compte de l'agent : deux appels simultanés du même agent
+    (deux onglets, deux files) passent l'un après l'autre. Le second voit le
+    patient pris par le premier et reçoit un message clair, au lieu d'une
+    erreur de contrainte en base (erreur 500).
+    """
+    from comptes.models import Utilisateur
+
+    # « FOR NO KEY UPDATE » : bloque un second appel du même agent, mais pas
+    # les écritures qui référencent simplement l'agent (historique d'une
+    # annulation en cours…). Un verrou complet provoquait un interblocage.
+    Utilisateur.objects.select_for_update(no_key=True).filter(pk=agent.pk).first()
+
+
+def _verrouiller_files_du_ticket(ticket_id):
+    """
+    Ordre des verrous commun à tout le moteur : files, puis entrées, puis
+    ticket. Annulation et clôture verrouillent donc d'abord les files où le
+    ticket est présent, pour ne jamais se bloquer mutuellement avec un appel.
+    """
+    files = (
+        EntreeFile.objects.filter(passage__ticket_id=ticket_id, statut__in=["EN_ATTENTE", "APPELE", "EN_COURS"])
+        .values_list("file_id", flat=True)
+    )
+    for file_id in sorted(set(files)):
+        _verrouiller_file(file_id)
+
+
 def _verifier_agent_libre(agent, sauf=None):
     tenue = entree_tenue_par(agent)
     if tenue is not None and tenue.pk != getattr(sauf, "pk", None):
@@ -327,6 +356,7 @@ def appeler(file, agent, entree=None, poste=""):
     patient. Dans la file commune des médecins, le patient est attribué
     au médecin qui l'appelle.
     """
+    _verrouiller_agent(agent)
     file = _verrouiller_file(file.pk)
     if not file.actif or not file.service.disponible:
         raise ErreurCircuit("Cette file n'est pas disponible.")
@@ -420,6 +450,8 @@ def marquer_absent(entree, agent):
 @transaction.atomic
 def reintegrer(passage, agent):
     """Nouvelle entrée en fin de file pour le même passage (maximum paramétré)."""
+    # Ordre commun des verrous : la file d'abord, puis le passage et le ticket.
+    _verrouiller_file(Passage.objects.values_list("file_id", flat=True).get(pk=passage.pk))
     passage = Passage.objects.select_for_update(of=("self",)).select_related("ticket", "file", "centre").get(pk=passage.pk)
     Ticket.objects.select_for_update().get(pk=passage.ticket_id)
     if passage.statut != Passage.Statut.ABSENT:
@@ -457,6 +489,7 @@ def prendre_en_charge(entree, agent, oral=False):
     (pharmacie), l'agent peut prendre en charge directement un patient en
     attente : un appel « oral » est enregistré.
     """
+    _verrouiller_agent(agent)
     entree = _verrouiller_entree(entree.pk)
     service = entree.file.service
     passage = entree.passage
@@ -784,6 +817,7 @@ def annuler_ticket(ticket, agent, motif):
     motif = (motif or "").strip()
     if not motif:
         raise ErreurCircuit("Le motif d'annulation est obligatoire.")
+    _verrouiller_files_du_ticket(ticket.pk)
     ticket = Ticket.objects.select_for_update().get(pk=ticket.pk)
     if not ticket.ouvert:
         raise ErreurCircuit("Ce ticket n'est plus ouvert.")
@@ -848,11 +882,19 @@ def cloturer_tickets(centre, avant_jour=None):
     """
     if avant_jour is None:
         avant_jour = _jour_limite_cloture(centre)
-    tickets = Ticket.objects.select_for_update().filter(
-        centre=centre, statut__in=Ticket.STATUTS_OUVERTS, jour__lt=avant_jour
+    identifiants = list(
+        Ticket.objects.filter(centre=centre, statut__in=Ticket.STATUTS_OUVERTS, jour__lt=avant_jour)
+        .order_by("pk").values_list("pk", flat=True)
     )
     nombre = 0
-    for ticket in tickets:
+    for ticket_id in identifiants:
+        # Même ordre de verrous que les appels : files, puis ticket.
+        _verrouiller_files_du_ticket(ticket_id)
+        ticket = Ticket.objects.select_for_update().filter(
+            pk=ticket_id, statut__in=Ticket.STATUTS_OUVERTS
+        ).first()
+        if ticket is None:
+            continue   # fermé entre-temps (annulé, terminé)
         _fermer_passages(ticket)
         _terminer_ticket(ticket, None, Evenement.Type.CLOTURE, Ticket.Statut.CLOTURE)
         nombre += 1

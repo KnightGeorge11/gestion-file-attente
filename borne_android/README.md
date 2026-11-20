@@ -27,7 +27,7 @@ L'APK est compilé automatiquement par GitHub à chaque modification du dossier
 
 1. Ouvrir le dépôt GitHub, onglet **Actions**, puis **APK borne Android**.
 2. Choisir la dernière exécution réussie (coche verte).
-3. En bas, dans **Artifacts**, télécharger **borne-funtoa-apk** (un .zip qui contient `app-debug.apk`).
+3. En bas, dans **Artifacts**, télécharger **borne-funtoa-apk** (un .zip qui contient `app-release.apk` si la clé stable est configurée, sinon `app-debug.apk`).
 
 Pour relancer la compilation à la main : **Actions → APK borne Android → Run workflow**.
 
@@ -52,6 +52,38 @@ Avec Android Studio, on peut aussi ouvrir le dossier `borne_android/`, puis lanc
 
 **Côté serveur** : ne rattacher **aucune imprimante réseau** à cette borne
 (Administration → Bornes). Sinon c'est le serveur qui imprime, et l'application ne fait rien.
+
+## Mises à jour sans désinstaller (clé de signature stable)
+
+Sans clé stable, chaque APK compilé par GitHub est signé avec une clé différente : Android refuse alors la mise à jour, et il faut désinstaller. Les réglages et l'activation de la borne sont alors perdus.
+
+Une seule fois, créer la clé sur un poste avec Java installé :
+
+```bash
+keytool -genkeypair -v -keystore borne.jks -alias borne -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Puis, dans GitHub (Settings → Secrets and variables → Actions), créer quatre secrets :
+
+| Secret | Valeur |
+|---|---|
+| `BORNE_KEYSTORE_BASE64` | contenu de `borne.jks` en base64 (`base64 -w0 borne.jks`, ou `certutil -encode` sous Windows) |
+| `BORNE_KEYSTORE_MOT_DE_PASSE` | mot de passe du fichier |
+| `BORNE_CLE_ALIAS` | `borne` |
+| `BORNE_CLE_MOT_DE_PASSE` | mot de passe de la clé |
+
+Gardez `borne.jks` et ses mots de passe en lieu sûr, hors du dépôt : sans eux, plus aucune mise à jour ne pourra s'installer par-dessus.
+
+Une fois les secrets créés, l'APK s'appelle `app-release.apk`. Le numéro de version augmente à chaque compilation. Le premier passage de la version de debug à la version signée demande une dernière désinstallation.
+
+## Redémarrage de la tablette
+
+- Après une coupure de courant, l'application se relance seule sur Android 9 et moins.
+- Sur Android 10 et plus, le système limite ce lancement. Choisissez **Borne FUNTOA** comme **écran d'accueil par défaut** : Paramètres → Applications → Applications par défaut → Application d'accueil. La borne s'ouvre alors à chaque démarrage, et le bouton Accueil y ramène.
+
+## Code des réglages
+
+Il n'est conservé sur la tablette que sous forme d'empreinte, jamais en clair. Dans les réglages, laissez le champ vide pour garder le code actuel. Un code oublié se règle en effaçant les données de l'application (Paramètres Android → Applications → Borne FUNTOA → Stockage).
 
 ## Au quotidien
 

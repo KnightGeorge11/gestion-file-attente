@@ -27,7 +27,8 @@
     {% include "circuit/_indicateurs_guichet.html" %}
 </div>
 
-<div id="zone-guichet">
+{# Actualisé toutes les 15 s (ticket annulé ou clôturé ailleurs), sauf pendant une saisie. #}
+<div id="zone-guichet" hx-get="{% url 'circuit:guichet_zone' service.pk %}?file={{ file.pk }}" hx-trigger="every 15s [pasDeSaisie()]" hx-swap="innerHTML">
     {% include "circuit/_zone_guichet.html" %}
 </div>
 {% endblock %}

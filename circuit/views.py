@@ -8,7 +8,7 @@ permission) sont faites côté serveur.
 
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
-from django.db.models import Avg, F, Q
+from django.db.models import Avg, Count, F, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -76,20 +76,26 @@ def guichets(request):
     centre = request.centre_actif
     services.cloture_automatique(centre)
     jour = maintenant_centre(centre).date()
+    # Trois requêtes groupées pour tout le centre (et non trois par service).
+    def par_service(requete, champ):
+        return dict(requete.values_list(champ).annotate(n=Count("id")).order_by())
+
+    attente_par_service = par_service(
+        EntreeFile.objects.filter(centre=centre, statut=EntreeFile.Statut.EN_ATTENTE), "file__service"
+    )
+    en_cours_par_service = par_service(
+        EntreeFile.objects.filter(centre=centre, statut__in=EntreeFile.STATUTS_TENUS), "file__service"
+    )
+    traites_par_service = par_service(
+        Passage.objects.filter(centre=centre, statut=Passage.Statut.TERMINE, ticket__jour=jour), "service"
+    )
     liste, chiffres = [], {}
     for service in Service.objects.filter(centre=centre, actif=True).order_by("ordre", "nom"):
         if utilisateur_peut_acceder_service(request.user, centre, service):
-            en_attente = EntreeFile.objects.filter(
-                file__service=service, statut=EntreeFile.Statut.EN_ATTENTE
-            ).count()
-            liste.append((service, en_attente))
+            liste.append((service, attente_par_service.get(service.pk, 0)))
             chiffres[service.pk] = {
-                "en_cours": EntreeFile.objects.filter(
-                    file__service=service, statut__in=EntreeFile.STATUTS_TENUS
-                ).count(),
-                "traites": Passage.objects.filter(
-                    service=service, statut=Passage.Statut.TERMINE, ticket__jour=jour
-                ).count(),
+                "en_cours": en_cours_par_service.get(service.pk, 0),
+                "traites": traites_par_service.get(service.pk, 0),
             }
     return render(
         request,
@@ -238,6 +244,16 @@ def guichet_liste(request, service_id):
     service = _service_autorise(request, service_id)
     file, _ = _file_du_service(request, service)
     return render(request, "circuit/_liste_file.html", _contexte_guichet(request, service, file))
+
+
+@centre_actif_requis
+def guichet_zone(request, service_id):
+    """Fragment HTMX : panneau « Patient en cours » (rafraîchi périodiquement)."""
+    service = _service_autorise(request, service_id)
+    file, _ = _file_du_service(request, service)
+    contexte = _contexte_guichet(request, service, file)
+    contexte["sans_messages"] = True   # les messages restent pour la page ou l'action suivante
+    return render(request, "circuit/_zone_guichet.html", contexte)
 
 
 @centre_actif_requis

@@ -10,13 +10,32 @@ android {
         applicationId "mg.smiefuntoa.borne"
         minSdk 24          // Android 7.0 et plus
         targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        // Numéro de compilation GitHub : chaque APK remplace le précédent sans désinstaller.
+        versionCode Integer.parseInt(System.getenv("GITHUB_RUN_NUMBER") ?: "1")
+        versionName "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+    }
+
+    // Signature stable : la même clé à chaque compilation, sinon Android refuse
+    // la mise à jour (désinstallation = réglages et activation perdus).
+    // La clé est fournie par la CI (secrets GitHub, voir le README).
+    def cleSignature = System.getenv("BORNE_KEYSTORE")
+    signingConfigs {
+        if (cleSignature) {
+            stable {
+                storeFile file(cleSignature)
+                storePassword System.getenv("BORNE_KEYSTORE_MOT_DE_PASSE")
+                keyAlias System.getenv("BORNE_CLE_ALIAS")
+                keyPassword System.getenv("BORNE_CLE_MOT_DE_PASSE")
+            }
+        }
     }
 
     buildTypes {
         release {
             minifyEnabled false
+            if (cleSignature) {
+                signingConfig signingConfigs.stable
+            }
         }
     }
 

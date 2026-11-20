@@ -33,8 +33,12 @@ def static_v(chemin):
     script sans Ctrl+F5. En production, le stockage « Manifest » de
     whitenoise ajoute déjà une empreinte au nom du fichier.
     """
+    from django.contrib.staticfiles.storage import ManifestFilesMixin, staticfiles_storage
+
     url = static(chemin)
-    if "?" in url:
+    # Production : le nom contient déjà l'empreinte. Inutile de lire la date du
+    # fichier sur le disque à chaque page.
+    if "?" in url or isinstance(staticfiles_storage, ManifestFilesMixin):
         return url
     fichier = finders.find(chemin)
     if fichier:

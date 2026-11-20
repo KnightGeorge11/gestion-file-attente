@@ -10,6 +10,7 @@ urlpatterns = [
     path("services/<int:service_id>/", views.guichet, name="guichet"),
     path("services/<int:service_id>/liste/", views.guichet_liste, name="guichet_liste"),
     path("services/<int:service_id>/indicateurs/", views.guichet_indicateurs, name="guichet_indicateurs"),
+    path("services/<int:service_id>/patient/", views.guichet_zone, name="guichet_zone"),
     path("services/<int:service_id>/action/<slug:action>/", views.guichet_action, name="guichet_action"),
     # Tickets
     path("tickets/", views.tickets_du_jour, name="tickets"),

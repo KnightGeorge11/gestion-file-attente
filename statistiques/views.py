@@ -17,6 +17,17 @@ from .calculs import calculer
 PERIODE_MAX_JOURS = 366
 
 
+def cellule_sure(valeur):
+    """
+    Texte inoffensif dans un tableur : une valeur commençant par =, +, -, @
+    (nom d'agent, de service, de centre…) serait exécutée comme une formule
+    à l'ouverture du fichier. On la préfixe d'une apostrophe.
+    """
+    if isinstance(valeur, str) and valeur[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + valeur
+    return valeur
+
+
 def _parametres(request):
     """Centres et période autorisés (contrôle côté serveur)."""
     utilisateur = request.user
@@ -114,13 +125,13 @@ def export_excel(request):
     classeur.remove(classeur.active)
     for titre, entetes, lignes in _lignes_export(stats):
         feuille = classeur.create_sheet(titre[:31])
-        feuille.append([f"{libelle} — du {du:%d/%m/%Y} au {au:%d/%m/%Y}"])
+        feuille.append([cellule_sure(f"{libelle} — du {du:%d/%m/%Y} au {au:%d/%m/%Y}")])
         feuille.append([])
         feuille.append(entetes)
         for cellule in feuille[3]:
             cellule.font = Font(bold=True)
         for ligne in lignes:
-            feuille.append(ligne)
+            feuille.append([cellule_sure(v) for v in ligne])
         for colonne in feuille.columns:
             largeur = max(len(str(c.value or "")) for c in colonne[2:]) if feuille.max_row > 2 else 10
             feuille.column_dimensions[colonne[0].column_letter].width = min(max(largeur + 2, 12), 45)
@@ -142,6 +153,7 @@ def export_pdf(request):
     from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.lib.units import cm
     from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from xml.sax.saxutils import escape
 
     centres, libelle, du, au, _, _ = _parametres(request)
     stats = calculer(centres, du, au)
@@ -152,11 +164,13 @@ def export_pdf(request):
     styles = getSampleStyleSheet()
     elements = [
         Paragraph("SMIE FUNTOA — Statistiques des files d'attente", styles["Title"]),
-        Paragraph(f"{libelle} — du {du:%d/%m/%Y} au {au:%d/%m/%Y}", styles["Normal"]),
+        # Paragraph interprète le texte comme du balisage : « & » ou « < »
+        # dans un nom de centre casserait le PDF.
+        Paragraph(escape(f"{libelle} — du {du:%d/%m/%Y} au {au:%d/%m/%Y}"), styles["Normal"]),
         Spacer(1, 0.4 * cm),
     ]
     for titre, entetes, lignes in _lignes_export(stats):
-        elements.append(Paragraph(titre, styles["Heading2"]))
+        elements.append(Paragraph(escape(titre), styles["Heading2"]))
         donnees = [entetes] + [["" if v is None else str(v) for v in ligne] for ligne in lignes]
         if not lignes:
             donnees.append(["Aucune donnée"] + [""] * (len(entetes) - 1))

@@ -54,6 +54,9 @@ if ($CopieVers) {
     New-Item -ItemType Directory -Force -Path $CopieVers | Out-Null
     Copy-Item $fichier $CopieVers
     Write-Output "Copie sur le second support : $CopieVers"
+    # Même rotation sur le second support (sinon il finit par se remplir).
+    Get-ChildItem $CopieVers -Filter "*.dump" | Sort-Object LastWriteTime -Descending |
+        Select-Object -Skip $Conserver | Remove-Item -Force
 }
 
 # Rotation : on garde les $Conserver plus récentes.

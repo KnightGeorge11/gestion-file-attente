@@ -176,6 +176,8 @@ sudo -u gfa /opt/gestion_file_attente/scripts/sauvegarde.sh /var/backups/gfa
 sudo -u gfa /opt/gestion_file_attente/scripts/test_restauration.sh
 ```
 
+**À sauvegarder aussi, hors du serveur :** le fichier `.env`. Il contient la `DJANGO_SECRET_KEY` et les mots de passe, et n'est pas dans la sauvegarde de la base. Gardez-en une copie sur un support chiffré ou dans un coffre.
+
 Le compte `gestion_app` doit pouvoir créer la base de test : `sudo -u postgres psql -c "ALTER ROLE gestion_app CREATEDB;"`.
 
 ### Restaurer réellement (incident)

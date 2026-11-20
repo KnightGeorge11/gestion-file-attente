@@ -180,6 +180,8 @@ La tablette Android affiche seulement les choix. Quand le patient prend son tick
 
 Si l'imprimante ne répond pas, le ticket reste valable : la tablette affiche le numéro en grand (« Notez votre numéro ») avec un bouton « Réessayer l'impression », et l'accueil voit une alerte jusqu'à la prochaine impression réussie. Une borne sans imprimante réseau utilise l'impression du navigateur.
 
+**Limite connue** : « Votre ticket s'imprime » signifie que l'imprimante a **reçu** le ticket, pas que le papier est sorti. Sans papier ou capot ouvert, la plupart des imprimantes acceptent quand même les données. Lire l'état de l'imprimante (commande `DLE EOT`) dépend du modèle : ce sera à ajouter après l'achat et l'essai de l'imprimante réelle. En attendant, vérifier le papier à l'ouverture et suivre les alertes de l'accueil. La ponctuation typographique (’, «, —, œ) est translittérée si la table de l'imprimante ne la contient pas, au lieu de sortir en « ? ».
+
 **Tester sans matériel** : `python manage.py imprimante_simulee` (écoute sur 127.0.0.1:9100 et affiche les tickets reçus), puis créer l'imprimante 127.0.0.1:9100 dans l'administration. L'adresse 127.0.0.1 n'est acceptée qu'en développement (`DJANGO_DEBUG=True` ou `IMPRIMANTE_SIMULEE_AUTORISEE=True`) ; en production, seules les adresses du réseau local et les ports 9100 à 9109 le sont.
 
 **Dernier recours, imprimante Bluetooth** : une petite application Android ([`borne_android/`](borne_android/README.md)) affiche la même page de borne et envoie le ticket, préparé par le serveur, à une imprimante Bluetooth appairée. L'APK est compilé automatiquement par GitHub Actions. **Non testé sur du matériel réel.**

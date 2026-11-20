@@ -55,7 +55,7 @@
     {% if peut_annuler %}
     <details><summary>{% icone "croix" %}Annuler le ticket</summary>
         <form method="post" action="{% url 'circuit:ticket_action' ticket.pk 'annuler' %}">{% csrf_token %}
-            <label>Motif obligatoire</label><input name="motif" required maxlength="500">
+            <label for="motif-annuler">Motif obligatoire</label><input id="motif-annuler" name="motif" required maxlength="500">
             <p style="margin-top:10px"><button class="danger">Annuler le ticket</button></p>
         </form>
     </details>
@@ -65,7 +65,7 @@
     <details><summary>{% icone "bouclier" %}Autoriser une dérogation au quota</summary>
         <form method="post" action="{% url 'circuit:ticket_action' ticket.pk 'deroger' %}">{% csrf_token %}
             <p class="discret">L'accueil pourra ensuite valider ce ticket même si le quota est atteint. Vous n'appelez pas le patient.</p>
-            <label>Motif obligatoire</label><input name="motif" required maxlength="500">
+            <label for="motif-derogation">Motif obligatoire</label><input id="motif-derogation" name="motif" required maxlength="500">
             <p style="margin-top:10px"><button class="principal">Autoriser la dérogation</button></p>
         </form>
     </details>
@@ -73,7 +73,7 @@
     {% if peut_liberer %}
     <details><summary>{% icone "calendrier" %}Libérer la place de quota (patient absent)</summary>
         <form method="post" action="{% url 'circuit:ticket_action' ticket.pk 'liberer' %}">{% csrf_token %}
-            <label>Motif obligatoire</label><input name="motif" required maxlength="500">
+            <label for="motif-liberer">Motif obligatoire</label><input id="motif-liberer" name="motif" required maxlength="500">
             <p style="margin-top:10px"><button class="danger">Libérer la place</button></p>
         </form>
     </details>

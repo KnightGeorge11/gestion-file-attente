@@ -1,0 +1,56 @@
+# Tests Django sur PostgreSQL à chaque envoi : le moteur utilise des fonctions
+# propres à PostgreSQL (verrous, contraintes d'exclusion, triggers).
+name: Tests Django
+
+on:
+  push:
+    paths-ignore:
+      - "borne_android/**"
+      - "**.md"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: gestion_app
+          POSTGRES_PASSWORD: mot-de-passe-ci
+          POSTGRES_DB: gestion_file_attente
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gestion_app"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DJANGO_DEBUG: "True"
+      DB_NAME: gestion_file_attente
+      DB_USER: gestion_app
+      DB_PASSWORD: mot-de-passe-ci
+      DB_HOST: 127.0.0.1
+      DB_PORT: "5432"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Vérifications
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+      - name: Tests
+        run: python manage.py test --noinput
+      - name: Fichiers statiques de production
+        # Les tests n'utilisent pas le stockage versionné : on vérifie ici qu'il
+        # trouve bien tous les fichiers référencés (sinon erreur 500 en production).
+        env:
+          DJANGO_DEBUG: "False"
+          DJANGO_SECRET_KEY: cle-ci-uniquement-${{ github.run_id }}-0123456789abcdefghijklmnopqrstuvwxyz
+        run: python manage.py collectstatic --noinput

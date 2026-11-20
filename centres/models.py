@@ -174,6 +174,20 @@ class Service(models.Model):
                 fields=["centre", "code"],
                 name="unique_code_service_par_centre",
             ),
+            # Le moteur suppose un seul accueil (premier passage de tout
+            # ticket) et une seule pharmacie (transferts) par centre.
+            models.UniqueConstraint(
+                fields=["centre"],
+                condition=models.Q(est_accueil=True),
+                name="un_seul_accueil_par_centre",
+                violation_error_message="Ce centre a déjà un service d'accueil.",
+            ),
+            models.UniqueConstraint(
+                fields=["centre"],
+                condition=models.Q(est_pharmacie=True),
+                name="une_seule_pharmacie_par_centre",
+                violation_error_message="Ce centre a déjà un service de pharmacie.",
+            ),
         ]
 
     def __str__(self):
@@ -190,6 +204,9 @@ class Service(models.Model):
             raise ValidationError(
                 {"motif_suspension": "Un motif est obligatoire pour suspendre un service."}
             )
+
+        if self.est_accueil and self.est_pharmacie:
+            raise ValidationError("Un service ne peut pas être à la fois l'accueil et la pharmacie.")
 
     def save(self, *args, **kwargs):
         creation = self._state.adding

@@ -664,7 +664,7 @@ body.ecran main { max-width: none; padding: 0; height: 100%; display: flex; flex
   background: radial-gradient(circle, rgba(34, 211, 238, .35), transparent 65%);
 }
 .appel-vedette .invitation { font-size: 3vh; letter-spacing: .3vh; text-transform: uppercase; color: rgba(255, 255, 255, .75); font-weight: 600; }
-.appel-vedette .num { font-family: var(--chiffres); font-size: 24vh; line-height: 1; font-weight: 800; letter-spacing: -.5vh; margin: 1vh 0; font-variant-numeric: tabular-nums; position: relative; }
+.appel-vedette .num { font-family: var(--chiffres); font-size: min(24vh, 14vw); line-height: 1; font-weight: 800; letter-spacing: -.5vh; margin: 1vh 0; font-variant-numeric: tabular-nums; position: relative; }
 .appel-vedette .destination { display: flex; align-items: center; gap: 1.6vh; font-size: 5vh; font-weight: 700; position: relative; }
 .appel-vedette .destination .ic { width: 6vh; height: 6vh; padding: 1.2vh; border-radius: 1.6vh; background: rgba(255, 255, 255, .14); }
 .appel-vedette .poste { margin-top: 1.6vh; font-size: 3.6vh; padding: .8vh 2.4vh; border-radius: 99vh; background: var(--accent-vif); color: var(--marine-950); font-weight: 750; position: relative; }
@@ -674,7 +674,10 @@ body.ecran main { max-width: none; padding: 0; height: 100%; display: flex; flex
 @keyframes vedette-num { 50% { transform: scale(1.06); color: var(--accent-vif); } }
 .appels-en-cours { display: flex; flex-direction: column; gap: 1.4vh; min-height: 0; }
 .appels-en-cours .appel-vedette { flex: 1; min-height: 0; }
-.appels-en-cours.plusieurs .appel-vedette .num { font-size: 17vh; }
+.appels-en-cours.plusieurs .appel-vedette .num { font-size: min(17vh, 10vw); }
+.appels-masques { color: rgba(255, 255, 255, .7); font-size: 2.4vh; text-align: center; }
+/* Historique plus long que l'écran : fondu en bas, pour signaler qu'il continue. */
+.historique-appels .ecran-appels { -webkit-mask-image: linear-gradient(to bottom, #000 85%, transparent); mask-image: linear-gradient(to bottom, #000 85%, transparent); }
 .appel-vedette.attente .destination { font-size: 3.6vh; font-weight: 600; color: rgba(255, 255, 255, .6); margin-top: 2vh; }
 .autres-appels-en-cours { flex: none; max-height: 40%; }
 .historique-appels { display: flex; flex-direction: column; min-height: 0; }
@@ -722,6 +725,8 @@ body.ecran main { max-width: none; padding: 0; height: 100%; display: flex; flex
   nav.menu a.actif::after { bottom: -2px; }
   .utilisateur .nom { display: none; }
   .toasts { top: auto; bottom: 16px; right: 50%; transform: translateX(50%); }
+  /* Le bandeau « connexion perdue » est aussi en bas : les notifications passent au-dessus. */
+  body.hors-ligne .toasts { bottom: 64px; }
 }
 @media (max-width: 640px) {
   body { font-size: 14.5px; }

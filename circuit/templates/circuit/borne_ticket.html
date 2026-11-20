@@ -57,6 +57,9 @@ window.addEventListener("load", function () {
     {% if impression == "navigateur" %}
     if (window.BorneAndroid) {
         // Dernier recours : application Android de la borne + imprimante Bluetooth.
+        // Le retour à l'accueil attend le résultat de l'impression (30 s au plus) :
+        // sinon un échec arrivé après le départ de la page n'était jamais signalé.
+        retour = 30000;
         imprimerViaAndroid();
     } else {
         // Pas d'imprimante réseau configurée : impression par le navigateur.
