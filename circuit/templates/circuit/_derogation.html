@@ -10,14 +10,14 @@
         <span class="etiquette alerte">Service fermé pendant cette période : le ticket ne peut pas être orienté.</span>
     {% endif %}
     {% if quota and not restantes %}
-        {% if peut_deroger %}
-        <label><input type="checkbox" name="derogation" value="1"> Dérogation exceptionnelle (au-delà du quota)</label>
+        {% if derogation_autorisee %}
+        <p class="etiquette ok" style="margin:6px 0 0;white-space:normal">Dérogation autorisée par {{ derogation_autorisee.agent }} : {{ derogation_autorisee.details.motif }}. Vous pouvez valider le ticket.</p>
+        {% elif peut_deroger %}
+        <label for="derogation-quota"><input id="derogation-quota" type="checkbox" name="derogation" value="1"> Dérogation exceptionnelle (au-delà du quota)</label>
         <label for="motif-derogation">Motif de la dérogation (obligatoire)</label>
         <input id="motif-derogation" name="motif_derogation" maxlength="500">
-        {% elif derogation_autorisee %}
-        <p class="etiquette ok" style="margin:6px 0 0;white-space:normal">Dérogation autorisée par {{ derogation_autorisee.agent }} : {{ derogation_autorisee.details.motif }}. Vous pouvez valider le ticket.</p>
         {% else %}
-        <p class="discret" style="margin:6px 0 0">Seul un responsable peut accorder une dérogation, depuis la page du ticket (<a href="{% url 'circuit:ticket' ticket.pk %}">{{ ticket.numero }}</a>). Sinon, annulez le ticket.</p>
+        <p class="discret" style="margin:6px 0 0">Seuls l'accueil et les responsables peuvent accorder une dérogation, depuis la page du ticket (<a href="{% url 'circuit:ticket' ticket.pk %}">{{ ticket.numero }}</a>). Sinon, annulez le ticket.</p>
         {% endif %}
     {% endif %}
 </div>

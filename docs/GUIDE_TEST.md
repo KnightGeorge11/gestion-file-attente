@@ -76,7 +76,7 @@ Tous les comptes de test ont le mot de passe **1234** :
 
 **B. Parcours direct** : Borne → *Externe* → *Échographie* → **Prendre mon ticket** → accueil valide → échographie (`echographie1`) appelle.
 
-**C. Dentiste et quota** : Borne → *Dentiste*. Avant de valider, l'accueil voit le quota (7 places le matin, 4 l'après-midi ; ex. « 2 réservée(s) sur 7 · 5 restante(s) »). Quota atteint : un responsable (`responsable1`) ouvre la page du ticket (Tickets → numéro) → **Autoriser une dérogation au quota** avec un motif ; l'agent d'accueil peut alors valider le ticket.
+**C. Dentiste et quota** : Borne → *Dentiste*. Avant de valider, l'accueil voit le quota (7 places le matin, 4 l'après-midi ; ex. « 2 réservée(s) sur 7 · 5 restante(s) »). Quota atteint : l'agent d'accueil coche **Dérogation exceptionnelle**, saisit le motif (obligatoire) et valide le ticket. Un responsable (`responsable1`) peut aussi l'autoriser à l'avance depuis la page du ticket (Tickets → numéro → **Autoriser une dérogation au quota**).
 
 **D. Mode Autre** : Borne → *Autre* → *Visite d'embauche* → **Prendre mon ticket** → ticket **A00x**. Accueil : appeler, prendre en charge → **Orienter la demande** → choisir une personne ou un service (au centre 002, chaque service a un agent désigné : `…1`) → revenir à l'accueil → **Terminer**. Le destinataire peut **appeler le visiteur à l'écran** depuis **Notifications** (numéro A00x + « Direction » ou le service sur l'écran TV), et répond (statut + message), et l'accueil voit la réponse dans « Demandes ».
 
@@ -94,7 +94,7 @@ Tous les comptes de test ont le mot de passe **1234** :
 | On ne peut appeler que le premier | Ordre strict de la file | Normal : appeler dans l'ordre d'arrivée |
 | « Veuillez patienter … s avant de rappeler » | 10 s minimum entre deux appels | Attendre quelques secondes |
 | « Marquer absent » n'apparaît pas | Il faut 3 appels sans réponse | Rappeler 2 fois (10 s d'écart) |
-| Validation refusée pour un ticket dentiste | Quota atteint ou service fermé (samedi après-midi, dimanche) | Dérogation par un responsable, ou annuler le ticket |
+| Validation refusée pour un ticket dentiste | Quota atteint ou service fermé (samedi après-midi, dimanche) | Dérogation avec motif (accueil ou responsable), ou annuler le ticket |
 | « Orientez d'abord la demande » | Ticket « Autre » pas encore orienté | Cliquer **Orienter la demande** |
 | Borne : « Code ou clé incorrect » | Clé régénérée ou espace en trop | Régénérer la clé (section 3) |
 | Borne : « Accès refusé » | Adresse hors réseau local | Utiliser localhost ou l'IP locale du PC |

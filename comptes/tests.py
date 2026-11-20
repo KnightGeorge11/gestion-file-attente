@@ -111,13 +111,14 @@ class RolesEtPermissionsTests(BaseComptes):
     def test_permission_individuelle_ajoutee_a_l_affectation(self):
         agent = self.utilisateur("acc")
         affectation = self.affecter(agent, self.a, "Accueil", [self.acc_a])
-        self.assertFalse(a_droit(agent, "parcours.deroger_quota", self.a, self.acc_a))
-        affectation.permissions.add(Permission.objects.get(codename="deroger_quota"))
+        # « transférer » n'est pas un droit du rôle Accueil.
+        self.assertFalse(a_droit(agent, "circuit.transferer", self.a, self.acc_a))
+        affectation.permissions.add(Permission.objects.get(codename="transferer"))
         agent = Utilisateur.objects.get(pk=agent.pk)
-        self.assertTrue(a_droit(agent, "parcours.deroger_quota", self.a, self.acc_a))
+        self.assertTrue(a_droit(agent, "circuit.transferer", self.a, self.acc_a))
         # La permission individuelle ne vaut que pour ce centre.
         self.affecter(agent, self.b, "Accueil", [self.acc_b])
-        self.assertFalse(a_droit(agent, "parcours.deroger_quota", self.b, self.acc_b))
+        self.assertFalse(a_droit(agent, "circuit.transferer", self.b, self.acc_b))
 
     def test_affectation_desactivee_ou_centre_inactif(self):
         agent = self.utilisateur("acc")

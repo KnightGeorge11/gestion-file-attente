@@ -194,17 +194,26 @@ class InterfaceServiceTests(BaseVues):
             self.connecter(self.accueil, self.d.centre)
             page = self.client.get(reverse("circuit:guichet", args=[acc]))
             self.assertContains(page, "Quota atteint")
-            self.assertContains(page, "Seul un responsable peut accorder une dérogation")
-            # L'accueil ne peut ni valider, ni forcer une dérogation sans le droit.
+            # Décision du 20/11/2026 : l'accueil peut déroger en validant, avec un motif.
+            self.assertContains(page, "Dérogation exceptionnelle (au-delà du quota)")
+            # Sans dérogation cochée : refus.
             reponse = self.client.post(reverse("circuit:guichet_action", args=[acc, "terminer"]),
                                        {"entree": entree.pk}, follow=True)
             self.assertContains(reponse, "Quota atteint")
-            refus = self.client.post(reverse("circuit:guichet_action", args=[acc, "terminer"]),
-                                     {"entree": entree.pk, "derogation": "1", "motif_derogation": "x"})
-            self.assertEqual(refus.status_code, 403)
+            # Dérogation sans motif : refus, rien n'est réservé.
+            self.client.post(reverse("circuit:guichet_action", args=[acc, "terminer"]),
+                             {"entree": entree.pk, "derogation": "1", "motif_derogation": "  "})
+            self.assertIsNone(ticket.reservation_active())
+            # Avec motif : le ticket est validé au-delà du quota.
+            self.client.post(reverse("circuit:guichet_action", args=[acc, "terminer"]),
+                             {"entree": entree.pk, "derogation": "1", "motif_derogation": "Douleur aiguë"})
+            reservation = ticket.reservation_active()
+            self.assertTrue(reservation.derogation)
+            self.assertEqual(reservation.motif_derogation, "Douleur aiguë")
+            self.assertEqual(self.d.entree(ticket).file.service.code, "DEN")
         entree.refresh_from_db()
-        self.assertEqual(entree.statut, "EN_COURS")
-        self.assertIsNone(ticket.reservation_active())
+        self.assertEqual(entree.statut, "TERMINE")
+        self.assertEqual(ticket.evenements.filter(type="DEROGATION_QUOTA").get().agent, self.accueil)
 
     def test_demandes_et_notifications(self):
         self.d.svc["MED"].destinataire_demandes = self.medecin

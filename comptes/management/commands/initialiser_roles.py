@@ -23,6 +23,9 @@ ROLES = {
         "circuit.annuler_ticket",
         "circuit.orienter_demande",
         "parcours.liberer_quota",
+        # Dérogation au quota dentiste à la validation du ticket, avec motif
+        # obligatoire et historisée (décision du 20/11/2026).
+        "parcours.deroger_quota",
     ],
     "Infirmerie": SOINS,
     "Médecin": SOINS,
