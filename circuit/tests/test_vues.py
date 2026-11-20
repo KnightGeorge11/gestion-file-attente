@@ -256,6 +256,21 @@ class BorneEcranTests(BaseVues):
                          {"mode": "INTERNE", "parcours": self.b.parcours["M"].pk})
         self.assertFalse(Ticket.objects.exists())
 
+    def test_borne_fermee_apres_l_heure_de_cloture(self):
+        # Audit du 20/11/2026 : après 20 h, un ticket émis serait clôturé dans
+        # la minute ; la borne affiche donc « tickets terminés ».
+        self.client.post(reverse("circuit:borne"), {"centre": "TAM", "code": "B1", "cle": self.cle})
+        apres_20h = LUNDI_MATIN.replace(hour=17, minute=5)    # 20:05 heure du centre
+        with a_heure(apres_20h):
+            self.assertContains(self.client.get(reverse("circuit:borne")), "Tickets terminés pour aujourd")
+            self.client.post(reverse("circuit:borne_emettre"),
+                             {"mode": "INTERNE", "parcours": self.d.parcours["E"].pk})
+        self.assertFalse(Ticket.objects.exists())
+        with a_heure(LUNDI_MATIN.replace(hour=16, minute=55)):   # 19:55
+            self.client.post(reverse("circuit:borne_emettre"),
+                             {"mode": "INTERNE", "parcours": self.d.parcours["E"].pk})
+        self.assertEqual(Ticket.objects.count(), 1)
+
     def test_borne_hors_reseau_local_refusee(self):
         reponse = self.client.get(reverse("circuit:borne"), REMOTE_ADDR="8.8.8.8")
         self.assertEqual(reponse.status_code, 403)

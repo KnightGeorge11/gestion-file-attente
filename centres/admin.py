@@ -7,6 +7,7 @@ from django.urls import path, reverse
 from django.utils.html import format_html
 from django.utils.http import url_has_allowed_host_and_scheme
 
+from centres.access import est_administrateur_central
 from core.admin import CentreAdminMixin
 
 from .models import Borne, Centre, EcranAffichage, FileAttente, HoraireService, ImprimanteTicket, Service
@@ -14,6 +15,22 @@ from .models import Borne, Centre, EcranAffichage, FileAttente, HoraireService, 
 
 @admin.register(Centre)
 class CentreAdmin(admin.ModelAdmin):
+    # Réservé à l'administrateur de la plateforme (audit du 20/11/2026).
+    def has_module_permission(self, request):
+        return est_administrateur_central(request.user)
+
+    def has_view_permission(self, request, obj=None):
+        return est_administrateur_central(request.user)
+
+    def has_add_permission(self, request):
+        return est_administrateur_central(request.user)
+
+    def has_change_permission(self, request, obj=None):
+        return est_administrateur_central(request.user)
+
+    def has_delete_permission(self, request, obj=None):
+        return est_administrateur_central(request.user)
+
     list_display = (
         "code",
         "nom",
@@ -252,7 +269,7 @@ class BorneAdmin(CentreAdminMixin, admin.ModelAdmin):
                 "notez-la maintenant, elle ne sera plus affichée.",
             )
 
-    @admin.action(description="Régénérer la clé des bornes sélectionnées")
+    @admin.action(description="Régénérer la clé des bornes sélectionnées", permissions=["change"])
     def regenerer_cle(self, request, queryset):
         for borne in queryset:
             cle = borne.generer_cle()
@@ -274,7 +291,7 @@ class EcranAffichageAdmin(CentreAdminMixin, admin.ModelAdmin):
 
     save_model = BorneAdmin.save_model
 
-    @admin.action(description="Régénérer la clé des écrans sélectionnés")
+    @admin.action(description="Régénérer la clé des écrans sélectionnés", permissions=["change"])
     def regenerer_cle(self, request, queryset):
         BorneAdmin.regenerer_cle(self, request, queryset)
 
@@ -286,7 +303,7 @@ class ImprimanteTicketAdmin(CentreAdminMixin, admin.ModelAdmin):
     readonly_fields = ("date_creation",)
     actions = ("imprimer_test",)
 
-    @admin.action(description="Imprimer un ticket de test")
+    @admin.action(description="Imprimer un ticket de test", permissions=["change"])
     def imprimer_test(self, request, queryset):
         from circuit.impression import ErreurImpression, imprimer_test
 

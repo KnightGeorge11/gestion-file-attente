@@ -12,7 +12,7 @@
 </header>
 <div class="ticket-resultat" style="padding-top:12vh">
     <span class="statut-impression echec">{% icone "croix" %}</span>
-    <h1>Borne momentanément fermée</h1>
-    <p class="accroche">Merci de vous présenter directement à l'accueil.</p>
+    <h1>{{ titre|default:"Borne momentanément fermée" }}</h1>
+    <p class="accroche">{{ message|default:"Merci de vous présenter directement à l'accueil." }}</p>
 </div>
 {% endblock %}

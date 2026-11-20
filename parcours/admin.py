@@ -36,7 +36,7 @@ class ParcoursAdmin(CentreAdminMixin, admin.ModelAdmin):
         version = obj.version_publiee()
         return f"v{version.numero}" if version else "—"
 
-    @admin.action(description="Créer un brouillon (nouvelle version)")
+    @admin.action(description="Créer un brouillon (nouvelle version)", permissions=["change"])
     def creer_brouillon(self, request, queryset):
         for parcours in queryset:
             brouillon = parcours.creer_brouillon()
@@ -98,7 +98,7 @@ class ParcoursVersionAdmin(CentreAdminMixin, admin.ModelAdmin):
             return False
         return super().has_delete_permission(request, obj)
 
-    @admin.action(description="Publier les brouillons sélectionnés")
+    @admin.action(description="Publier les brouillons sélectionnés", permissions=["change"])
     def publier(self, request, queryset):
         for version in queryset:
             try:

@@ -1,5 +1,7 @@
 from django.contrib import admin
 
+from centres.access import est_administrateur_central
+
 from .models import JournalAudit
 
 
@@ -10,6 +12,13 @@ class JournalAuditAdmin(admin.ModelAdmin):
     search_fields = ("objet_libelle", "identifiant_saisi", "utilisateur__username")
     list_select_related = ("utilisateur", "centre")
     readonly_fields = [f.name for f in JournalAudit._meta.fields]
+
+    # Journal de toute la plateforme : réservé à son administrateur.
+    def has_module_permission(self, request):
+        return est_administrateur_central(request.user)
+
+    def has_view_permission(self, request, obj=None):
+        return est_administrateur_central(request.user)
 
     def has_add_permission(self, request):
         return False

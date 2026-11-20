@@ -351,10 +351,16 @@ def appeler(file, agent, entree=None, poste=""):
         if file.ordre_strict and cible.pk != premier.pk:
             raise ErreurCircuit("Ordre strict : seul le premier patient de la file peut être appelé.")
 
+    # Relecture sous verrou : une annulation ou la clôture a pu fermer le
+    # ticket entre la lecture de la file et ce verrou (audit du 20/11/2026).
     cible = EntreeFile.objects.select_for_update(of=("self",)).select_related(
         "file", "file__service", "passage", "passage__ticket"
-    ).get(pk=cible.pk)
-    Ticket.objects.select_for_update().get(pk=cible.passage.ticket_id)
+    ).filter(pk=cible.pk, statut=EntreeFile.Statut.EN_ATTENTE).first()
+    if cible is None:
+        raise ErreurCircuit("Ce patient n'est plus en attente dans cette file.")
+    ticket = Ticket.objects.select_for_update().get(pk=cible.passage.ticket_id)
+    if ticket.statut not in Ticket.STATUTS_OUVERTS:
+        raise ErreurCircuit("Ce ticket est fermé (annulé ou clôturé).")
 
     cible.statut = EntreeFile.Statut.APPELE
     cible.agent = agent
@@ -794,6 +800,15 @@ def _jour_limite_cloture(centre):
     if centre.heure_cloture_tickets and maintenant.time() >= centre.heure_cloture_tickets:
         jour = jour + timedelta(days=1)
     return jour
+
+
+def emission_terminee(centre):
+    """
+    Après l'heure de clôture du centre, la borne ne délivre plus de ticket :
+    il serait clôturé dans la minute (audit du 20/11/2026). Elle rouvre à
+    minuit, au changement de jour.
+    """
+    return bool(centre.heure_cloture_tickets) and maintenant_centre(centre).time() >= centre.heure_cloture_tickets
 
 
 INTERVALLE_CLOTURE_AUTOMATIQUE = 60  # secondes

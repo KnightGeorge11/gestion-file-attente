@@ -212,6 +212,23 @@ class AppelsTests(BaseCircuit):
         self.assertEqual(appel.ticket, t1)
         self.assertEqual(appel.mode, Appel.Mode.ECRAN)
 
+    def test_appel_d_un_ticket_annule_entre_lecture_et_verrou(self):
+        # Audit du 20/11/2026 : la file est lue sans verrou ; si le ticket est
+        # annulé entre-temps, l'appel doit être refusé au lieu de le rouvrir.
+        from unittest import mock
+
+        ticket = self.d.ticket("M")
+        entree = self.d.entree(ticket)
+        services.annuler_ticket(ticket, self.accueil, "Annulé pendant l'appel")
+        lecture_perimee = mock.patch.object(
+            services, "file_en_attente", return_value=EntreeFile.objects.filter(pk=entree.pk)
+        )
+        with lecture_perimee, self.assertRaises(ErreurCircuit):
+            services.appeler(self.d.file("ACC"), self.accueil)
+        entree.refresh_from_db()
+        self.assertEqual(entree.statut, EntreeFile.Statut.ANNULE)
+        self.assertFalse(Appel.objects.filter(ticket=ticket).exists())
+
     def test_un_agent_ne_tient_qu_un_patient(self):
         self.d.ticket("M")
         self.d.ticket("M")

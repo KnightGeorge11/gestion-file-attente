@@ -1,9 +1,11 @@
 
 from django.contrib import admin
-from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth.admin import GroupAdmin, UserAdmin
+from django.contrib.auth.models import Group, Permission
+from django.db.models import Q
 
-from centres.access import centres_autorises, est_administrateur_central
-from core.admin import CentreAdminMixin
+from centres.access import est_administrateur_central
+from core.admin import CentreAdminMixin, centres_administres
 
 from .models import (
     Utilisateur,
@@ -12,9 +14,65 @@ from .models import (
 )
 
 
+def permissions_metier():
+    """
+    Permissions qu'un administrateur de centre peut ajouter à une
+    affectation : uniquement les permissions métier des rôles (appeler,
+    orienter, quota…), jamais celles de l'administration Django (centres,
+    rôles, journal d'audit…). Audit du 20/11/2026 : sans cette liste, il
+    pouvait s'attribuer des droits sur toute la plateforme.
+    """
+    from .management.commands.initialiser_roles import ROLES
+
+    codes = {code for liste in ROLES.values() for code in liste}
+    filtre = Q(pk__in=[])
+    for code in codes:
+        app, codename = code.split(".")
+        filtre |= Q(content_type__app_label=app, codename=codename)
+    return Permission.objects.filter(filtre)
+
+
+def roles_metier():
+    """
+    Rôles (groupes) qu'un administrateur de centre peut attribuer : tous les
+    rôles métier, sauf « Administrateur de centre » (réservé à
+    l'administrateur de la plateforme).
+    """
+    from .management.commands.initialiser_roles import ROLES
+
+    return Group.objects.filter(name__in=ROLES).exclude(name="Administrateur de centre")
+
+
+def comptes_geres(utilisateur):
+    """
+    Comptes qu'un administrateur de centre peut voir, modifier et dont il
+    peut changer le mot de passe : ni les comptes de la plateforme, ni ceux
+    qui ont une affectation dans un centre qu'il n'administre pas (sinon il
+    pourrait prendre la main sur un compte d'un autre centre).
+    """
+    comptes = Utilisateur.objects.all()
+    if est_administrateur_central(utilisateur):
+        return comptes
+    centres = centres_administres(utilisateur, Utilisateur)
+    hors_perimetre = AffectationUtilisateur.objects.exclude(centre__in=centres).values("utilisateur")
+    return (
+        comptes.exclude(is_superuser=True)
+        .exclude(type_compte=Utilisateur.TypeCompte.ADMINISTRATEUR)
+        .exclude(pk__in=hors_perimetre)
+    )
+
+
 class AffectationServiceInline(admin.TabularInline):
     model = AffectationService
     extra = 0
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        champ = super().formfield_for_foreignkey(db_field, request, **kwargs)
+        if db_field.name == "service" and not est_administrateur_central(request.user):
+            champ.queryset = champ.queryset.filter(
+                centre__in=centres_administres(request.user, AffectationUtilisateur)
+            )
+        return champ
 
 
 class AffectationUtilisateurInline(admin.TabularInline):
@@ -26,11 +84,14 @@ class AffectationUtilisateurInline(admin.TabularInline):
         queryset = super().get_queryset(request)
         if est_administrateur_central(request.user):
             return queryset
-        return queryset.filter(centre__in=centres_autorises(request.user))
+        return queryset.filter(centre__in=centres_administres(request.user, AffectationUtilisateur))
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
-        if db_field.name == "centre" and not est_administrateur_central(request.user):
-            kwargs["queryset"] = centres_autorises(request.user)
+        if not est_administrateur_central(request.user):
+            if db_field.name == "centre":
+                kwargs["queryset"] = centres_administres(request.user, AffectationUtilisateur)
+            elif db_field.name == "groupe":
+                kwargs["queryset"] = roles_metier()
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 
@@ -87,11 +148,13 @@ class UtilisateurAdmin(UserAdmin):
         queryset = super().get_queryset(request)
         if est_administrateur_central(request.user):
             return queryset
-        # Administrateur d'un centre : comptes de ses centres, jamais ceux de
-        # la plateforme (pas de changement de mot de passe d'un supérieur).
+        # Administrateur d'un centre : comptes des centres qu'il administre,
+        # jamais ceux de la plateforme ni ceux rattachés à un autre centre
+        # (pas de changement de mot de passe hors de son périmètre).
         return queryset.filter(
-            affectations__centre__in=centres_autorises(request.user)
-        ).exclude(is_superuser=True).exclude(type_compte=Utilisateur.TypeCompte.ADMINISTRATEUR).distinct()
+            affectations__centre__in=centres_administres(request.user, Utilisateur),
+            pk__in=comptes_geres(request.user),
+        ).distinct()
 
     def get_readonly_fields(self, request, obj=None):
         champs = super().get_readonly_fields(request, obj)
@@ -115,7 +178,7 @@ class UtilisateurAdmin(UserAdmin):
         # Les comptes ne sont jamais supprimés, seulement désactivés.
         return False
 
-    @admin.action(description="Désactiver les comptes sélectionnés")
+    @admin.action(description="Désactiver les comptes sélectionnés", permissions=["change"])
     def desactiver(self, request, queryset):
         for utilisateur in queryset:
             utilisateur.is_active = False
@@ -146,6 +209,28 @@ class AffectationUtilisateurAdmin(CentreAdminMixin, admin.ModelAdmin):
         # Désactiver l'affectation plutôt que la supprimer (historique).
         return False
 
+    def has_change_permission(self, request, obj=None):
+        # Personne ne modifie sa propre affectation, sauf l'administrateur
+        # de la plateforme (pas d'auto-attribution de droits).
+        if obj is not None and obj.utilisateur_id == request.user.pk and not est_administrateur_central(request.user):
+            return False
+        return super().has_change_permission(request, obj)
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        champ = super().formfield_for_foreignkey(db_field, request, **kwargs)
+        if not est_administrateur_central(request.user):
+            if db_field.name == "utilisateur":
+                champ.queryset = comptes_geres(request.user).exclude(pk=request.user.pk)
+            elif db_field.name == "groupe":
+                champ.queryset = roles_metier()
+        return champ
+
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        champ = super().formfield_for_manytomany(db_field, request, **kwargs)
+        if db_field.name == "permissions" and not est_administrateur_central(request.user):
+            champ.queryset = permissions_metier()
+        return champ
+
     search_fields = (
         "utilisateur__username",
         "utilisateur__first_name",
@@ -157,3 +242,29 @@ class AffectationUtilisateurAdmin(CentreAdminMixin, admin.ModelAdmin):
         "utilisateur",
         "centre",
     )
+
+
+# Les rôles (groupes) sont communs à tous les centres : seul l'administrateur
+# de la plateforme les voit et les modifie.
+admin.site.unregister(Group)
+
+
+@admin.register(Group)
+class RoleAdmin(GroupAdmin):
+    def _central(self, request):
+        return est_administrateur_central(request.user)
+
+    def has_module_permission(self, request):
+        return self._central(request)
+
+    def has_view_permission(self, request, obj=None):
+        return self._central(request)
+
+    def has_add_permission(self, request):
+        return self._central(request)
+
+    def has_change_permission(self, request, obj=None):
+        return self._central(request)
+
+    def has_delete_permission(self, request, obj=None):
+        return self._central(request)

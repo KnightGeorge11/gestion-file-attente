@@ -104,6 +104,15 @@ def _borne_desactivee(request):
     ).first()
 
 
+def _borne_fermee_pour_la_journee(request, centre):
+    return render(request, "circuit/borne_fermee.html", {
+        "centre": centre,
+        "titre": "Tickets terminés pour aujourd'hui",
+        "message": "La borne délivre de nouveau des tickets demain. "
+                   "Pour une urgence, présentez-vous à l'accueil.",
+    })
+
+
 def borne(request):
     poste = _poste_connecte(request, Borne, SESSION_BORNE)
     if poste is None and request.method == "GET":
@@ -118,6 +127,8 @@ def borne(request):
 
     centre = poste.centre
     services.cloture_automatique(centre)
+    if services.emission_terminee(centre):
+        return _borne_fermee_pour_la_journee(request, centre)
     parcours = [
         p for p in Parcours.objects.filter(centre=centre, actif=True, visible_borne=True)
         .order_by("ordre_affichage", "libelle_borne")
@@ -155,6 +166,8 @@ def borne_emettre(request):
 
     centre = poste.centre
     services.cloture_automatique(centre)
+    if services.emission_terminee(centre):
+        return redirect("circuit:borne")
     mode = request.POST.get("mode", "")
     parcours = motif = None
     if mode != Ticket.Mode.AUTRE:

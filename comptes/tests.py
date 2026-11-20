@@ -249,3 +249,101 @@ class AdministrationTests(BaseComptes):
         self.client.force_login(self.agent_a)
         reponse = self.client.get(reverse("admin:index"))
         self.assertEqual(reponse.status_code, 302)
+
+
+class AdministrateurDeCentreSecuriteTests(BaseComptes):
+    """
+    Audit du 20/11/2026 : un administrateur de centre ne doit ni s'attribuer
+    des droits sur la plateforme, ni prendre la main sur un compte d'un
+    autre centre, ni administrer un centre où il n'est qu'agent.
+    """
+
+    def setUp(self):
+        self.admin_a = self.utilisateur("admin_a", type_compte=Utilisateur.TypeCompte.ADMIN_CENTRE)
+        self.aff_admin = self.affecter(self.admin_a, self.a, "Administrateur de centre")
+        self.agent_a = self.utilisateur("agent_a")
+        self.affecter(self.agent_a, self.a, "Accueil")
+        self.agent_b = self.utilisateur("agent_b")
+        self.affecter(self.agent_b, self.b, "Accueil")
+        self.client.force_login(self.admin_a)
+
+    def formulaire_affectation(self, **valeurs):
+        donnees = {
+            "role": "AGENT", "actif": "on",
+            "services_autorises-TOTAL_FORMS": "0", "services_autorises-INITIAL_FORMS": "0",
+        }
+        donnees.update(valeurs)
+        return donnees
+
+    def test_ne_modifie_pas_sa_propre_affectation(self):
+        url = reverse("admin:comptes_affectationutilisateur_change", args=[self.aff_admin.pk])
+        changement_centre = Permission.objects.get(codename="change_centre")
+        self.client.post(url, self.formulaire_affectation(
+            utilisateur=self.admin_a.pk, centre=self.a.pk,
+            groupe=Group.objects.get(name="Administrateur de centre").pk,
+            permissions=[changement_centre.pk],
+        ))
+        self.assertFalse(self.aff_admin.permissions.exists())
+        self.assertFalse(self.admin_a.has_perm("centres.change_centre"))
+
+    def test_permissions_proposees_uniquement_metier(self):
+        reponse = self.client.get(reverse("admin:comptes_affectationutilisateur_add"))
+        choix = reponse.context["adminform"].form.fields["permissions"].queryset
+        codes = {f"{p.content_type.app_label}.{p.codename}" for p in choix}
+        self.assertIn("circuit.appeler", codes)
+        self.assertNotIn("centres.change_centre", codes)
+        self.assertNotIn("auth.change_group", codes)
+        self.assertNotIn("audit.view_journalaudit", codes)
+        roles = reponse.context["adminform"].form.fields["groupe"].queryset
+        self.assertTrue(roles.filter(name="Accueil").exists())
+        self.assertFalse(roles.filter(name="Administrateur de centre").exists())
+        # Un envoi forgé avec une permission hors liste est refusé.
+        changement_groupe = Permission.objects.get(codename="change_group")
+        self.client.post(reverse("admin:comptes_affectationutilisateur_add"), self.formulaire_affectation(
+            utilisateur=self.agent_a.pk, centre=self.a.pk, groupe=Group.objects.get(name="Accueil").pk,
+            permissions=[changement_groupe.pk],
+        ))
+        self.assertFalse(Permission.objects.filter(codename="change_group", affectations__isnull=False).exists())
+
+    def test_ne_prend_pas_la_main_sur_un_compte_d_un_autre_centre(self):
+        reponse = self.client.get(reverse("admin:comptes_affectationutilisateur_add"))
+        comptes = reponse.context["adminform"].form.fields["utilisateur"].queryset
+        self.assertIn(self.agent_a, comptes)
+        self.assertNotIn(self.agent_b, comptes)
+        # Affecter l'agent du centre B au centre A est refusé…
+        self.client.post(reverse("admin:comptes_affectationutilisateur_add"), self.formulaire_affectation(
+            utilisateur=self.agent_b.pk, centre=self.a.pk, groupe=Group.objects.get(name="Accueil").pk,
+        ))
+        self.assertFalse(AffectationUtilisateur.objects.filter(utilisateur=self.agent_b, centre=self.a).exists())
+        # … et un compte rattaché aux deux centres reste hors de sa portée.
+        self.affecter(self.agent_b, self.a, "Accueil")
+        self.assertNotContains(self.client.get(reverse("admin:comptes_utilisateur_changelist")), "agent_b")
+        url_mdp = reverse("admin:auth_user_password_change", args=[self.agent_b.pk])
+        reponse = self.client.post(url_mdp, {"password1": "Nouveau-mdp-2026", "password2": "Nouveau-mdp-2026"})
+        self.assertNotEqual(reponse.status_code, 302)
+        self.agent_b.refresh_from_db()
+        self.assertTrue(self.agent_b.check_password(MDP))
+
+    def test_centres_roles_et_journal_reserves_a_la_plateforme(self):
+        for nom in ("admin:centres_centre_changelist", "admin:auth_group_changelist",
+                    "admin:audit_journalaudit_changelist"):
+            self.assertEqual(self.client.get(reverse(nom)).status_code, 403, nom)
+        self.assertEqual(self.client.get(reverse("admin:centres_centre_change", args=[self.b.pk])).status_code, 403)
+
+    def test_n_administre_pas_un_centre_ou_il_n_est_qu_agent(self):
+        from centres.models import Borne
+
+        self.affecter(self.admin_a, self.b, "Accueil")
+        Borne.objects.create(centre=self.a, code="BA", libelle="Borne du centre A", cle_hash="x")
+        Borne.objects.create(centre=self.b, code="BB", libelle="Borne du centre B", cle_hash="x")
+        bornes = self.client.get(reverse("admin:centres_borne_changelist"))
+        self.assertContains(bornes, "Borne du centre A")
+        self.assertNotContains(bornes, "Borne du centre B")
+
+    def test_actions_d_administration_exigent_le_droit_de_modifier(self):
+        from centres.admin import BorneAdmin, ImprimanteTicketAdmin
+        from parcours.admin import ParcoursAdmin, ParcoursVersionAdmin
+
+        for admin_classe, action in ((BorneAdmin, "regenerer_cle"), (ImprimanteTicketAdmin, "imprimer_test"),
+                                     (ParcoursAdmin, "creer_brouillon"), (ParcoursVersionAdmin, "publier")):
+            self.assertEqual(list(getattr(admin_classe, action).allowed_permissions), ["change"], action)
