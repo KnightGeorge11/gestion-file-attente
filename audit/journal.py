@@ -1,10 +1,13 @@
+from core.reseau import adresse_client
+
 from .models import JournalAudit
+from .threadlocal import requete_courante
 
 
 def _ip(request):
-    if request is None:
-        return None
-    return request.META.get("REMOTE_ADDR") or None
+    # Sans requête explicite (signaux de l'administration) : la requête en
+    # cours, pour que chaque action d'administration garde son adresse IP.
+    return adresse_client(request if request is not None else requete_courante())
 
 
 def journaliser(action, utilisateur=None, objet=None, centre=None, details=None,

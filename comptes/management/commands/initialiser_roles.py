@@ -12,6 +12,11 @@ from django.core.management.base import BaseCommand
 
 APPEL = ["circuit.appeler", "circuit.marquer_absent", "circuit.reintegrer"]
 SOINS = APPEL + ["circuit.transferer"]
+# Direction, responsables et administrateurs de centre n'appellent aucun
+# patient (circuit.services.appeler les refuse : tout passe par l'accueil,
+# décision du 19/11/2026). « appeler » leur ouvre seulement les écrans des
+# services ; ils n'ont ni « marquer absent » ni « réintégrer ».
+ACCES_SERVICES = ["circuit.appeler"]
 
 ROLES = {
     "Accueil": APPEL + [
@@ -24,15 +29,14 @@ ROLES = {
     "Dentiste": SOINS,
     "Échographie": SOINS,
     "Pharmacie": APPEL,
-    # Direction et Responsable n'appellent que les tickets « Autre »
-    # (circuit.services.appeler, décision du 19/11/2026). La direction ne
-    # voit d'ailleurs que ces tickets (circuit.visibilite).
-    "Direction": APPEL + ["circuit.voir_statistiques"],
+    # Direction : statistiques ; n'appelle aucun patient et ne voit que les
+    # demandes « Autre », dont elle appelle le visiteur quand l'accueil les
+    # lui transmet (circuit.visibilite, appeler_visiteur).
+    "Direction": ACCES_SERVICES + ["circuit.voir_statistiques"],
     # Administrateur d'un centre : paramétrage de son centre dans
-    # l'administration (droits Django ci-dessous) ; n'appelle et ne voit que
-    # les tickets « Autre ».
-    "Administrateur de centre": APPEL + ["circuit.voir_statistiques"],
-    "Responsable": APPEL + [
+    # l'administration (droits Django ci-dessous) ; même règle d'appel.
+    "Administrateur de centre": ACCES_SERVICES + ["circuit.voir_statistiques"],
+    "Responsable": ACCES_SERVICES + [
         "circuit.annuler_ticket",
         "circuit.orienter_demande",
         "circuit.voir_statistiques",

@@ -3,14 +3,16 @@ Enregistrement automatique des opérations sensibles dans le journal d'audit.
 """
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.contrib.auth.signals import (
     user_logged_in,
     user_logged_out,
     user_login_failed,
 )
-from django.db.models.signals import m2m_changed, post_save, pre_save
+from django.db.models.signals import m2m_changed, post_delete, post_save, pre_save
 from django.dispatch import receiver
 
+from centres.models import Borne, EcranAffichage, ImprimanteTicket
 from comptes.models import AffectationService, AffectationUtilisateur
 from parcours.models import ModificationQuota, ParcoursVersion
 
@@ -48,7 +50,7 @@ def memoriser_etat_utilisateur(sender, instance, **kwargs):
     if instance.pk:
         instance._etat_avant = (
             Utilisateur.objects.filter(pk=instance.pk)
-            .values("is_active", "is_superuser", "is_staff", "type_compte")
+            .values("is_active", "is_superuser", "is_staff", "type_compte", "password")
             .first()
         )
 
@@ -79,6 +81,11 @@ def audit_utilisateur(sender, instance, created, **kwargs):
 
     if changements:
         journaliser(JournalAudit.Action.ROLE, auteur, objet=instance, details=changements)
+
+    if avant["password"] != instance.password:
+        # Jamais le mot de passe ni son empreinte : seulement le fait.
+        journaliser(JournalAudit.Action.MODIFICATION, auteur, objet=instance,
+                    details={"mot_de_passe": "modifié"})
 
 
 @receiver(pre_save, sender=AffectationUtilisateur)
@@ -178,4 +185,70 @@ def audit_version(sender, instance, created, **kwargs):
             instance.publiee_par or utilisateur_courant(),
             objet=instance.parcours,
             details={"version": instance.numero},
+        )
+
+
+# ---------------------------------------------------------------------------
+# Postes (bornes, écrans) et imprimantes : création, modification (dont la
+# régénération de clé), suppression. Les clés ne sont jamais journalisées.
+# ---------------------------------------------------------------------------
+
+POSTES = (Borne, EcranAffichage, ImprimanteTicket)
+CHAMPS_SECRETS = {"cle_hash"}
+
+
+def _valeurs(instance):
+    return {
+        champ.attname: getattr(instance, champ.attname)
+        for champ in instance._meta.concrete_fields
+        if champ.attname not in ("id", "derniere_activite", "date_creation")
+    }
+
+
+def memoriser_poste(sender, instance, **kwargs):
+    instance._etat_avant = None
+    if instance.pk:
+        ancien = sender.objects.filter(pk=instance.pk).first()
+        instance._etat_avant = _valeurs(ancien) if ancien is not None else None
+
+
+def audit_poste(sender, instance, created, **kwargs):
+    if created:
+        journaliser(JournalAudit.Action.CREATION, utilisateur_courant(), objet=instance)
+        return
+    avant = getattr(instance, "_etat_avant", None)
+    if not avant:
+        return
+    apres = _valeurs(instance)
+    changements = {}
+    for champ, valeur in apres.items():
+        if avant.get(champ) == valeur:
+            continue
+        if champ in CHAMPS_SECRETS:
+            changements["cle"] = "régénérée"
+        else:
+            changements[champ] = [str(avant.get(champ)), str(valeur)]
+    if changements:
+        journaliser(JournalAudit.Action.MODIFICATION, utilisateur_courant(), objet=instance, details=changements)
+
+
+def audit_suppression_poste(sender, instance, **kwargs):
+    journaliser(JournalAudit.Action.SUPPRESSION, utilisateur_courant(), objet=instance)
+
+
+for _modele in POSTES:
+    pre_save.connect(memoriser_poste, sender=_modele, dispatch_uid=f"audit_avant_{_modele.__name__}")
+    post_save.connect(audit_poste, sender=_modele, dispatch_uid=f"audit_{_modele.__name__}")
+    post_delete.connect(audit_suppression_poste, sender=_modele, dispatch_uid=f"audit_suppr_{_modele.__name__}")
+
+
+@receiver(m2m_changed, sender=Group.permissions.through)
+def audit_permissions_role(sender, instance, action, pk_set, **kwargs):
+    """Droits d'un rôle (groupe) modifiés : touche tous les comptes de ce rôle."""
+    if action in ("post_add", "post_remove", "post_clear") and isinstance(instance, Group):
+        journaliser(
+            JournalAudit.Action.ROLE,
+            utilisateur_courant(),
+            objet=instance,
+            details={"operation": action, "permissions": sorted(pk_set or [])},
         )

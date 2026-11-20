@@ -76,7 +76,7 @@ def _lignes_export(stats):
     return [
         ("Synthèse", ["Indicateur", "Valeur"], [
             ["Tickets émis", stats["total_tickets"]],
-            ["Durée totale moyenne (min)", stats["duree_totale_moy"]],
+            ["Durée totale moyenne, tickets de soins (min)", stats["duree_totale_moy"]],
             *[[f"Tickets - {k}", v] for k, v in stats["par_statut"].items()],
             *[[f"Mode - {k}", v] for k, v in stats["par_mode"].items()],
             ["Places de quota réservées", stats["quotas"]["reservees"]],

@@ -1,0 +1,27 @@
+# Service systemd de l'application (serveur Ubuntu).
+# Installation : voir docs/DEPLOIEMENT_UBUNTU.md
+#   sudo cp deploiement/gestion-file-attente.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now gestion-file-attente
+
+[Unit]
+Description=Gestion des files d'attente médicales (Gunicorn)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gfa
+Group=gfa
+WorkingDirectory=/opt/gestion_file_attente
+# Les paramètres (DJANGO_*, DB_*) sont lus dans /opt/gestion_file_attente/.env
+ExecStart=/opt/gestion_file_attente/.venv/bin/gunicorn -c deploiement/gunicorn.conf.py config.wsgi
+Restart=always
+RestartSec=5
+# Durcissement
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

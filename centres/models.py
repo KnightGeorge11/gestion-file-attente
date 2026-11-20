@@ -4,7 +4,7 @@ import secrets
 
 from django.contrib.auth.hashers import check_password, make_password
 from django.core.exceptions import ValidationError
-from django.core.validators import MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models, transaction
 
 from core.models import ModeleCentre
@@ -361,6 +361,47 @@ class FileAttente(ModeleCentre):
         return f"{self.nom} ({self.service})"
 
 
+PORTS_IMPRIMANTE = range(9100, 9110)   # impression brute (JetDirect) : 9100 à 9109
+
+
+def _imprimante_simulee(adresse):
+    """Imprimante simulée sur ce poste (développement : imprimante_simulee)."""
+    import ipaddress
+
+    from django.conf import settings
+
+    try:
+        boucle = ipaddress.ip_address(str(adresse)).is_loopback
+    except ValueError:
+        return False
+    return boucle and getattr(settings, "IMPRIMANTE_SIMULEE_AUTORISEE", False)
+
+
+def adresse_imprimante_autorisee(adresse, port):
+    """
+    Le serveur ne se connecte qu'à une imprimante du réseau local, sur un port
+    d'impression brute (protection contre l'utilisation du serveur pour
+    joindre d'autres machines). Seule exception : l'imprimante simulée en
+    développement (boucle locale, DEBUG).
+    """
+    from core.reseau import est_adresse_privee
+
+    if _imprimante_simulee(adresse):
+        return True
+    return est_adresse_privee(adresse) and port in PORTS_IMPRIMANTE
+
+
+def valider_adresse_imprimante(valeur):
+    """Imprimante du réseau local uniquement : le serveur ne se connecte jamais ailleurs."""
+    from core.reseau import est_adresse_privee
+
+    if not (est_adresse_privee(valeur) or _imprimante_simulee(valeur)):
+        raise ValidationError(
+            "Adresse du réseau local attendue (ex. 192.168.1.50) : "
+            "ni adresse Internet, ni boucle locale."
+        )
+
+
 class ImprimanteTicket(ModeleCentre):
     """
     Imprimante thermique réseau (Ethernet ou Wi-Fi) d'une borne.
@@ -375,9 +416,14 @@ class ImprimanteTicket(ModeleCentre):
 
     libelle = models.CharField(max_length=100)
     adresse_ip = models.GenericIPAddressField(
+        validators=[valider_adresse_imprimante],
         help_text="Adresse IP fixe de l'imprimante sur le réseau local.",
     )
-    port = models.PositiveIntegerField(default=9100, validators=[MinValueValidator(1)])
+    port = models.PositiveIntegerField(
+        default=9100,
+        validators=[MinValueValidator(PORTS_IMPRIMANTE[0]), MaxValueValidator(PORTS_IMPRIMANTE[-1])],
+        help_text="Port d'impression brute : 9100 (9100 à 9109).",
+    )
     largeur_caracteres = models.PositiveSmallIntegerField(
         default=48,
         validators=[MinValueValidator(16)],
@@ -448,6 +494,11 @@ class Borne(ModeleCentre):
             return False
 
         return check_password(cle, self.cle_hash)
+
+    def clean(self):
+        super().clean()
+        if self.imprimante_id and self.centre_id and self.imprimante.centre_id != self.centre_id:
+            raise ValidationError({"imprimante": "L'imprimante doit appartenir au même centre que la borne."})
 
     def __str__(self):
         return f"{self.libelle} ({self.centre.code})"

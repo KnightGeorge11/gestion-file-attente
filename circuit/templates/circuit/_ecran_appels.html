@@ -18,7 +18,8 @@
     {% if en_cours|length > 1 %}
     <div class="ecran-appels autres-appels-en-cours">
         {% for appel in en_cours|slice:"1:" %}
-        <div class="ecran-appel en-cours {% if appel.date >= recents %}nouveau{% endif %}" data-appel-en-cours="{{ appel.pk }}">
+        <div class="ecran-appel en-cours {% if appel.date >= recents %}nouveau{% endif %}" data-appel-en-cours="{{ appel.pk }}"
+             data-texte="Ticket {{ appel.numero_ticket|join:' ' }}, {{ appel.nom_service }}{% if appel.poste %}, {{ appel.poste }}{% endif %}">
             <span class="num">{{ appel.numero_ticket }}</span>
             <span class="service">{% icone appel.service|icone_service %}{{ appel.nom_service }}</span>
             <span class="poste">{{ appel.poste }}</span>

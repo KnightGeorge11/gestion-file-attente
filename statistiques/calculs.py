@@ -108,7 +108,9 @@ def calculer(centres, date_debut, date_fin):
 
     global_ = tickets.aggregate(
         total=Count("id"),
-        duree=Avg(DUREE_TICKET, filter=Q(statut=Ticket.Statut.TERMINE)),
+        # Tickets de soins seulement : un ticket « Autre » se termine dès
+        # l'orientation par l'accueil et fausserait la moyenne.
+        duree=Avg(DUREE_TICKET, filter=Q(statut=Ticket.Statut.TERMINE) & ~Q(mode=Ticket.Mode.AUTRE)),
     )
 
     return {

@@ -8,6 +8,7 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -58,6 +59,8 @@ public class MainActivity extends Activity {
     private int touchers;
     private long premierToucher;
     private String urlChargee = "";
+    /** Page affichée (mise à jour sur le fil principal, lue par le pont). */
+    private volatile String pageCourante = "";
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -191,10 +194,31 @@ public class MainActivity extends Activity {
                 && String.valueOf(uri.getScheme()).equalsIgnoreCase(base.getScheme());
     }
 
+    /**
+     * Le pont n'est utilisable que depuis les pages de la borne du serveur
+     * configuré : une autre page (contenu injecté, redirection) ne peut ni
+     * lire les réglages ni envoyer d'octets à l'imprimante.
+     */
+    private boolean pageAutorisee() {
+        String page = pageCourante;
+        if (page == null || page.isEmpty()) {
+            return false;
+        }
+        Uri uri = Uri.parse(page);
+        String chemin = uri.getPath();
+        return memeServeur(uri) && chemin != null && chemin.contains("/circuit/borne");
+    }
+
     private class Client extends WebViewClient {
         @Override
         public boolean shouldOverrideUrlLoading(WebView vue, WebResourceRequest requete) {
             return !memeServeur(requete.getUrl());   // true = bloqué
+        }
+
+        @Override
+        public void onPageStarted(WebView vue, String url, Bitmap icone) {
+            pageCourante = url == null ? "" : url;
+            super.onPageStarted(vue, url, icone);
         }
 
         @Override
@@ -226,6 +250,9 @@ public class MainActivity extends Activity {
         /** Largeur du papier et page de codes, pour que le serveur prépare le ticket. */
         @JavascriptInterface
         public String reglages() {
+            if (!pageAutorisee()) {
+                return "{}";
+            }
             try {
                 return new JSONObject()
                         .put("largeur", reglages.largeur())
@@ -239,6 +266,9 @@ public class MainActivity extends Activity {
         /** Reçoit le ticket (ESC/POS en base64) et l'envoie à l'imprimante Bluetooth. */
         @JavascriptInterface
         public void imprimer(String base64) {
+            if (!pageAutorisee()) {
+                return;
+            }
             final byte[] donnees;
             try {
                 donnees = Base64.decode(base64, Base64.DEFAULT);

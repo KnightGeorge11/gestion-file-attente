@@ -1,0 +1,2 @@
+*.sh text eol=lf
+deploiement/crontab text eol=lf

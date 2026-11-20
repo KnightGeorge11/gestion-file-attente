@@ -1,0 +1,17 @@
+# Tâches planifiées du serveur Ubuntu (crontab de l'utilisateur gfa).
+# Installation : crontab -u gfa deploiement/crontab
+# Heures du serveur : régler le fuseau du système sur Indian/Antananarivo
+# (sudo timedatectl set-timezone Indian/Antananarivo).
+
+SHELL=/bin/bash
+APP=/opt/gestion_file_attente
+
+# Clôture des tickets restés ouverts : juste après 20 h 00, puis une seconde fois la nuit.
+5 20 * * * cd $APP && .venv/bin/python manage.py cloturer_tickets >> /var/log/gfa/cloture.log 2>&1
+30 2 * * * cd $APP && .venv/bin/python manage.py cloturer_tickets >> /var/log/gfa/cloture.log 2>&1
+
+# Sauvegarde PostgreSQL chaque soir à 22 h, avec copie sur le second support.
+0 22 * * * $APP/scripts/sauvegarde.sh /var/backups/gfa /media/sauvegarde_usb >> /var/log/gfa/sauvegarde.log 2>&1
+
+# Test de restauration dans une base distincte : le 1er de chaque mois à 23 h.
+0 23 1 * * $APP/scripts/test_restauration.sh >> /var/log/gfa/restauration.log 2>&1

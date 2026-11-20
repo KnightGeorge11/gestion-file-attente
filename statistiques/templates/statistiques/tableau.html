@@ -23,7 +23,7 @@
 <div id="stats-contenu" hx-get="{{ request.get_full_path }}" hx-trigger="every 60s" hx-select="#stats-contenu" hx-swap="outerHTML" hx-disinherit="hx-select hx-swap hx-target">
 <div class="indicateurs">
     <div class="indicateur"><span class="pictogramme">{% icone "tickets" %}</span><div><div class="valeur">{{ stats.total_tickets }}</div><div class="libelle">tickets émis</div></div></div>
-    <div class="indicateur accent"><span class="pictogramme">{% icone "sablier" %}</span><div><div class="valeur">{{ stats.duree_totale_moy|default:"—" }}{% if stats.duree_totale_moy %} <small>min</small>{% endif %}</div><div class="libelle">durée totale moyenne par ticket terminé</div></div></div>
+    <div class="indicateur accent"><span class="pictogramme">{% icone "sablier" %}</span><div><div class="valeur">{{ stats.duree_totale_moy|default:"—" }}{% if stats.duree_totale_moy %} <small>min</small>{% endif %}</div><div class="libelle">durée totale moyenne par ticket de soins terminé (hors « Autre »)</div></div></div>
     <div class="indicateur ok"><span class="pictogramme">{% icone "calendrier" %}</span><div><div class="valeur">{{ stats.quotas.consommees }} <small>/ {{ stats.quotas.reservees }}</small></div><div class="libelle">places dentiste consommées / réservées</div></div></div>
     <div class="indicateur attention"><span class="pictogramme">{% icone "bouclier" %}</span><div><div class="valeur">{{ stats.quotas.derogations }}</div><div class="libelle">dérogation{{ stats.quotas.derogations|pluralize }} au quota</div></div></div>
 </div>

@@ -41,7 +41,7 @@
 </div>
 <div class="non-imprime actions-borne" style="margin-top:28px">
     {% if peut_reessayer %}
-    <form method="post" action="{% url 'circuit:borne_reimprimer' ticket.pk %}">{% csrf_token %}
+    <form method="post" action="{% url 'circuit:borne_reimprimer' ticket.pk %}" onsubmit="this.querySelector('button').disabled = true;">{% csrf_token %}
         <button class="bouton-retour" type="submit">{% icone "rappel" %}Réessayer l'impression</button>
     </form>
     {% endif %}
@@ -90,7 +90,11 @@ function afficherEtatAndroid(titre, texte, reessayer) {
     document.getElementById("etat-android-reessayer").hidden = !reessayer;
 }
 
+var impressionEnCours = false;
 function imprimerViaAndroid() {
+    // Un seul envoi à la fois : un double appui n'imprime pas deux tickets.
+    if (impressionEnCours) { return; }
+    impressionEnCours = true;
     var reglages = {};
     try { reglages = JSON.parse(window.BorneAndroid.reglages()); } catch (e) {}
     afficherEtatAndroid("Impression en cours…", "Récupérez votre ticket sous la tablette.", false);
@@ -104,6 +108,7 @@ function imprimerViaAndroid() {
 
 // Appelée par l'application Android quand l'imprimante a répondu.
 window.borneImpressionTerminee = function (ok, message) {
+    impressionEnCours = false;
     // Inscrit le résultat : l'accueil voit une alerte si l'imprimante ne répond plus.
     var corps = new FormData();
     corps.append("ok", ok ? "1" : "0");

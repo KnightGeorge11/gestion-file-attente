@@ -8,13 +8,13 @@ session. Accès limité au réseau local. La sécurité n'intervient pas.
 """
 
 import base64
-import ipaddress
 from datetime import timedelta
 from types import SimpleNamespace
 
 from django.conf import settings
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -23,6 +23,7 @@ from django.views.decorators.http import require_POST
 
 from centres.access import utilisateur_peut_acceder_centre
 from centres.models import Borne, EcranAffichage
+from core.reseau import est_reseau_local
 from core.timeutils import fuseau_horaire_centre, maintenant_centre
 from parcours.models import Parcours
 
@@ -41,11 +42,8 @@ DUREE_SESSION_POSTE = 365 * 24 * 3600
 def _reseau_local(request):
     if not getattr(settings, "RESEAU_LOCAL_UNIQUEMENT", True):
         return True
-    try:
-        adresse = ipaddress.ip_address(request.META.get("REMOTE_ADDR", ""))
-    except ValueError:
-        return False
-    return adresse.is_private or adresse.is_loopback
+    # Adresse réelle du client, même derrière Nginx (core.reseau).
+    return est_reseau_local(request)
 
 
 def _poste_connecte(request, modele, cle_session):
@@ -154,16 +152,6 @@ def borne_emettre(request):
     if poste is None:
         return redirect("circuit:borne")
 
-    # Limitation de débit par borne.
-    delai = timedelta(seconds=getattr(settings, "BORNE_DELAI_MIN_SECONDES", 2))
-    # Double appui : on revient à l'accueil de la borne avec un message,
-    # jamais une page brute sans issue devant le patient.
-    if delai.total_seconds() > 0 and Ticket.objects.filter(
-        borne=poste, date_emission__gte=timezone.now() - delai
-    ).exists():
-        messages.warning(request, "Votre ticket vient d'être imprimé. Veuillez patienter quelques secondes.")
-        return redirect("circuit:borne")
-
     centre = poste.centre
     services.cloture_automatique(centre)
     if services.emission_terminee(centre):
@@ -175,11 +163,30 @@ def borne_emettre(request):
     elif request.POST.get("motif"):
         motif = MotifDemande.objects.filter(centre=centre, actif=True, pk=request.POST["motif"]).first()
 
-    try:
-        ticket = services.emettre_ticket(centre, mode, parcours=parcours, borne=poste, motif=motif)
-    except ErreurCircuit as erreur:
-        messages.error(request, " ".join(erreur.messages))
-        return redirect("circuit:borne")
+    with transaction.atomic():
+        # Verrou sur la borne : deux appuis simultanés passent l'un après
+        # l'autre, et le second voit le ticket du premier.
+        Borne.objects.select_for_update().filter(pk=poste.pk).first()
+        maintenant = timezone.now()
+        # Limitation de débit par borne. Double appui : on revient à l'accueil
+        # de la borne avec un message, jamais une page brute sans issue.
+        delai = timedelta(seconds=getattr(settings, "BORNE_DELAI_MIN_SECONDES", 2))
+        if delai.total_seconds() > 0 and Ticket.objects.filter(
+            borne=poste, date_emission__gte=maintenant - delai
+        ).exists():
+            messages.warning(request, "Votre ticket vient d'être imprimé. Veuillez patienter quelques secondes.")
+            return redirect("circuit:borne")
+        plafond = getattr(settings, "BORNE_MAX_TICKETS_PAR_HEURE", 150)
+        if plafond and Ticket.objects.filter(
+            borne=poste, date_emission__gte=maintenant - timedelta(hours=1)
+        ).count() >= plafond:
+            messages.error(request, "La borne est momentanément saturée. Merci de vous présenter à l'accueil.")
+            return redirect("circuit:borne")
+        try:
+            ticket = services.emettre_ticket(centre, mode, parcours=parcours, borne=poste, motif=motif)
+        except ErreurCircuit as erreur:
+            messages.error(request, " ".join(erreur.messages))
+            return redirect("circuit:borne")
     # Option A : le serveur imprime directement sur l'imprimante réseau de la
     # borne (après l'enregistrement du ticket, qui reste valable même si
     # l'impression échoue).
@@ -208,6 +215,12 @@ def _etat_impression(ticket, poste):
     if dernier is not None and dernier.type == Evenement.Type.IMPRESSION:
         return "serveur"
     return "echec"
+
+
+def _imprime_par_android(ticket):
+    from .models import Evenement
+
+    return ticket.evenements.filter(type=Evenement.Type.IMPRESSION, details__bluetooth=True).exists()
 
 
 def _ticket_de_la_borne(poste, ticket_id):
@@ -241,11 +254,15 @@ def borne_reimprimer(request, ticket_id):
     if poste is None:
         return redirect("circuit:borne")
     ticket = _ticket_de_la_borne(poste, ticket_id)
-    if (
-        _etat_impression(ticket, poste) == "echec"
-        and timezone.now() - ticket.date_emission < timedelta(minutes=3)
-    ):
-        imprimer_ticket(ticket, poste, _personnes_devant(ticket))
+    with transaction.atomic():
+        # Verrou sur le ticket : deux appuis sur « Réessayer » n'impriment
+        # qu'une fois (le second voit l'impression réussie du premier).
+        Ticket.objects.select_for_update().filter(pk=ticket.pk).first()
+        if (
+            _etat_impression(ticket, poste) == "echec"
+            and timezone.now() - ticket.date_emission < timedelta(minutes=3)
+        ):
+            imprimer_ticket(ticket, poste, _personnes_devant(ticket))
     return redirect("circuit:borne_ticket", ticket.pk)
 
 
@@ -263,6 +280,9 @@ def borne_ticket_escpos(request, ticket_id):
     if _etat_impression(ticket, poste) != "navigateur" or (
         timezone.now() - ticket.date_emission >= timedelta(minutes=3)
     ):
+        raise PermissionDenied
+    if _imprime_par_android(ticket):
+        # Déjà imprimé par l'application : pas de second ticket papier.
         raise PermissionDenied
     largeur = 32 if request.GET.get("largeur") == "32" else 48
     page = request.GET.get("page") if request.GET.get("page") in ("cp858", "cp850", "ascii") else "ascii"

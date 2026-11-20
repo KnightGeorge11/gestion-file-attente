@@ -80,6 +80,15 @@ def contenu_ticket(ticket, imprimante, devant=0):
 
 def envoyer(imprimante, donnees):
     """Envoie les octets à l'imprimante (TCP brut). Lève ErreurImpression."""
+    from centres.models import adresse_imprimante_autorisee
+
+    # Défense en profondeur : même si une adresse invalide est en base, le
+    # serveur ne se connecte qu'à une imprimante du réseau local.
+    if not adresse_imprimante_autorisee(imprimante.adresse_ip, imprimante.port):
+        raise ErreurImpression(
+            f"Imprimante {imprimante.libelle} : adresse {imprimante.adresse_ip}:{imprimante.port} refusée "
+            "(réseau local et port 9100 à 9109 uniquement)."
+        )
     try:
         with socket.create_connection((imprimante.adresse_ip, imprimante.port), timeout=DELAI_SECONDES) as connexion:
             connexion.sendall(donnees)

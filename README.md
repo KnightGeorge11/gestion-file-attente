@@ -77,7 +77,7 @@ Le module `salles` n'a pas été créé : il reste optionnel et non validé (Tre
 | Position après réintégration | En fin de file |
 | Pharmacie, appel oral | Bouton « Appel oral » = prise en charge directe, puis « Terminer » (horaires enregistrés) |
 | File des médecins : ordre strict ou libre | Ordre strict |
-| Droits de la direction | Statistiques uniquement |
+| Droits de la direction | Statistiques et demandes « Autre » transmises par l'accueil (appel du visiteur) ; aucun appel de patient, ni absence ni réintégration |
 | Priorités, durée de conservation des historiques, module salles | Non implémentés |
 
 ## Installation (développement)
@@ -150,7 +150,7 @@ python manage.py check --deploy
 ```
 
 Les fichiers statiques sont servis par l'application (WhiteNoise), avec des noms versionnés pour que la TV, la borne et les tablettes rechargent le CSS après une mise à jour.
-Serveur : **Ubuntu** (décision du 18/11/2026). Serveur d'application conseillé : Gunicorn (éventuellement derrière Nginx). Le serveur de développement `runserver` ne doit pas être utilisé en production. Le déploiement n'est pas pris en charge dans ce dépôt pour l'instant.
+Serveur : **Ubuntu** (décision du 18/11/2026). Procédure complète (PostgreSQL à deux rôles, Gunicorn `gthread`, Nginx en HTTPS avec une autorité locale, systemd, cron, sauvegardes) : **[docs/DEPLOIEMENT_UBUNTU.md](docs/DEPLOIEMENT_UBUNTU.md)**, fichiers prêts dans `deploiement/`. Procédure écrite, **pas encore exécutée sur le serveur réel**. Le serveur de développement `runserver` ne doit pas être utilisé en production.
 
 ### Liste de contrôle sécurité avant la mise en service
 
@@ -180,7 +180,7 @@ La tablette Android affiche seulement les choix. Quand le patient prend son tick
 
 Si l'imprimante ne répond pas, le ticket reste valable : la tablette affiche le numéro en grand (« Notez votre numéro ») avec un bouton « Réessayer l'impression », et l'accueil voit une alerte jusqu'à la prochaine impression réussie. Une borne sans imprimante réseau utilise l'impression du navigateur.
 
-**Tester sans matériel** : `python manage.py imprimante_simulee` (écoute sur 127.0.0.1:9100 et affiche les tickets reçus), puis créer l'imprimante 127.0.0.1:9100 dans l'administration.
+**Tester sans matériel** : `python manage.py imprimante_simulee` (écoute sur 127.0.0.1:9100 et affiche les tickets reçus), puis créer l'imprimante 127.0.0.1:9100 dans l'administration. L'adresse 127.0.0.1 n'est acceptée qu'en développement (`DJANGO_DEBUG=True` ou `IMPRIMANTE_SIMULEE_AUTORISEE=True`) ; en production, seules les adresses du réseau local et les ports 9100 à 9109 le sont.
 
 **Dernier recours, imprimante Bluetooth** : une petite application Android ([`borne_android/`](borne_android/README.md)) affiche la même page de borne et envoie le ticket, préparé par le serveur, à une imprimante Bluetooth appairée. L'APK est compilé automatiquement par GitHub Actions. **Non testé sur du matériel réel.**
 
@@ -213,18 +213,18 @@ Si l'imprimante ne répond pas, le ticket reste valable : la tablette affiche le
 - **Écran principal (TV)** : `http://<serveur>/circuit/ecran/`, activé avec la clé de l'écran. Chaque appel suit l'état de son passage : il reste dans la zone « Ticket appelé » tant que le service n'a pas terminé (le plus récent en grand, les autres appels en cours en dessous), puis rejoint « Appels précédents » avec son heure et le nom du service. Un même ticket peut donc y figurer plusieurs fois (M001 Accueil, puis M001 Infirmerie) ; un rappel remplace l'appel du même passage. Cliquer une fois sur « Activer le son » (les navigateurs bloquent le son sans action de l'utilisateur) : carillon et annonce vocale si une voix française est installée sur l'appareil. **Son non vérifié sur la TV réelle.**
 - **Agents** : `http://<serveur>/` → connexion individuelle → choix du centre → interface commune du service.
 
-La borne et l'écran n'acceptent que les adresses du réseau local (`RESEAU_LOCAL_UNIQUEMENT=True`).
+La borne et l'écran n'acceptent que les adresses du réseau local (`RESEAU_LOCAL_UNIQUEMENT=True`). Sur la TV, le son demandé une fois est repris après un rechargement si le navigateur l'autorise (mode kiosque) ; sinon le premier appui sur la télécommande le réactive. Plusieurs appels dans le même intervalle sont tous annoncés, dans l'ordre.
 
 ## Sauvegarde et restauration
 
 - `scripts\sauvegarde.ps1 -Dossier D:\sauvegardes -CopieVers E:\sauvegardes` : `pg_dump` compressé, archive vérifiée, copie sur un second support, conservation des 30 dernières. À planifier chaque jour (Planificateur de tâches Windows).
 - `scripts\test_restauration.ps1` : restaure la dernière sauvegarde dans une **base distincte** (`gfa_restauration_test`), compare le nombre de lignes de chaque table avec la production, puis supprime la base de test. La production n'est jamais modifiée.
-- Sous Linux : mêmes commandes `pg_dump -Fc` / `createdb` / `pg_restore --no-owner` via cron.
+- Sous Ubuntu : `scripts/sauvegarde.sh` et `scripts/test_restauration.sh` (mêmes fonctions), planifiés par `deploiement/crontab`. Restauration réelle : avec le rôle propriétaire, puis refaire le `REVOKE` (voir docs/DEPLOIEMENT_UBUNTU.md).
 
 ## Tâches planifiées
 
 - `python manage.py cloturer_tickets` à **20 h 05** (clôture à 20 h 00) et une seconde fois la nuit, par sécurité (crontab, voir la commande). Ce n'est plus indispensable : l'application clôture aussi d'elle-même à la première page ouverte.
-- Sauvegarde PostgreSQL quotidienne : sur Ubuntu, `pg_dump -Fc` via cron et copie sur un second support ; test de restauration au moins une fois par mois (équivalents des scripts `scripts/*.ps1` écrits pour Windows).
+- Sauvegarde PostgreSQL quotidienne et test de restauration mensuel : `deploiement/crontab` (scripts `scripts/*.sh`).
 
 ## Sécurité et intégrité
 
@@ -235,7 +235,10 @@ La borne et l'écran n'acceptent que les adresses du réseau local (`RESEAU_LOCA
   `REVOKE UPDATE, DELETE ON circuit_evenement, audit_journalaudit FROM <compte_app>;` (le propriétaire des tables doit être un autre rôle).
 - Contraintes : numérotation unique par centre/préfixe/jour, un patient tenu par agent, un passage actif par ticket, une réservation de quota active par ticket.
 - Les comptes ne sont jamais supprimés (désactivation seulement).
-- Connexion : après 5 échecs pour un même identifiant, blocage de 15 minutes (`CONNEXION_MAX_ECHECS`, `CONNEXION_BLOCAGE_MINUTES`) ; les échecs sont comptés dans le journal d'audit et remis à zéro par une connexion réussie.
+- Connexion : après 5 échecs pour un même identifiant **depuis le même poste**, blocage de 15 minutes (`CONNEXION_MAX_ECHECS`, `CONNEXION_BLOCAGE_MINUTES`) : quelqu'un qui se trompe ailleurs ne bloque pas le titulaire. Un poste est aussi bloqué après 20 échecs tous identifiants confondus (`CONNEXION_MAX_ECHECS_IP`). Les échecs sont comptés dans le journal d'audit et remis à zéro par une connexion réussie.
+- Adresse IP réelle derrière Nginx : en-tête `X-Real-IP`, cru seulement s'il vient d'un proxy listé dans `DJANGO_PROXIES_CONFIANCE`. Elle sert à la restriction réseau local de la borne et de l'écran, au blocage des connexions et au journal d'audit.
+- Journal d'audit : connexions, comptes (dont les changements de mot de passe, sans jamais le mot de passe), affectations, rôles et leurs droits, bornes, écrans, imprimantes (dont la régénération de clé), quotas, parcours ; avec l'adresse IP de l'auteur.
+- Imprimantes : adresse du réseau local et port 9100 à 9109 uniquement (le serveur ne se connecte jamais ailleurs). Borne : verrou contre le double appui et plafond de tickets par heure (`BORNE_MAX_TICKETS_PAR_HEURE`).
 
 ## Tests
 

@@ -66,6 +66,16 @@ class Parcours(ModeleCentre):
             ),
         ]
 
+    def clean(self):
+        super().clean()
+        from circuit.services import PREFIXE_AUTRE
+
+        if (self.prefixe or "").upper() == PREFIXE_AUTRE:
+            raise ValidationError(
+                {"prefixe": f"Le préfixe « {PREFIXE_AUTRE} » est réservé aux tickets « Autre » "
+                            "(rendez-vous, cotisations, rencontres)."}
+            )
+
     def __str__(self):
         return f"{self.prefixe} - {self.libelle_borne} ({self.centre.code})"
 

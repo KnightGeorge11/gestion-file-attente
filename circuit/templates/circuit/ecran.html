@@ -24,12 +24,36 @@
 (function () {
     let contexte = null;
     let dernierId = null;
+    const bouton = document.getElementById("activer-son");
+    function memoriser(valeur) {
+        try { localStorage.setItem("ecran-son", valeur); } catch (e) {}
+    }
+    function sonDemande() {
+        try { return localStorage.getItem("ecran-son") === "1"; } catch (e) { return false; }
+    }
     window.activerSon = function () {
         contexte = contexte || new (window.AudioContext || window.webkitAudioContext)();
-        document.getElementById("activer-son").hidden = true;
+        if (contexte.resume) { contexte.resume(); }
+        bouton.hidden = true;
+        memoriser("1");   // le son reste demandé après un rechargement de la TV
     };
+    // Après un rechargement, le son est repris tout seul si le navigateur de
+    // la TV l'autorise (mode kiosque, lecture automatique permise) ; sinon le
+    // bouton reste affiché et le premier appui sur la télécommande le réactive.
+    if (sonDemande()) {
+        try {
+            contexte = new (window.AudioContext || window.webkitAudioContext)();
+            if (contexte.state === "running") { bouton.hidden = true; }
+        } catch (e) { contexte = null; }
+        ["click", "keydown", "touchstart"].forEach(function (evenement) {
+            document.addEventListener(evenement, function reprendre() {
+                window.activerSon();
+                document.removeEventListener(evenement, reprendre);
+            });
+        });
+    }
     function carillon() {
-        if (!contexte) return;
+        if (!contexte || contexte.state !== "running") return;
         [880, 660].forEach(function (frequence, i) {
             const o = contexte.createOscillator(), g = contexte.createGain();
             o.frequency.value = frequence; o.connect(g); g.connect(contexte.destination);
@@ -38,26 +62,44 @@
             o.start(t); o.stop(t + 0.32);
         });
     }
-    function annoncer(texte) {
-        if (!("speechSynthesis" in window)) return;
-        const message = new SpeechSynthesisUtterance(texte);
-        message.lang = "fr-FR";
-        setTimeout(function () { window.speechSynthesis.speak(message); }, 800);
+    function annoncer(textes) {
+        if (!("speechSynthesis" in window) || !textes.length) return;
+        // Les annonces sont mises en file : chaque appel est lu, dans l'ordre.
+        setTimeout(function () {
+            textes.forEach(function (texte) {
+                const message = new SpeechSynthesisUtterance(texte);
+                message.lang = "fr-FR";
+                window.speechSynthesis.speak(message);
+            });
+        }, 800);
     }
     document.body.addEventListener("htmx:afterSwap", function (e) {
         if (e.target.id !== "zone-appels") return;
-        // Le plus récent des appels en cours est en grand. Seul un appel plus
-        // récent que tous ceux déjà vus est annoncé : quand un service termine,
+        // Tous les appels en cours (le plus récent en grand). Chaque appel plus
+        // récent que tous ceux déjà vus est annoncé, même si plusieurs services
+        // appellent dans le même intervalle de 3 s. Quand un service termine,
         // l'appel en cours suivant reprend la grande zone sans nouvelle annonce.
-        const premier = e.target.querySelector("[data-appel]");
-        const id = premier ? Number(premier.dataset.appel) : 0;
-        if (dernierId !== null && premier && id > dernierId) {
-            // Nouvel appel : animation relancée, carillon et annonce vocale.
-            premier.classList.remove("nouveau"); void premier.offsetWidth; premier.classList.add("nouveau");
-            carillon();
-            if (premier.dataset.annonce === "1") annoncer(premier.dataset.texte);
+        const elements = Array.prototype.slice.call(e.target.querySelectorAll("[data-appel], [data-appel-en-cours]"));
+        const appels = elements.map(function (el) {
+            return {el: el, id: Number(el.dataset.appel || el.dataset.appelEnCours), texte: el.dataset.texte};
+        });
+        const maximum = appels.reduce(function (m, a) { return Math.max(m, a.id); }, 0);
+        if (dernierId !== null) {
+            const nouveaux = appels.filter(function (a) { return a.id > dernierId; })
+                .sort(function (a, b) { return a.id - b.id; });
+            if (nouveaux.length) {
+                // Nouvel appel : animation relancée, carillon et annonce vocale.
+                nouveaux.forEach(function (a) {
+                    a.el.classList.remove("nouveau"); void a.el.offsetWidth; a.el.classList.add("nouveau");
+                });
+                carillon();
+                const vedette = e.target.querySelector("[data-annonce]");
+                if (vedette && vedette.dataset.annonce === "1") {
+                    annoncer(nouveaux.map(function (a) { return a.texte; }));
+                }
+            }
         }
-        dernierId = dernierId === null ? id : Math.max(dernierId, id);
+        dernierId = dernierId === null ? maximum : Math.max(dernierId, maximum);
     });
 })();
 </script>

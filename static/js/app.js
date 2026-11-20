@@ -164,13 +164,22 @@
       elt.classList.remove("en-cours");
       barre(false);
     }
-    if (e.detail.successful) { horsLigne(false); }
+    if (e.detail.successful) { horsLigne(false); erreurSignalee = false; }
   });
   document.addEventListener("htmx:sendError", function () {
     horsLigne(true);
   });
+  /* Une erreur des rafraîchissements automatiques (écran TV, files…) n'est
+     signalée qu'une fois, jusqu'au prochain succès : pas de messages en boucle
+     toutes les 3 s quand le serveur est en panne. Les actions de l'agent sont
+     toujours signalées. */
+  var erreurSignalee = false;
   document.addEventListener("htmx:responseError", function (e) {
     var statut = e.detail.xhr ? e.detail.xhr.status : 0;
+    if (!estActionUtilisateur(e.detail)) {
+      if (erreurSignalee) { return; }
+      erreurSignalee = true;
+    }
     if (statut === 403) {
       toast("Action non autorisée. Votre session a peut-être expiré : rechargez la page.", "error");
     } else if (statut >= 500) {
@@ -193,7 +202,20 @@
     var adresse = xhr.responseURL || window.location.href;
     if (e.detail.boosted) {
       var classeActuelle = document.body.className.replace(/\bhors-ligne\b/, "").trim();
-      if (xhr.status >= 400 || (pageComplete && classeBody(html) !== classeActuelle)) {
+      var verbe = ((e.detail.requestConfig && e.detail.requestConfig.verb) || "get").toLowerCase();
+      if (xhr.status >= 400 && verbe !== "get") {
+        // Erreur après l'envoi d'un formulaire : l'adresse de la réponse est
+        // une vue réservée à l'envoi (POST). La recharger donnerait une erreur
+        // 405 et une page blanche : on recharge la page courante, avec le
+        // message d'erreur.
+        e.detail.shouldSwap = false;
+        try {
+          sessionStorage.setItem("toast-apres-rechargement", xhr.status === 403
+            ? "Action non autorisée. Votre session a peut-être expiré."
+            : "L'action n'a pas pu être enregistrée. Réessayez.");
+        } catch (ignore) {}
+        window.location.reload();
+      } else if (xhr.status >= 400 || (pageComplete && classeBody(html) !== classeActuelle)) {
         e.detail.shouldSwap = false;
         window.location.href = adresse;
       }
@@ -214,9 +236,28 @@
 
   /* Les rafraîchissements automatiques attendent que l'agent ait fini de
      saisir : utilisé dans hx-trigger="every 10s [pasDeSaisie()]". */
+  function champModifie(champ) {
+    if (champ.type === "hidden" || champ.type === "submit" || champ.type === "button" || champ.disabled) { return false; }
+    if (champ.type === "checkbox" || champ.type === "radio") { return champ.checked !== champ.defaultChecked; }
+    if (champ.tagName === "SELECT") {
+      // Sans option « selected » dans la page, le navigateur choisit la première.
+      var defaut = 0;
+      for (var i = 0; i < champ.options.length; i++) {
+        if (champ.options[i].defaultSelected) { defaut = i; }
+      }
+      return champ.options.length > 0 && champ.selectedIndex !== defaut;
+    }
+    return champ.value !== champ.defaultValue;
+  }
   window.pasDeSaisie = function () {
     var actif = document.activeElement;
     if (actif && actif.matches && actif.matches("input, select, textarea")) { return false; }
+    // Une saisie commencée mais pas encore envoyée (le champ n'a plus le
+    // focus) n'est pas effacée par l'actualisation.
+    var champs = document.querySelectorAll("main input, main select, main textarea");
+    for (var i = 0; i < champs.length; i++) {
+      if (champModifie(champs[i])) { return false; }
+    }
     // Un volet (« Annuler le ticket »…) ouvert par l'agent reste ouvert.
     return !document.querySelector("details[open][data-ouvert-par-agent]");
   };
@@ -241,6 +282,13 @@
   document.addEventListener("DOMContentLoaded", function () {
     initialiserHeure();
     messagesEnToasts(document);
+    try {
+      var enAttente = sessionStorage.getItem("toast-apres-rechargement");
+      if (enAttente) {
+        sessionStorage.removeItem("toast-apres-rechargement");
+        toast(enAttente, "error");
+      }
+    } catch (ignore) {}
     suivreNouveaux(document);
     majDurees();
     setInterval(majDurees, 1000);

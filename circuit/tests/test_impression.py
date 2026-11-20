@@ -61,7 +61,7 @@ def port_ferme():
         return s.getsockname()[1]
 
 
-@override_settings(RESEAU_LOCAL_UNIQUEMENT=True, BORNE_DELAI_MIN_SECONDES=0)
+@override_settings(RESEAU_LOCAL_UNIQUEMENT=True, BORNE_DELAI_MIN_SECONDES=0, IMPRIMANTE_SIMULEE_AUTORISEE=True)
 class ImpressionReseauTests(TestCase):
     def setUp(self):
         self.d = Donnees().construire()

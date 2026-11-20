@@ -170,7 +170,7 @@ def _contexte_guichet(request, service, file):
         # Historique des derniers appels du service (aujourd'hui).
         "derniers_appels": list(
             Appel.objects.filter(service=service, ticket__jour=jour)
-            .select_related("agent")
+            .select_related("agent", "ticket")
             .order_by("-date", "-id")[:8]
         ),
         # Patients qui viendront dans ce service (vus à l'avance).
@@ -183,7 +183,8 @@ def _contexte_guichet(request, service, file):
         contexte["en_cours"] = [e for e in contexte["en_cours"] if e.passage.ticket.mode == Ticket.Mode.AUTRE]
         contexte["absents"] = [p for p in contexte["absents"] if p.ticket.mode == Ticket.Mode.AUTRE]
         contexte["a_venir"] = []
-        contexte["derniers_appels"] = [a for a in contexte["derniers_appels"] if a.numero_ticket.startswith("A")]
+        # Filtre sur le mode du ticket, jamais sur la lettre du numéro.
+        contexte["derniers_appels"] = [a for a in contexte["derniers_appels"] if a.ticket.mode == Ticket.Mode.AUTRE]
 
     if tenue is not None:
         passage = tenue.passage

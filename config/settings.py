@@ -133,6 +133,13 @@ AUTHENTICATION_BACKENDS = ["comptes.backends.AffectationBackend"]
 # Blocage temporaire d'un identifiant après plusieurs échecs de connexion.
 CONNEXION_MAX_ECHECS = int(os.getenv("CONNEXION_MAX_ECHECS", "5"))
 CONNEXION_BLOCAGE_MINUTES = int(os.getenv("CONNEXION_BLOCAGE_MINUTES", "15"))
+# Limite par adresse IP (tous identifiants confondus) sur la même fenêtre.
+CONNEXION_MAX_ECHECS_IP = int(os.getenv("CONNEXION_MAX_ECHECS_IP", "20"))
+
+# Proxys de confiance (Nginx) dont l'en-tête X-Real-IP donne l'adresse du client.
+PROXIES_DE_CONFIANCE = tuple(
+    ip.strip() for ip in os.getenv("DJANGO_PROXIES_CONFIANCE", "").split(",") if ip.strip()
+)
 
 LOGIN_URL = "connexion"
 LOGIN_REDIRECT_URL = "accueil"
@@ -142,6 +149,10 @@ LOGOUT_REDIRECT_URL = "connexion"
 RESEAU_LOCAL_UNIQUEMENT = os.getenv("RESEAU_LOCAL_UNIQUEMENT", "True").lower() == "true"
 # Délai minimal entre deux tickets émis par une même borne (limitation de débit).
 BORNE_DELAI_MIN_SECONDES = float(os.getenv("BORNE_DELAI_MIN_SECONDES", "2"))
+# Imprimante simulée sur ce poste (python manage.py imprimante_simulee) : développement seulement.
+IMPRIMANTE_SIMULEE_AUTORISEE = env_bool("IMPRIMANTE_SIMULEE_AUTORISEE", str(DEBUG))
+# Plafond de tickets par borne sur une heure glissante (protection contre l'inondation).
+BORNE_MAX_TICKETS_PAR_HEURE = int(os.getenv("BORNE_MAX_TICKETS_PAR_HEURE", "150"))
 
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = False

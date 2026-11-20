@@ -264,7 +264,7 @@ def _verifier_capacite(file):
 def file_en_attente(file):
     return (
         EntreeFile.objects.filter(file=file, statut=EntreeFile.Statut.EN_ATTENTE)
-        .select_related("passage", "passage__ticket")
+        .select_related("passage", "passage__ticket", "passage__ticket__parcours")
         .order_by("rang")
     )
 
@@ -424,6 +424,9 @@ def reintegrer(passage, agent):
     Ticket.objects.select_for_update().get(pk=passage.ticket_id)
     if passage.statut != Passage.Statut.ABSENT:
         raise ErreurCircuit("Seul un patient absent peut être réintégré.")
+    if _appel_limite_aux_autres(agent, passage.file):
+        # Administrateurs, responsables, direction : pas de gestion des patients.
+        raise ErreurCircuit(MESSAGE_AUTRES_SEULEMENT)
     deja = passage.entrees.filter(reintegration=True).count()
     if deja >= passage.centre.max_reintegrations:
         raise ErreurCircuit("Nombre maximal de réintégrations atteint pour ce passage.")
