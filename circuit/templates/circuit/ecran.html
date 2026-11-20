@@ -46,15 +46,18 @@
     }
     document.body.addEventListener("htmx:afterSwap", function (e) {
         if (e.target.id !== "zone-appels") return;
+        // Le plus récent des appels en cours est en grand. Seul un appel plus
+        // récent que tous ceux déjà vus est annoncé : quand un service termine,
+        // l'appel en cours suivant reprend la grande zone sans nouvelle annonce.
         const premier = e.target.querySelector("[data-appel]");
-        if (!premier) return;
-        if (dernierId !== null && premier.dataset.appel !== dernierId) {
+        const id = premier ? Number(premier.dataset.appel) : 0;
+        if (dernierId !== null && premier && id > dernierId) {
             // Nouvel appel : animation relancée, carillon et annonce vocale.
             premier.classList.remove("nouveau"); void premier.offsetWidth; premier.classList.add("nouveau");
             carillon();
             if (premier.dataset.annonce === "1") annoncer(premier.dataset.texte);
         }
-        dernierId = premier.dataset.appel;
+        dernierId = dernierId === null ? id : Math.max(dernierId, id);
     });
 })();
 </script>

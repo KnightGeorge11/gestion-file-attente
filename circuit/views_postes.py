@@ -23,12 +23,12 @@ from django.views.decorators.http import require_POST
 
 from centres.access import utilisateur_peut_acceder_centre
 from centres.models import Borne, EcranAffichage
-from core.timeutils import fuseau_horaire_centre
+from core.timeutils import fuseau_horaire_centre, maintenant_centre
 from parcours.models import Parcours
 
 from . import services
 from .impression import contenu_ticket, etat_imprimante_borne, imprimer_ticket, resultat_impression_android
-from .models import Appel, MotifDemande, Ticket
+from .models import Appel, EntreeFile, MotifDemande, Ticket
 from .services import ErreurCircuit
 
 SESSION_BORNE = "borne_id"
@@ -301,33 +301,63 @@ def _centre_ecran(request):
     return None, None
 
 
-def appels_a_afficher(centre, nombre=8):
+def appels_ecran(centre, nombre=8):
     """
-    Appels récents de tous les services affichés sur l'écran principal.
-    Les appels précédents restent affichés ; pour un même ticket, seul le
-    dernier appel est montré (le patient ne doit pas être dirigé vers un
-    service qu'il a déjà quitté).
+    Appels de l'écran principal, en deux groupes : (en_cours, precedents).
+
+    Chaque appel a son propre état, celui du passage du patient dans le
+    service qui l'a appelé (son entrée de file) :
+    - en cours : le service n'a pas encore terminé (patient appelé ou en
+      cours de prise en charge). Les appels en cours de tous les services
+      restent affichés en même temps ; le plus récent est en grand.
+    - précédent : le service a terminé (ou le patient est absent, ou le
+      ticket est annulé ou clôturé). L'appel rejoint « Appels précédents »
+      avec son heure et le nom du service.
+    Terminer un passage ne touche que l'appel de ce passage : les appels des
+    autres services, et le ticket lui-même, ne changent pas. Un même ticket
+    peut donc figurer plusieurs fois dans l'historique (M001 Accueil, puis
+    M001 Infirmerie). Un rappel remplace l'appel précédent du même passage.
+
+    Appel d'un visiteur (mode Autre) : son passage à l'accueil est déjà
+    terminé ; l'appel reste en cours pendant la durée d'affichage du centre.
     """
-    limite = timezone.now() - timedelta(seconds=max(centre.duree_affichage_appel_secondes, 1) * 10)
-    recents = (
-        Appel.objects.filter(
-            centre=centre,
-            mode=Appel.Mode.ECRAN,
-            date__gte=limite,
-            service__afficher_ecran_principal=True,
+    maintenant = timezone.now()
+    duree = timedelta(seconds=max(centre.duree_affichage_appel_secondes, 1))
+    limite_historique = maintenant - duree * 10
+    jour = maintenant_centre(centre).date()
+    candidats = (
+        Appel.objects.filter(centre=centre, mode=Appel.Mode.ECRAN, service__afficher_ecran_principal=True)
+        .filter(
+            Q(date__gte=limite_historique)
+            | Q(ticket__jour=jour, entree__statut__in=EntreeFile.STATUTS_TENUS)
         )
-        .select_related("service")
-        .order_by("-date", "-id")[: nombre * 5]
+        .select_related("service", "entree")
+        .order_by("-date", "-id")[:200]
     )
-    appels, vus = [], set()
-    for appel in recents:
-        if appel.ticket_id in vus:
-            continue
-        vus.add(appel.ticket_id)
-        appels.append(appel)
-        if len(appels) == nombre:
-            break
-    return appels
+    en_cours, precedents, vus = [], [], set()
+    for appel in candidats:
+        entree = appel.entree
+        visiteur = entree.date_fin is not None and appel.date > entree.date_fin
+        cle = (appel.entree_id, visiteur)
+        if cle in vus:
+            continue  # rappel : seul le dernier appel du passage compte
+        vus.add(cle)
+        if visiteur:
+            actif = appel.date >= maintenant - duree
+        else:
+            actif = entree.statut in EntreeFile.STATUTS_TENUS
+        if actif:
+            if len(en_cours) < nombre:
+                en_cours.append(appel)
+        elif appel.date >= limite_historique and len(precedents) < nombre:
+            precedents.append(appel)
+    return en_cours, precedents
+
+
+def appels_a_afficher(centre, nombre=8):
+    """Tous les appels affichés sur l'écran principal : en cours puis précédents."""
+    en_cours, precedents = appels_ecran(centre, nombre)
+    return en_cours + precedents
 
 
 def ecran(request):
@@ -348,13 +378,15 @@ def ecran_appels(request):
     if poste is not None:
         EcranAffichage.objects.filter(pk=poste.pk).update(derniere_activite=timezone.now())
     nombre = poste.nb_appels_affiches if poste else 8
-    appels = appels_a_afficher(centre, nombre)
+    en_cours, precedents = appels_ecran(centre, nombre)
     recents = timezone.now() - timedelta(seconds=centre.duree_affichage_appel_secondes)
     return render(
         request,
         "circuit/_ecran_appels.html",
         {
-            "appels": appels,
+            "en_cours": en_cours,
+            "precedents": precedents,
+            "fuseau": fuseau_horaire_centre(centre),
             "recents": recents,
             "annonce": poste.annonce_vocale if poste else True,
         },

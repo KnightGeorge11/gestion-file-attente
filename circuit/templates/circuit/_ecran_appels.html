@@ -1,8 +1,11 @@
-{% load interface %}
-{# Fragment rafraîchi toutes les 3 s : le dernier appel en grand, les précédents à côté. Aucune information personnelle. #}
-{% if appels %}
-{% with dernier=appels.0 %}
+{% load interface tz %}
+{# Fragment rafraîchi toutes les 3 s. À gauche, les appels en cours (le plus récent en grand) ; à droite, les appels terminés. Aucune information personnelle. #}
+{% if en_cours or precedents %}
+{% timezone fuseau %}
 <div class="ecran-corps">
+    <div class="appels-en-cours{% if en_cours|length > 1 %} plusieurs{% endif %}">
+    {% if en_cours %}
+    {% with dernier=en_cours.0 %}
     <section class="appel-vedette {% if dernier.date >= recents %}nouveau{% endif %}" data-appel="{{ dernier.pk }}"
              data-annonce="{% if annonce %}1{% else %}0{% endif %}"
              data-texte="Ticket {{ dernier.numero_ticket|join:' ' }}, {{ dernier.nom_service }}{% if dernier.poste %}, {{ dernier.poste }}{% endif %}">
@@ -11,14 +14,34 @@
         <div class="destination">{% icone dernier.service|icone_service %}{{ dernier.nom_service }}</div>
         {% if dernier.poste %}<div class="poste">{{ dernier.poste }}</div>{% endif %}
     </section>
+    {% endwith %}
+    {% if en_cours|length > 1 %}
+    <div class="ecran-appels autres-appels-en-cours">
+        {% for appel in en_cours|slice:"1:" %}
+        <div class="ecran-appel en-cours {% if appel.date >= recents %}nouveau{% endif %}" data-appel-en-cours="{{ appel.pk }}">
+            <span class="num">{{ appel.numero_ticket }}</span>
+            <span class="service">{% icone appel.service|icone_service %}{{ appel.nom_service }}</span>
+            <span class="poste">{{ appel.poste }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% else %}
+    <section class="appel-vedette attente">
+        <div class="invitation">Ticket appelé</div>
+        <div class="destination">En attente du prochain appel…</div>
+    </section>
+    {% endif %}
+    </div>
     <section class="historique-appels">
         <h2>Appels précédents</h2>
         <div class="ecran-appels">
-        {% for appel in appels|slice:"1:" %}
-            <div class="ecran-appel {% if appel.date >= recents %}nouveau{% endif %}">
+        {% for appel in precedents %}
+            <div class="ecran-appel" data-appel-precedent="{{ appel.pk }}">
                 <span class="num">{{ appel.numero_ticket }}</span>
                 <span class="service">{% icone appel.service|icone_service %}{{ appel.nom_service }}</span>
                 <span class="poste">{{ appel.poste }}</span>
+                <span class="heure">{{ appel.date|time:"H:i" }}</span>
             </div>
         {% empty %}
             <div class="ecran-appel" style="opacity:.5"><span class="service">Les appels précédents s'afficheront ici.</span></div>
@@ -26,7 +49,7 @@
         </div>
     </section>
 </div>
-{% endwith %}
+{% endtimezone %}
 {% else %}
 <div class="ecran-vide">
     <div>{% icone "ecran" %}<p>En attente des appels…</p><small>Votre numéro s'affichera ici dès qu'un service vous appellera.</small></div>

@@ -520,7 +520,16 @@ class RecetteParcoursInterfacesTests(BaseVues):
 
 
 class EcranPrincipalTests(BaseVues):
-    def test_un_seul_appel_par_ticket_et_appels_des_autres_tickets_conserves(self):
+    @staticmethod
+    def _ecran(centre):
+        from circuit.views_postes import appels_ecran
+
+        en_cours, precedents = appels_ecran(centre)
+        return ([(a.numero_ticket, a.nom_service) for a in en_cours],
+                [(a.numero_ticket, a.nom_service) for a in precedents])
+
+    def test_appels_des_autres_tickets_conserves_et_passage_termine_en_historique(self):
+        """Décision du 20/11/2026 : chaque appel a son propre état (celui de son passage)."""
         from circuit.views_postes import appels_a_afficher
 
         infirmier = self.d.agent("inf_e", "Infirmerie", ["INF"])
@@ -532,8 +541,125 @@ class EcranPrincipalTests(BaseVues):
         services.appeler(self.d.file("INF"), infirmier, poste="Salle 2")
         accueil2 = self.d.agent("acc_e", "Accueil", ["ACC"])
         services.appeler(self.d.file("ACC"), accueil2, poste="Guichet 2")
+        self.assertEqual(self._ecran(self.d.centre), (
+            [("D001", "Accueil"), ("I001", "Infirmerie")],   # en cours, le plus récent d'abord
+            [("I001", "Accueil")],                            # passage à l'accueil terminé
+        ))
         affiches = [(a.numero_ticket, a.nom_service) for a in appels_a_afficher(self.d.centre)]
-        self.assertEqual(affiches, [("D001", "Accueil"), ("I001", "Infirmerie")])
+        self.assertEqual(affiches, [("D001", "Accueil"), ("I001", "Infirmerie"), ("I001", "Accueil")])
+
+    def test_parcours_complet_m001_accueil_puis_infirmerie(self):
+        infirmier = self.d.agent("inf_e", "Infirmerie", ["INF"])
+        ticket = self.d.ticket("M")
+        # 1. L'accueil appelle M001 : grande zone, destination Accueil.
+        services.appeler(self.d.file("ACC"), self.accueil, poste="Guichet 1")
+        self.assertEqual(self._ecran(self.d.centre), ([("M001", "Accueil")], []))
+        services.prendre_en_charge(self.d.entree(ticket), self.accueil)
+        self.assertEqual(self._ecran(self.d.centre), ([("M001", "Accueil")], []))
+        # 2. L'accueil termine : l'appel rejoint l'historique ; le ticket reste ouvert.
+        services.terminer(self.d.entree(ticket), self.accueil)
+        self.assertEqual(self._ecran(self.d.centre), ([], [("M001", "Accueil")]))
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.statut, Ticket.Statut.EN_COURS)
+        # 3. L'infirmerie appelle M001 : il réapparaît en grand, destination Infirmerie.
+        services.appeler(self.d.file("INF"), infirmier, poste="Salle 2")
+        self.assertEqual(self._ecran(self.d.centre), ([("M001", "Infirmerie")], [("M001", "Accueil")]))
+        # 4. L'infirmerie termine : son appel rejoint aussi l'historique.
+        services.prendre_en_charge(self.d.entree(ticket), infirmier)
+        services.terminer(self.d.entree(ticket), infirmier)
+        self.assertEqual(self._ecran(self.d.centre),
+                         ([], [("M001", "Infirmerie"), ("M001", "Accueil")]))
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.statut, Ticket.Statut.EN_COURS)   # le patient va aux médecins
+        self.assertEqual(self.d.entree(ticket).file.service.code, "MED")
+
+    def test_un_service_qui_termine_n_efface_pas_les_appels_des_autres(self):
+        infirmier = self.d.agent("inf_e", "Infirmerie", ["INF"])
+        accueil2 = self.d.agent("acc_e", "Accueil", ["ACC"])
+        m1 = self.d.ticket("M")
+        self.d.accueillir(m1, self.accueil)                    # M001 attend à l'infirmerie
+        m2 = self.d.ticket("M")
+        i1 = self.d.ticket("I")
+        services.appeler(self.d.file("INF"), infirmier, poste="Salle 2")
+        services.appeler(self.d.file("ACC"), self.accueil, poste="Guichet 1")
+        services.appeler(self.d.file("ACC"), accueil2, poste="Guichet 2")
+        self.assertEqual(self._ecran(self.d.centre)[0],
+                         [("I001", "Accueil"), ("M002", "Accueil"), ("M001", "Infirmerie")])
+        # L'accueil termine M002 : les autres appels restent en cours.
+        services.prendre_en_charge(self.d.entree(m2), self.accueil)
+        services.terminer(self.d.entree(m2), self.accueil)
+        en_cours, precedents = self._ecran(self.d.centre)
+        self.assertEqual(en_cours, [("I001", "Accueil"), ("M001", "Infirmerie")])
+        self.assertIn(("M002", "Accueil"), precedents)
+        for ticket in (m1, i1):
+            ticket.refresh_from_db()
+            self.assertTrue(ticket.ouvert)
+
+    def test_un_rappel_remplace_l_appel_du_meme_passage(self):
+        file = self.d.file("ACC")
+        file.delai_entre_appels_secondes = 0
+        file.save()
+        ticket = self.d.ticket("M")
+        services.appeler(file, self.accueil, poste="Guichet 1")
+        services.rappeler(self.d.entree(ticket), self.accueil)
+        self.assertEqual(Appel.objects.filter(ticket=ticket).count(), 2)
+        self.assertEqual(self._ecran(self.d.centre), ([("M001", "Accueil")], []))
+
+    def test_patient_absent_passe_dans_l_historique(self):
+        file = self.d.file("ACC")
+        file.delai_entre_appels_secondes = 0
+        file.save()
+        ticket = self.d.ticket("M")
+        services.appeler(file, self.accueil)
+        for _ in range(file.nb_appels_avant_absence - 1):
+            services.rappeler(self.d.entree(ticket), self.accueil)
+        services.marquer_absent(EntreeFile.objects.get(passage__ticket=ticket), self.accueil)
+        self.assertEqual(self._ecran(self.d.centre), ([], [("M001", "Accueil")]))
+
+    def test_affichage_html_appels_en_cours_et_historique_avec_heure(self):
+        from zoneinfo import ZoneInfo
+
+        from django.utils import timezone as tz
+
+        infirmier = self.d.agent("inf_e", "Infirmerie", ["INF"])
+        ticket = self.d.ticket("M")
+        services.appeler(self.d.file("ACC"), self.accueil, poste="Guichet 1")
+        services.prendre_en_charge(self.d.entree(ticket), self.accueil)
+        services.terminer(self.d.entree(ticket), self.accueil)
+        appel_infirmerie = services.appeler(self.d.file("INF"), infirmier, poste="Salle 2")
+        appel_accueil = Appel.objects.get(service__code="ACC")
+        self.connecter(self.accueil, self.d.centre)
+        html = self.client.get(reverse("circuit:ecran_appels")).content.decode()
+        vedette, historique = html.split('class="historique-appels"')
+        self.assertIn(f'data-appel="{appel_infirmerie.pk}"', vedette)
+        self.assertIn("Infirmerie", vedette)
+        self.assertIn("Salle 2", vedette)
+        self.assertNotIn("Guichet 1", vedette)
+        self.assertIn(f'data-appel-precedent="{appel_accueil.pk}"', historique)
+        self.assertIn("Guichet 1", historique)
+        heure = tz.localtime(appel_accueil.date, ZoneInfo(self.d.centre.fuseau_horaire)).strftime("%H:%M")
+        self.assertIn(f'<span class="heure">{heure}</span>', historique)
+        # Plus aucun appel en cours : la grande zone attend le prochain appel, l'historique reste.
+        services.prendre_en_charge(self.d.entree(ticket), infirmier)
+        services.terminer(self.d.entree(ticket), infirmier)
+        html = self.client.get(reverse("circuit:ecran_appels")).content.decode()
+        self.assertIn("En attente du prochain appel", html)
+        self.assertNotIn('data-appel="', html)
+        self.assertIn(f'data-appel-precedent="{appel_infirmerie.pk}"', html)
+        self.assertIn(f'data-appel-precedent="{appel_accueil.pk}"', html)
+
+    def test_plusieurs_appels_simultanes_affiches(self):
+        infirmier = self.d.agent("inf_e", "Infirmerie", ["INF"])
+        m1 = self.d.ticket("M")
+        self.d.accueillir(m1, self.accueil)
+        self.d.ticket("D")
+        appel_inf = services.appeler(self.d.file("INF"), infirmier, poste="Salle 2")
+        appel_acc = services.appeler(self.d.file("ACC"), self.accueil, poste="Guichet 1")
+        self.connecter(self.accueil, self.d.centre)
+        html = self.client.get(reverse("circuit:ecran_appels")).content.decode()
+        en_cours = html.split('class="historique-appels"')[0]
+        self.assertIn(f'data-appel="{appel_acc.pk}"', en_cours)            # le plus récent en grand
+        self.assertIn(f'data-appel-en-cours="{appel_inf.pk}"', en_cours)   # l'autre reste visible
 
 
 class CorrectionsAmeliorationsTests(BaseVues):
