@@ -675,8 +675,8 @@ class VisibiliteParServiceTests(BaseVues):
         self.assertContains(reponse, self.m_infirmerie.numero)
         self.assertIn(self.m_infirmerie, self._visibles(self.medecin))
 
-    def test_infirmerie_du_parcours_m_sans_option_pharmacie(self):
-        """Décision du 18/11/2026 : le patient M va toujours chez les médecins après l'infirmerie."""
+    def test_infirmerie_du_parcours_m_option_pharmacie_avec_motif(self):
+        """Décision du 20/11/2026 : la pharmacie est possible depuis tout service de soins."""
         self.connecter(self.infirmier, self.d.centre)
         inf = self.d.svc["INF"].pk
         with a_heure(LUNDI_MATIN):
@@ -685,7 +685,10 @@ class VisibiliteParServiceTests(BaseVues):
             self.client.post(reverse("circuit:guichet_action", args=[inf, "prendre"]), {"entree": entree.pk})
             page = self.client.get(reverse("circuit:guichet", args=[inf]))
         self.assertContains(page, "Terminer et orienter vers Médecins")
-        self.assertNotContains(page, "Transférer à la pharmacie")
+        self.assertContains(page, "Transférer à la pharmacie")
+        self.assertContains(page, "Motif (obligatoire)")
+        self.assertContains(page, "étapes restantes du parcours ne seront pas réalisées")
+        # Tant qu'il n'est pas transféré, la pharmacie ne voit pas le patient.
         self.assertNotIn(self.m_infirmerie, self._visibles(self.pharma))
 
     def test_ticket_annule_avant_d_arriver_n_est_plus_visible(self):

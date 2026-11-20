@@ -524,18 +524,16 @@ def service_pharmacie(centre):
 
 def peut_transferer_pharmacie(passage):
     """
-    Le service de soins qui termine le parcours peut décider d'envoyer le
-    patient à la pharmacie. Décision du 18/11/2026 : depuis une étape
-    intermédiaire (ex. infirmerie du parcours M), « Terminer » envoie
-    toujours le patient au service suivant choisi au départ : pas de
-    transfert vers la pharmacie avant la fin du parcours.
+    Tout service de soins peut décider explicitement d'envoyer le patient à
+    la pharmacie (décision du 20/11/2026), y compris depuis une étape
+    intermédiaire (ex. infirmerie du parcours M) : un motif est alors
+    obligatoire et les étapes restantes ne sont pas réalisées. Jamais depuis
+    l'accueil (décision du 18/11/2026) ni pour un ticket « Autre ».
     """
     service = passage.service
     if service.est_accueil or service.est_pharmacie:
         return False
     if passage.ticket.est_autre:
-        return False
-    if etape_suivante(passage.ticket, passage) is not None:
         return False
     return service_pharmacie(passage.centre) is not None
 
@@ -553,9 +551,10 @@ def terminer(entree, agent, transferer_pharmacie=False, motif="", derogation=Fal
 
     - Sans transfert : le patient passe à l'étape suivante du parcours,
       sinon le ticket se termine.
-    - Avec transfert (décision explicite du service qui termine le
-      parcours) : un passage pharmacie est créé ; le ticket se termine
-      après la pharmacie.
+    - Avec transfert (décision explicite du service) : un passage pharmacie
+      est créé ; le ticket se termine après la pharmacie. Depuis une étape
+      intermédiaire, un motif est obligatoire et les étapes restantes ne
+      sont pas réalisées (décision du 20/11/2026).
     """
     entree = _verrouiller_entree(entree.pk)
     if entree.statut != EntreeFile.Statut.EN_COURS or entree.agent_id != agent.pk:
@@ -591,12 +590,12 @@ def terminer(entree, agent, transferer_pharmacie=False, motif="", derogation=Fal
 
     if transferer_pharmacie:
         if not peut_transferer_pharmacie(passage):
-            if suivante is not None:
-                raise ErreurCircuit(
-                    f"Le patient doit d'abord passer par {suivante.service.nom} : "
-                    "la pharmacie est proposée à la fin du parcours."
-                )
             raise ErreurCircuit("Le transfert vers la pharmacie n'est pas possible depuis ce service.")
+        if suivante is not None and not motif:
+            raise ErreurCircuit(
+                f"Transfert avant {suivante.service.nom} : indiquez un motif "
+                "(les étapes restantes du parcours ne seront pas réalisées)."
+            )
 
     maintenant = timezone.now()
     entree.statut = EntreeFile.Statut.TERMINE

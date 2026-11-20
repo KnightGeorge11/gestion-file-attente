@@ -157,21 +157,32 @@ class ParcoursCompletsTests(BaseCircuit):
         self.assertFalse(Passage.objects.filter(service__est_pharmacie=True).exists())
         self.assertFalse(Ticket.objects.filter(statut__in=Ticket.STATUTS_OUVERTS).exists())
 
-    def test_pas_de_pharmacie_depuis_une_etape_intermediaire(self):
-        """Décision du 18/11/2026 : « Terminer » envoie toujours au service suivant choisi au départ."""
+    def test_pharmacie_depuis_une_etape_intermediaire_avec_motif(self):
+        """Décision du 20/11/2026 : la pharmacie est possible depuis tout service de soins."""
         ticket = self.d.ticket("M")
         self.d.accueillir(ticket, self.accueil)
+        # Sans motif : refusé, rien n'est modifié (tout ou rien).
         with self.assertRaises(ErreurCircuit) as erreur:
-            self.d.traiter(ticket, "INF", self.infirmier, transferer=True, motif="Renouvellement")
-        self.assertIn("Médecins", " ".join(erreur.exception.messages))
-        # Rien n'a été modifié (tout ou rien) ; l'infirmerie ne voit pas l'option.
+            self.d.traiter(ticket, "INF", self.infirmier, transferer=True)
+        self.assertIn("motif", " ".join(erreur.exception.messages))
         entree = self.d.entree(ticket)
         self.assertEqual(entree.statut, EntreeFile.Statut.EN_COURS)
-        self.assertFalse(services.peut_transferer_pharmacie(entree.passage))
-        suite = services.terminer(entree, self.infirmier)
-        self.assertEqual(suite.service.code, "MED")
-        self.assertFalse(Transfert.objects.exists())
-        # À la fin du parcours (médecin), la pharmacie redevient possible.
+        self.assertTrue(services.peut_transferer_pharmacie(entree.passage))
+        # Avec motif : pharmacie, le médecin n'est pas vu.
+        suite = services.terminer(entree, self.infirmier, transferer_pharmacie=True, motif="Renouvellement")
+        self.assertTrue(suite.service.est_pharmacie)
+        transfert = Transfert.objects.get()
+        self.assertEqual((transfert.passage_origine.service.code, transfert.motif), ("INF", "Renouvellement"))
+        self.assertFalse(ticket.passages.filter(service__code="MED").exists())
+        services.prendre_en_charge(self.d.entree(ticket), self.pharma, oral=True)
+        self.assertIsNone(services.terminer(self.d.entree(ticket), self.pharma))
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.statut, Ticket.Statut.TERMINE)
+
+    def test_pharmacie_en_fin_de_parcours_sans_motif(self):
+        ticket = self.d.ticket("M")
+        self.d.accueillir(ticket, self.accueil)
+        self.d.traiter(ticket, "INF", self.infirmier)
         self.d.traiter(ticket, "MED", self.medecin, transferer=True)
         self.assertEqual(Transfert.objects.get().passage_origine.service.code, "MED")
 

@@ -69,7 +69,7 @@ Tous les comptes de test ont le mot de passe **1234** :
 1. Borne : *Interne* → *Médecin* → écran de confirmation → **Prendre mon ticket** → ticket **M00x**. En bas de la borne, l'état de l'imprimante est affiché.
 2. Accueil : le ticket apparaît en quelques secondes (surligné), les chiffres du jour se mettent à jour → **Appeler le suivant** (montrer l'écran TV) → **Prendre en charge** → **Valider le ticket et orienter vers Infirmerie**.
 3. Montrer, avec `medecin1`, que le médecin voit déjà ce ticket dans **« À venir »**.
-4. Infirmerie (`infirmier1`) : appeler → prendre en charge → **Terminer et orienter vers Médecins** (pas de pharmacie à cette étape).
+4. Infirmerie (`infirmier1`) : appeler → prendre en charge → **Terminer et orienter vers Médecins**. (L'infirmerie peut aussi envoyer à la pharmacie, avec un motif obligatoire : le patient ne verra alors pas le médecin.)
 5. Médecin (`medecin1`) : appeler → prendre en charge → ouvrir **« Transférer à la pharmacie »** → terminer.
 6. Pharmacie (`pharmacie1`) : **Appel oral** (prise en charge directe) → Terminer. Le ticket est fini.
 7. Ouvrir l'**historique** du ticket (lien « historique ») : attente et durée de chaque étape.
