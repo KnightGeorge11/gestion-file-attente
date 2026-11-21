@@ -397,3 +397,14 @@ class RechargementDesEcransTests(BaseVues):
         self.assertContains(page, f'!== "{VERSION_ECRANS}"')
         fragment = self.client.get(reverse("circuit:ecran_salle_appels", args=["TAM"]))
         self.assertContains(fragment, f'data-version-ecrans="{VERSION_ECRANS}"')
+
+
+    def test_une_page_d_ecran_perimee_est_rechargee_par_le_serveur(self):
+        from circuit.views_postes import VERSION_ECRANS
+
+        url = reverse("circuit:ecran_salle_appels", args=["TAM"])
+        ancienne = self.client.get(url, HTTP_HX_REQUEST="true")                      # page d'avant la mise à jour
+        self.assertEqual(ancienne["HX-Redirect"], reverse("circuit:ecran_salle", args=["TAM"]))
+        a_jour = self.client.get(url, {"v": VERSION_ECRANS}, HTTP_HX_REQUEST="true")
+        self.assertNotIn("HX-Redirect", a_jour)
+        self.assertContains(self.client.get(reverse("circuit:ecran_salle", args=["TAM"])), f"?v={VERSION_ECRANS}")

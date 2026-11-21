@@ -501,15 +501,31 @@ def ecran_salle(request, code_centre):
     })
 
 
+def _page_perimee(request, page):
+    """
+    Page d'écran ouverte avant la dernière mise à jour du serveur (elle n'envoie
+    pas la version actuelle) : on lui demande de se recharger. htmx suit
+    l'en-tête HX-Redirect, y compris dans les anciennes pages.
+    """
+    if request.GET.get("v") == VERSION_ECRANS or not request.headers.get("HX-Request"):
+        return None   # page à jour, ou demande hors d'une page d'écran (htmx)
+    reponse = HttpResponse(status=200)
+    reponse["HX-Redirect"] = page
+    return reponse
+
+
 def ecran_salle_appels(request, code_centre):
-    return _appels_de_l_ecran(request, _centre_de_la_salle(request, code_centre), None)
+    centre = _centre_de_la_salle(request, code_centre)
+    perimee = _page_perimee(request, reverse("circuit:ecran_salle", args=[centre.code]))
+    return perimee or _appels_de_l_ecran(request, centre, None)
 
 
 def ecran_appels(request):
     centre, poste = _centre_ecran(request)
     if centre is None:
         return HttpResponse(status=403)
-    return _appels_de_l_ecran(request, centre, poste)
+    perimee = _page_perimee(request, reverse("circuit:ecran"))
+    return perimee or _appels_de_l_ecran(request, centre, poste)
 
 
 def _noter_ecran_connecte(request, centre):
@@ -665,7 +681,7 @@ def ecran_tv_appels(request):
     appareil = _appareil_tv(request)
     if appareil is None or not appareil.centre_id or not appareil.centre.actif:
         return _vers_tv()
-    return _appels_de_l_ecran(request, appareil.centre, None)
+    return _page_perimee(request, reverse("ecran_tv")) or _appels_de_l_ecran(request, appareil.centre, None)
 
 
 
