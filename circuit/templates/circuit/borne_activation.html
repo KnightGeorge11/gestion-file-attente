@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% load interface %}
+{% block titre %}Activer la borne{% endblock %}
+{% block classe_body %}page-pleine{% endblock %}
+{% block barre %}{% endblock %}
+{% block boost %}{% endblock %}
+{% block contenu %}
+<div class="ecran-connexion">
+    <section class="vitrine">
+        <div class="marque"><span class="logo">F</span><span class="titre">Files d'attente<small>SMIE FUNTOA</small></span></div>
+        <div>
+            <h2>Activer la borne</h2>
+            <p>Un administrateur l'active une seule fois sur cet appareil, sans clé. Ensuite, la borne reste activée : elle ne se déconnecte plus.</p>
+        </div>
+        <div class="bas">Réseau local uniquement</div>
+    </section>
+    <section class="formulaire">
+        <div class="carte">
+            <h1>Activation du poste</h1>
+            {% if erreur %}<ul class="messages"><li class="error">{{ erreur }}</li></ul>{% endif %}
+            {% if bornes %}
+            <p class="discret">Choisissez la borne installée ici. Vous serez ensuite déconnecté de cet appareil ; la borne, elle, reste activée.</p>
+            <form method="post">
+                {% csrf_token %}
+                <label for="poste-borne">Borne</label>
+                <div class="champ-icone">{% icone "ecran" %}<select id="poste-borne" name="borne" required>
+                    {% for b in bornes %}<option value="{{ b.pk }}">{{ b.libelle }} ({{ b.code }}) · {{ b.centre.nom }}</option>{% endfor %}
+                </select></div>
+                <p style="margin-top:22px"><button class="principal grand large">Activer cette borne</button></p>
+            </form>
+            {% elif connecte %}
+            <p class="discret">Votre compte n'administre aucune borne active. Créez la borne dans l'administration (Bornes), ou connectez-vous avec un compte administrateur.</p>
+            {% else %}
+            <p class="discret">Cette borne n'est pas encore activée. Un administrateur (de la plateforme ou du centre) doit se connecter une fois sur cet appareil.</p>
+            <p style="margin-top:22px"><a class="bouton principal grand large" href="{{ connexion }}">{% icone "cle" %}Connexion administrateur</a></p>
+            {% endif %}
+        </div>
+    </section>
+</div>
+{% endblock %}

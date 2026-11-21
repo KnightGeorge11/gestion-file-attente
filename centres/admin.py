@@ -192,7 +192,19 @@ class BorneAdmin(CentreAdminMixin, admin.ModelAdmin):
         "date_creation",
     )
 
-    actions = ("activer", "desactiver", "regenerer_cle")
+    # Services proposés par la borne (décision du 21/11/2026).
+    filter_horizontal = ("parcours",)
+
+    # Plus de clé (décision du 21/11/2026) : la borne est activée sur son
+    # appareil par un administrateur connecté (page …/circuit/borne/).
+    actions = ("activer", "desactiver")
+
+    def get_readonly_fields(self, request, obj=None):
+        champs = super().get_readonly_fields(request, obj)
+        if not est_administrateur_central(request.user):
+            # Seul l'administrateur de la plateforme choisit les services des bornes.
+            champs = (*champs, "parcours")
+        return champs
 
     # -- Activer / désactiver en un clic -----------------------------------
 
@@ -255,31 +267,34 @@ class BorneAdmin(CentreAdminMixin, admin.ModelAdmin):
         self.message_user(request, f"{nombre} borne(s) désactivée(s).", messages.SUCCESS)
 
     def save_model(self, request, obj, form, change):
-        cle = None
-
-        if not change:
-            cle = obj.generer_cle()
-
         super().save_model(request, obj, form, change)
-
-        if cle:
-            messages.warning(
+        if not change:
+            messages.info(
                 request,
-                f"Clé de la borne {obj.code} : {cle} — "
-                "notez-la maintenant, elle ne sera plus affichée.",
+                f"Borne {obj.code} créée. Pour l'activer, connectez-vous une fois avec un compte "
+                "administrateur sur l'appareil de la borne, page …/circuit/borne/, puis choisissez-la.",
             )
 
-    @admin.action(description="Régénérer la clé des bornes sélectionnées", permissions=["change"])
-    def regenerer_cle(self, request, queryset):
-        for borne in queryset:
-            cle = borne.generer_cle()
-            borne.save(update_fields=["cle_hash"])
 
-            messages.warning(
-                request,
-                f"Nouvelle clé de la borne {borne.code} : {cle} — "
-                "notez-la maintenant, elle ne sera plus affichée.",
-            )
+def _sauver_ecran_avec_cle(self, request, obj, form, change):
+    """Écran de TV à clé (ancien mode) : la clé est affichée une seule fois."""
+    cle = obj.generer_cle() if not change else None
+    admin.ModelAdmin.save_model(self, request, obj, form, change)
+    if cle:
+        messages.warning(
+            request,
+            f"Clé de l'écran {obj.code} : {cle} — notez-la maintenant, elle ne sera plus affichée.",
+        )
+
+
+def _regenerer_cle_ecrans(self, request, queryset):
+    for ecran in queryset:
+        cle = ecran.generer_cle()
+        ecran.save(update_fields=["cle_hash"])
+        messages.warning(
+            request,
+            f"Nouvelle clé de l'écran {ecran.code} : {cle} — notez-la maintenant, elle ne sera plus affichée.",
+        )
 
 
 @admin.register(EcranAffichage)
@@ -289,11 +304,11 @@ class EcranAffichageAdmin(CentreAdminMixin, admin.ModelAdmin):
     readonly_fields = ("derniere_activite", "date_creation")
     actions = ("regenerer_cle",)
 
-    save_model = BorneAdmin.save_model
+    save_model = _sauver_ecran_avec_cle
 
     @admin.action(description="Régénérer la clé des écrans sélectionnés", permissions=["change"])
     def regenerer_cle(self, request, queryset):
-        BorneAdmin.regenerer_cle(self, request, queryset)
+        _regenerer_cle_ecrans(self, request, queryset)
 
 
 @admin.register(ImprimanteTicket)

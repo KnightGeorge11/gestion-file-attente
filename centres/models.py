@@ -47,8 +47,25 @@ class Centre(models.Model):
     heure_cloture_tickets = models.TimeField(
         null=True,
         blank=True,
-        default=datetime.time(20, 0),
-        help_text="Heure de clôture des tickets restés ouverts (20 h 00, décision du 18/11/2026).",
+        default=datetime.time(23, 59),
+        help_text=(
+            "Heure de clôture des tickets restés ouverts et de remise à zéro des numéros "
+            "(23 h 59, décision du 21/11/2026)."
+        ),
+    )
+
+    # Décision du 21/11/2026 : la borne est à l'accueil et c'est l'accueil qui
+    # délivre les tickets. Le patient va directement au premier service de
+    # son parcours : il n'y a plus de file d'attente à l'accueil pour les
+    # soins (les demandes « Autre » y restent orientées).
+    accueil_delivre_tickets = models.BooleanField(
+        default=True,
+        db_default=True,
+        verbose_name="L'accueil délivre les tickets",
+        help_text=(
+            "Coché : la borne est tenue par l'accueil, le patient va directement au service "
+            "choisi. Décoché : borne en libre-service, puis passage par la file de l'accueil."
+        ),
     )
 
     max_reintegrations = models.PositiveSmallIntegerField(
@@ -468,9 +485,13 @@ class Borne(ModeleCentre):
     code = models.CharField(max_length=30)
     libelle = models.CharField(max_length=100)
 
+    # Plus utilisée pour les bornes (décision du 21/11/2026 : activation par
+    # un administrateur, sans clé). Conservée en base pour ne pas casser la
+    # copie du projet qui partage la même base.
     cle_hash = models.CharField(
         max_length=128,
         editable=False,
+        default="!",
     )
 
     imprimante = models.ForeignKey(
@@ -480,6 +501,17 @@ class Borne(ModeleCentre):
         blank=True,
         related_name="bornes",
         help_text="Imprimante réseau de cette borne. Vide : impression par le navigateur.",
+    )
+
+    # Services proposés par cette borne (décision du 21/11/2026), choisis par
+    # l'administrateur de la plateforme. Aucun coché : tous les services
+    # visibles du centre.
+    parcours = models.ManyToManyField(
+        "parcours.Parcours",
+        blank=True,
+        related_name="bornes",
+        verbose_name="Services proposés",
+        help_text="Services affichés sur cette borne. Aucun : tous les services visibles du centre.",
     )
 
     actif = models.BooleanField(default=True)
@@ -516,6 +548,15 @@ class Borne(ModeleCentre):
         super().clean()
         if self.imprimante_id and self.centre_id and self.imprimante.centre_id != self.centre_id:
             raise ValidationError({"imprimante": "L'imprimante doit appartenir au même centre que la borne."})
+
+    def parcours_proposes(self):
+        """Parcours affichés sur cette borne (tous ceux du centre si aucun n'est choisi)."""
+        from parcours.models import Parcours
+
+        tous = Parcours.objects.filter(centre_id=self.centre_id, actif=True, visible_borne=True)
+        if self.pk and self.parcours.exists():
+            return tous.filter(pk__in=self.parcours.values("pk"))
+        return tous
 
     def __str__(self):
         return f"{self.libelle} ({self.centre.code})"

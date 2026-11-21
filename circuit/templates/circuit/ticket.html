@@ -29,14 +29,16 @@
     <div class="carte-entete"><h2><span class="titre-icone">{% icone "transfert" %}</span>Passages</h2></div>
     <div class="tableau-defilant">
     <table>
-        <thead><tr><th>Service</th><th>Arrivée</th><th>Attente</th><th>Prise en charge</th><th>Statut</th></tr></thead>
+        <thead><tr><th>Service</th><th>Arrivée</th><th>Attente</th><th>Prise en charge</th><th>Durée du passage</th><th>Statut</th></tr></thead>
         <tbody>
         {% for p in passages %}
         <tr>
             <td><strong>{{ p.nom_service }}</strong>{% if p.origine == "TRANSFERT" %} <span class="etiquette info">transfert</span>{% endif %}<br><span class="discret">{{ p.pris_en_charge_par|default:"" }}</span></td>
             <td>{{ p.date_arrivee|time:"H:i:s" }}</td>
-            <td>{{ p.duree_attente|duree }}</td>
-            <td>{{ p.duree_prise_en_charge|duree }}</td>
+            {# Passage en cours : durées en direct (heure du serveur). #}
+            <td>{% if p.date_debut %}{{ p.duree_attente|duree }}{% elif not p.date_fin and p.statut == 'EN_ATTENTE' or not p.date_fin and p.statut == 'APPELE' %}<span data-depuis="{{ p.date_arrivee|date:'c' }}" data-format="chrono">—</span>{% else %}—{% endif %}</td>
+            <td>{% if p.date_debut and not p.date_fin %}<span data-depuis="{{ p.date_debut|date:'c' }}" data-format="chrono">—</span>{% else %}{{ p.duree_prise_en_charge|duree }}{% endif %}</td>
+            <td><strong>{% if p.date_fin %}{{ p.duree_passage|duree }}{% elif p.statut == 'ABSENT' %}—{% else %}<span data-depuis="{{ p.date_arrivee|date:'c' }}" data-format="chrono">—</span>{% endif %}</strong></td>
             <td><span class="etiquette {% if p.statut == 'TERMINE' %}ok{% elif p.statut == 'ABSENT' or p.statut == 'ANNULE' %}alerte{% elif p.statut == 'EN_ATTENTE' %}{% else %}info{% endif %}">{{ p.get_statut_display }}</span></td>
         </tr>
         {% endfor %}

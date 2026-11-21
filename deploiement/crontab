@@ -6,8 +6,8 @@
 SHELL=/bin/bash
 APP=/opt/gestion_file_attente
 
-# Clôture des tickets restés ouverts : juste après 20 h 00, puis une seconde fois la nuit.
-5 20 * * * cd $APP && .venv/bin/python manage.py cloturer_tickets >> /var/log/gfa/cloture.log 2>&1
+# Clôture des tickets restés ouverts à 23 h 59 (les numéros repartent à 001 le lendemain), puis une seconde fois la nuit.
+59 23 * * * cd $APP && .venv/bin/python manage.py cloturer_tickets >> /var/log/gfa/cloture.log 2>&1
 30 2 * * * cd $APP && .venv/bin/python manage.py cloturer_tickets >> /var/log/gfa/cloture.log 2>&1
 
 # Sauvegarde PostgreSQL chaque soir à 22 h, avec copie sur le second support.

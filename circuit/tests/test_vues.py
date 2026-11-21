@@ -14,7 +14,7 @@ from circuit.models import Appel, EntreeFile, Ticket
 from circuit.services import ErreurCircuit
 from comptes.models import AffectationUtilisateur, Utilisateur
 
-from .base import LUNDI_MATIN, Donnees, a_heure
+from .base import activer_borne, LUNDI_MATIN, Donnees, a_heure
 
 
 class BaseVues(TestCase):
@@ -246,9 +246,10 @@ class BorneEcranTests(BaseVues):
     def test_borne_en_libre_service_sans_compte(self):
         url = reverse("circuit:borne")
         self.assertContains(self.client.get(url), "Activer la borne")
-        self.client.post(url, {"centre": "tam", "code": "B1", "cle": "mauvaise"})
-        self.assertNotIn("borne_id", self.client.session)
-        self.client.post(url, {"centre": "tam", "code": "B1", "cle": self.cle})
+        # Décision du 21/11/2026 : sans clé ; seul un administrateur connecté active la borne.
+        self.client.post(url, {"borne": self.borne.pk})
+        self.assertNotIn("borne_poste", self.client.cookies)
+        activer_borne(self.client, self.borne)
         self.assertContains(self.client.get(url), "Médecin")
         reponse = self.client.post(reverse("circuit:borne_emettre"),
                                    {"mode": "INTERNE", "parcours": self.d.parcours["E"].pk})
@@ -260,7 +261,7 @@ class BorneEcranTests(BaseVues):
         self.assertEqual(Ticket.objects.get(mode="AUTRE").demande.motif, self.d.motif)
 
     def test_borne_refuse_un_parcours_d_un_autre_centre(self):
-        self.client.post(reverse("circuit:borne"), {"centre": "TAM", "code": "B1", "cle": self.cle})
+        activer_borne(self.client, Borne.objects.get(centre__code="TAM", code="B1"))
         self.client.post(reverse("circuit:borne_emettre"),
                          {"mode": "INTERNE", "parcours": self.b.parcours["M"].pk})
         self.assertFalse(Ticket.objects.exists())
@@ -268,7 +269,9 @@ class BorneEcranTests(BaseVues):
     def test_borne_fermee_apres_l_heure_de_cloture(self):
         # Audit du 20/11/2026 : après 20 h, un ticket émis serait clôturé dans
         # la minute ; la borne affiche donc « tickets terminés ».
-        self.client.post(reverse("circuit:borne"), {"centre": "TAM", "code": "B1", "cle": self.cle})
+        self.d.centre.heure_cloture_tickets = datetime.time(20, 0)   # heure réglable par centre
+        self.d.centre.save()
+        activer_borne(self.client, Borne.objects.get(centre__code="TAM", code="B1"))
         apres_20h = LUNDI_MATIN.replace(hour=17, minute=5)    # 20:05 heure du centre
         with a_heure(apres_20h):
             self.assertContains(self.client.get(reverse("circuit:borne")), "Tickets terminés pour aujourd")
@@ -459,8 +462,12 @@ class SessionPosteTests(BaseVues):
         borne = Borne(centre=self.d.centre, code="B1", libelle="Borne")
         cle = borne.generer_cle()
         borne.save()
-        self.client.post(reverse("circuit:borne"), {"centre": "TAM", "code": "B1", "cle": cle})
-        self.assertGreater(self.client.session.get_expiry_age(), 300 * 24 * 3600)
+        activer_borne(self.client, Borne.objects.get(centre__code="TAM", code="B1"))
+        self.client.get(reverse("circuit:borne"))
+        # La borne est gardée dans un cookie de 10 ans, indépendant des sessions des agents.
+        from circuit.views_postes import DUREE_COOKIE_BORNE
+        self.assertGreater(DUREE_COOKIE_BORNE, 300 * 24 * 3600)
+        self.assertContains(self.client.get(reverse("circuit:borne")), "Médecin")
         self.assertLessEqual(settings.SESSION_COOKIE_AGE, 24 * 3600)
 
 
@@ -482,7 +489,7 @@ class RecetteParcoursInterfacesTests(BaseVues):
 
     def _emettre(self, prefixe, mode):
         borne_client = self.client_class()
-        borne_client.post(reverse("circuit:borne"), {"centre": "TAM", "code": "B1", "cle": self.cle})
+        activer_borne(borne_client, Borne.objects.get(centre__code="TAM", code="B1"))
         borne_client.post(reverse("circuit:borne_emettre"),
                           {"mode": mode, "parcours": self.d.parcours[prefixe].pk})
         return Ticket.objects.latest("id")
@@ -677,7 +684,7 @@ class CorrectionsAmeliorationsTests(BaseVues):
         borne = Borne(centre=self.d.centre, code="B1", libelle="Borne")
         cle = borne.generer_cle()
         borne.save()
-        self.client.post(reverse("circuit:borne"), {"centre": "TAM", "code": "B1", "cle": cle})
+        activer_borne(self.client, Borne.objects.get(centre__code="TAM", code="B1"))
         donnees = {"mode": "INTERNE", "parcours": self.d.parcours["M"].pk}
         self.client.post(reverse("circuit:borne_emettre"), donnees)
         reponse = self.client.post(reverse("circuit:borne_emettre"), donnees, follow=True)
@@ -932,7 +939,7 @@ class ScenarioTabletteAccueilServiceTests(BaseVues):
 
         # 1. Tablette : mode Externe puis service Échographie.
         tablette = self.client_class()
-        tablette.post(reverse("circuit:borne"), {"centre": "TAM", "code": "TAB", "cle": cle})
+        activer_borne(tablette, Borne.objects.get(centre__code="TAM", code="TAB"))
         accueil_borne = tablette.get(reverse("circuit:borne"))
         self.assertContains(accueil_borne, "Externe")
         self.assertContains(accueil_borne, "Échographie")
@@ -990,7 +997,7 @@ class MotifsAutreTests(BaseVues):
         borne = Borne(centre=self.d.centre, code="B1", libelle="Borne")
         cle = borne.generer_cle()
         borne.save()
-        self.client.post(reverse("circuit:borne"), {"centre": "TAM", "code": "B1", "cle": cle})
+        activer_borne(self.client, Borne.objects.get(centre__code="TAM", code="B1"))
         page = self.client.get(reverse("circuit:borne"))
         self.assertContains(page, "Visite d&#x27;embauche")
         self.assertContains(page, "Entretien")
@@ -1060,7 +1067,7 @@ class ActivationBorneEnUnClicTests(BaseVues):
         self.borne.save()
         self.admin = Utilisateur.objects.create_superuser("admin_b", "", "mot-de-passe-1")
         self.tablette = self.client_class()
-        self.tablette.post(reverse("circuit:borne"), {"centre": "TAM", "code": "B1", "cle": self.cle})
+        activer_borne(self.tablette, Borne.objects.get(centre__code="TAM", code="B1"))
 
     def test_bouton_de_la_liste_et_reprise_sans_cle(self):
         self.client.force_login(self.admin)

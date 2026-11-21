@@ -103,8 +103,14 @@ def emettre_ticket(centre, mode, parcours=None, borne=None, motif=None, precisio
     - Interne / Externe : un parcours visible est obligatoire ; le ticket
       suit la version publiée du parcours.
     - Autre : demande hors parcours de soins ; préfixe « A », une demande
-      est créée et notifiée à l'accueil.
-    Dans tous les cas, le patient passe d'abord par l'accueil.
+      est créée et notifiée à l'accueil, qui l'oriente.
+
+    Centre où l'accueil délivre les tickets (décision du 21/11/2026) : la
+    borne est à l'accueil, le patient y prend son ticket et va directement
+    au premier service de son parcours, sans file d'attente à l'accueil.
+    La place de quota (dentiste) est réservée à ce moment ; quota atteint :
+    pas de ticket (rien n'est enregistré). Sinon (borne libre-service), le
+    patient passe d'abord par la file de l'accueil.
     """
     if mode not in Ticket.Mode.values:
         raise ErreurCircuit("Mode inconnu.")
@@ -156,13 +162,27 @@ def emettre_ticket(centre, mode, parcours=None, borne=None, motif=None, precisio
             centre=centre, ticket=ticket, motif=motif, precision=precision[:500]
         )
 
-    _creer_passage(
-        ticket,
-        accueil,
-        file_accueil,
-        origine=Passage.Origine.PARCOURS,
-        ordre_etape=1 if version else None,
-    )
+    if version is not None and centre.accueil_delivre_tickets:
+        if parcours.soumis_quota:
+            # Refus si le quota est atteint : la transaction est annulée,
+            # aucun ticket ni numéro n'est consommé.
+            _reserver_quota(ticket, None)
+        etape = (
+            version.etapes.select_related("service", "file")
+            .filter(ordre__gt=1).order_by("ordre").first()
+        )
+        if etape is None:
+            raise ErreurCircuit("Ce parcours n'a aucun service après l'accueil.")
+        _creer_passage(ticket, etape.service, etape.file,
+                       origine=Passage.Origine.PARCOURS, ordre_etape=etape.ordre)
+    else:
+        _creer_passage(
+            ticket,
+            accueil,
+            file_accueil,
+            origine=Passage.Origine.PARCOURS,
+            ordre_etape=1 if version else None,
+        )
 
     if borne is not None:
         borne.derniere_activite = maintenant
@@ -894,7 +914,7 @@ def cloture_automatique(centre):
 def cloturer_tickets(centre, avant_jour=None):
     """
     Clôture automatique des tickets restés ouverts (décision du 18/11/2026 :
-    20 h 00, heure réglable par centre).
+    23 h 59 depuis le 21/11/2026, heure réglable par centre).
 
     Sont clôturés : les tickets des jours précédents et, une fois l'heure de
     clôture du centre passée, ceux du jour. Les passages en cours sont

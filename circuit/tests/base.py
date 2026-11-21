@@ -23,7 +23,9 @@ class Donnees:
 
     def construire(self, code="TAM", medecins=2):
         initialiser_roles()
-        centre = Centre.objects.create(code=code, nom=f"Centre {code}")
+        # Circuit historique (borne libre-service + file de l'accueil) : les tests du
+        # circuit « l'accueil délivre les tickets » l'activent explicitement.
+        centre = Centre.objects.create(code=code, nom=f"Centre {code}", accueil_delivre_tickets=False)
         with mock.patch("django.utils.timezone.now", return_value=LUNDI_MATIN - datetime.timedelta(days=30)):
             call_command("initialiser_parcours", code, "--medecins", str(medecins), stdout=StringIO())
         self.centre = centre
@@ -82,3 +84,12 @@ def maintenant_plus(secondes):
         "django.utils.timezone.now",
         return_value=timezone.now() + datetime.timedelta(seconds=secondes),
     )
+
+
+def activer_borne(client, borne):
+    """Active la borne sur ce navigateur de test, comme le fait un administrateur (cookie signé)."""
+    from django.core.signing import get_cookie_signer
+
+    from circuit.views_postes import COOKIE_BORNE, SEL_COOKIE_BORNE
+
+    client.cookies[COOKIE_BORNE] = get_cookie_signer(salt=COOKIE_BORNE + SEL_COOKIE_BORNE).sign(str(borne.pk))

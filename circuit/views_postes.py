@@ -1,10 +1,14 @@
 """
 Postes sans compte utilisateur :
-- la borne libre-service (choix du mode et du service, émission du ticket) ;
+- la borne (choix du mode et du service, émission du ticket) ;
 - l'écran principal (affichage des appels de tous les services).
 
-Chaque poste est identifié par un code et une clé secrète enregistrés en
-session. Accès limité au réseau local. La sécurité n'intervient pas.
+Borne (décision du 21/11/2026) : pas de clé. Un administrateur se connecte
+une fois sur l'appareil et choisit la borne ; l'appareil la garde ensuite
+(cookie signé de 10 ans, indépendant des sessions des agents) : elle ne se
+déconnecte plus. Écran de la salle : ouvert depuis l'ordinateur d'un agent
+sur son second écran (HDMI ou sans fil), sans clé. Accès limité au réseau
+local, jamais par Internet. La sécurité n'intervient pas.
 """
 
 import base64
@@ -13,26 +17,34 @@ from types import SimpleNamespace
 
 from django.conf import settings
 from django.contrib import messages
+from django.contrib.auth import logout
 from django.core.exceptions import PermissionDenied
+from django.core.signing import BadSignature
 from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from centres.access import utilisateur_peut_acceder_centre
-from centres.models import Borne, EcranAffichage
+from centres.models import Borne, Centre, EcranAffichage
+from core.admin import centres_administres
 from core.reseau import est_reseau_local
 from core.timeutils import fuseau_horaire_centre, maintenant_centre
-from parcours.models import Parcours
 
 from . import services
-from .impression import contenu_ticket, etat_imprimante_borne, imprimer_ticket, resultat_impression_android
+from .impression import consigne_ticket, contenu_ticket, etat_imprimante_borne, imprimer_ticket, resultat_impression_android
 from .models import Appel, EntreeFile, MotifDemande, Ticket
 from .services import ErreurCircuit
 
 SESSION_BORNE = "borne_id"
+# Borne : cookie signé, indépendant de la session (une déconnexion d'agent ou
+# d'administrateur sur l'appareil ne désactive pas la borne).
+COOKIE_BORNE = "borne_poste"
+SEL_COOKIE_BORNE = "circuit.borne"
+DUREE_COOKIE_BORNE = 10 * 365 * 24 * 3600
 SESSION_ECRAN = "ecran_id"
 # Une borne ou un écran reste activé (session renouvelée à chaque usage) :
 # le formulaire d'activation ne doit pas réapparaître devant les patients.
@@ -46,10 +58,30 @@ def _reseau_local(request):
     return est_reseau_local(request)
 
 
+def _borne_de_l_appareil(request):
+    """Borne enregistrée sur cet appareil (cookie signé, ou ancienne session à clé)."""
+    try:
+        return int(request.get_signed_cookie(COOKIE_BORNE, salt=SEL_COOKIE_BORNE))
+    except (KeyError, BadSignature, ValueError):
+        pass
+    ancienne = request.session.get(SESSION_BORNE)
+    if ancienne:
+        request._borne_a_memoriser = ancienne   # reportée dans le cookie (borne activée avec une clé)
+    return ancienne
+
+
+def _memoriser_borne(reponse, request, borne_id):
+    reponse.set_signed_cookie(
+        COOKIE_BORNE, str(borne_id), salt=SEL_COOKIE_BORNE, max_age=DUREE_COOKIE_BORNE,
+        httponly=True, samesite="Lax", secure=request.is_secure(),
+    )
+    return reponse
+
+
 def _poste_connecte(request, modele, cle_session):
     if not _reseau_local(request):
         raise PermissionDenied("Accès réservé au réseau local.")
-    poste_id = request.session.get(cle_session)
+    poste_id = _borne_de_l_appareil(request) if modele is Borne else request.session.get(cle_session)
     if not poste_id:
         return None
     poste = modele.objects.select_related("centre").filter(pk=poste_id, actif=True, centre__actif=True).first()
@@ -60,7 +92,7 @@ def _poste_connecte(request, modele, cle_session):
         if not modele.objects.filter(pk=poste_id).exists():
             request.session.pop(cle_session, None)
         return None
-    if request.session.get_expiry_age() < DUREE_SESSION_POSTE // 2:
+    if modele is not Borne and request.session.get_expiry_age() < DUREE_SESSION_POSTE // 2:
         request.session.set_expiry(DUREE_SESSION_POSTE)
     timezone.activate(fuseau_horaire_centre(poste.centre))
     return poste
@@ -94,7 +126,7 @@ def _connexion_poste(request, modele, cle_session, gabarit, titre):
 
 def _borne_desactivee(request):
     """Borne activée sur cet appareil, mais désactivée par l'administrateur."""
-    borne_id = request.session.get(SESSION_BORNE)
+    borne_id = _borne_de_l_appareil(request)
     if not borne_id:
         return None
     return Borne.objects.select_related("centre").filter(pk=borne_id).filter(
@@ -111,6 +143,42 @@ def _borne_fermee_pour_la_journee(request, centre):
     })
 
 
+def _activation_borne(request):
+    """
+    Première mise en service de l'appareil : un administrateur (de la
+    plateforme, ou du centre) connecté sur l'appareil choisit la borne.
+    Aucune clé. L'administrateur est ensuite déconnecté de l'appareil ; la
+    borne, elle, reste activée.
+    """
+    utilisateur = request.user
+    if utilisateur.is_authenticated:
+        centres = centres_administres(utilisateur, Borne)
+    else:
+        centres = Centre.objects.none()
+    bornes = (
+        Borne.objects.filter(centre__in=centres, actif=True, centre__actif=True)
+        .select_related("centre").order_by("centre__nom", "libelle")
+    )
+    erreur = None
+    if request.method == "POST":
+        borne = bornes.filter(pk=request.POST.get("borne") or 0).first()
+        if borne is not None:
+            from audit.journal import journaliser
+            from audit.models import JournalAudit
+
+            journaliser(JournalAudit.Action.MODIFICATION, utilisateur, objet=borne,
+                        details={"appareil": "borne activée sur cet appareil"}, request=request)
+            logout(request)
+            return _memoriser_borne(redirect("circuit:borne"), request, borne.pk)
+        erreur = "Choisissez une borne dans la liste."
+    return render(request, "circuit/borne_activation.html", {
+        "bornes": bornes,
+        "connecte": utilisateur.is_authenticated,
+        "erreur": erreur,
+        "connexion": f"{reverse('connexion')}?next={reverse('circuit:borne')}",
+    })
+
+
 def borne(request):
     poste = _poste_connecte(request, Borne, SESSION_BORNE)
     if poste is None and request.method == "GET":
@@ -120,16 +188,22 @@ def borne(request):
             # dès que l'administrateur réactive la borne.
             return render(request, "circuit/borne_fermee.html", {"centre": fermee.centre})
     if poste is None:
-        reponse = _connexion_poste(request, Borne, SESSION_BORNE, "circuit/poste_connexion.html", "Activer la borne")
-        return reponse or redirect("circuit:borne")
+        return _activation_borne(request)
+    reponse = _page_borne(request, poste)
+    if getattr(request, "_borne_a_memoriser", None):
+        _memoriser_borne(reponse, request, poste.pk)   # borne activée autrefois avec une clé
+    return reponse
 
+
+def _page_borne(request, poste):
     centre = poste.centre
     services.cloture_automatique(centre)
     if services.emission_terminee(centre):
         return _borne_fermee_pour_la_journee(request, centre)
+    # Services choisis pour cette borne par l'administrateur de la plateforme
+    # (tous ceux du centre si aucun n'est choisi).
     parcours = [
-        p for p in Parcours.objects.filter(centre=centre, actif=True, visible_borne=True)
-        .order_by("ordre_affichage", "libelle_borne")
+        p for p in poste.parcours_proposes().order_by("ordre_affichage", "libelle_borne")
         if p.version_publiee() is not None
     ]
     return render(
@@ -159,7 +233,8 @@ def borne_emettre(request):
     mode = request.POST.get("mode", "")
     parcours = motif = None
     if mode != Ticket.Mode.AUTRE:
-        parcours = Parcours.objects.filter(centre=centre, pk=request.POST.get("parcours") or 0).first()
+        # Seulement un service proposé par cette borne.
+        parcours = poste.parcours_proposes().filter(pk=request.POST.get("parcours") or 0).first()
     elif request.POST.get("motif"):
         motif = MotifDemande.objects.filter(centre=centre, actif=True, pk=request.POST["motif"]).first()
 
@@ -241,6 +316,7 @@ def borne_ticket(request, ticket_id):
             "ticket": ticket,
             "centre": poste.centre,
             "devant": _personnes_devant(ticket),
+            "consigne": consigne_ticket(ticket),
             "impression": etat,
             "peut_reessayer": etat == "echec" and recent,
         },
@@ -389,13 +465,45 @@ def ecran(request):
             request, EcranAffichage, SESSION_ECRAN, "circuit/poste_connexion.html", "Activer l'écran principal"
         )
         return reponse or redirect("circuit:ecran")
-    return render(request, "circuit/ecran.html", {"centre": centre, "poste": poste})
+    return render(request, "circuit/ecran.html", {
+        "centre": centre, "poste": poste, "url_appels": reverse("circuit:ecran_appels"),
+    })
+
+
+def _centre_de_la_salle(request, code_centre):
+    """Écran de la salle : réseau local uniquement, sans compte ni clé (numéros de ticket seulement)."""
+    if not _reseau_local(request):
+        raise PermissionDenied("Accès réservé au réseau local.")
+    centre = get_object_or_404(Centre, code__iexact=code_centre, actif=True)
+    timezone.activate(fuseau_horaire_centre(centre))
+    return centre
+
+
+def ecran_salle(request, code_centre):
+    """
+    Écran des appels de la salle, ouvert depuis l'ordinateur d'un agent sur
+    son second écran (HDMI ou sans fil, décision du 21/11/2026). Il ne dépend
+    pas de la session de l'agent : il reste affiché après sa déconnexion.
+    """
+    centre = _centre_de_la_salle(request, code_centre)
+    return render(request, "circuit/ecran.html", {
+        "centre": centre, "poste": None, "salle": True,
+        "url_appels": reverse("circuit:ecran_salle_appels", args=[centre.code]),
+    })
+
+
+def ecran_salle_appels(request, code_centre):
+    return _appels_de_l_ecran(request, _centre_de_la_salle(request, code_centre), None)
 
 
 def ecran_appels(request):
     centre, poste = _centre_ecran(request)
     if centre is None:
         return HttpResponse(status=403)
+    return _appels_de_l_ecran(request, centre, poste)
+
+
+def _appels_de_l_ecran(request, centre, poste):
     services.cloture_automatique(centre)
     if poste is not None and (
         poste.derniere_activite is None or timezone.now() - poste.derniere_activite > timedelta(minutes=1)
@@ -423,6 +531,6 @@ def ecran_appels(request):
 
 @require_POST
 def poste_deconnexion(request):
-    request.session.pop(SESSION_BORNE, None)
+    """Désactive l'écran à clé de cet appareil. La borne, elle, ne se déconnecte jamais."""
     request.session.pop(SESSION_ECRAN, None)
-    return redirect("circuit:borne")
+    return redirect("circuit:ecran")

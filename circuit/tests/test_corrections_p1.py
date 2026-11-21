@@ -23,7 +23,7 @@ from circuit.services import ErreurCircuit
 from core.reseau import adresse_client, est_adresse_privee
 from statistiques.calculs import calculer
 
-from .base import LUNDI_MATIN, Donnees, a_heure
+from .base import activer_borne, LUNDI_MATIN, Donnees, a_heure
 from .test_vues import BaseVues
 
 
@@ -94,7 +94,7 @@ class BorneProtectionTests(BaseVues):
         self.borne = Borne(centre=self.d.centre, code="B1", libelle="Borne entrée")
         cle = self.borne.generer_cle()
         self.borne.save()
-        self.client.post(reverse("circuit:borne"), {"centre": "TAM", "code": "B1", "cle": cle})
+        activer_borne(self.client, Borne.objects.get(centre__code="TAM", code="B1"))
 
     def _emettre(self):
         return self.client.post(reverse("circuit:borne_emettre"),
@@ -156,17 +156,21 @@ class JournalAuditCompletTests(BaseVues):
         self.assertEqual((entree.utilisateur, entree.adresse_ip), (self.admin, "192.168.1.30"))
         self.assertNotIn("Nouveau", str(entree.details))
 
-    def test_borne_creee_puis_cle_regeneree(self):
-        borne = Borne(centre=self.d.centre, code="B2", libelle="Borne 2")
-        borne.generer_cle()
-        borne.save()
+    def test_borne_creee_et_cle_d_ecran_regeneree(self):
+        from centres.models import EcranAffichage
+
+        Borne.objects.create(centre=self.d.centre, code="B2", libelle="Borne 2")
         self.assertTrue(JournalAudit.objects.filter(action="CREATION", objet_type="centres.borne").exists())
-        self.client.post(reverse("admin:centres_borne_changelist"),
-                         {"action": "regenerer_cle", "_selected_action": [borne.pk]}, REMOTE_ADDR="192.168.1.31")
-        entree = JournalAudit.objects.filter(action="MODIFICATION", objet_type="centres.borne").get()
+        ecran = EcranAffichage(centre=self.d.centre, code="TV2", libelle="Écran 2")
+        ecran.generer_cle()
+        ecran.save()
+        self.client.post(reverse("admin:centres_ecranaffichage_changelist"),
+                         {"action": "regenerer_cle", "_selected_action": [ecran.pk]}, REMOTE_ADDR="192.168.1.31")
+        entree = JournalAudit.objects.filter(action="MODIFICATION", objet_type="centres.ecranaffichage").get()
         self.assertEqual(entree.details, {"cle": "régénérée"})
         self.assertEqual(entree.adresse_ip, "192.168.1.31")
-        self.assertNotIn(borne.cle_hash, str(entree.details))
+        ecran.refresh_from_db()
+        self.assertNotIn(ecran.cle_hash, str(entree.details))
 
     def test_droits_d_un_role_journalises(self):
         groupe = Group.objects.get(name="Accueil")

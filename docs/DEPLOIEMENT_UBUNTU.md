@@ -22,7 +22,11 @@ Les scripts de sauvegarde sont dans `scripts/` :
 sudo apt update
 sudo apt install -y python3 python3-venv python3-dev postgresql nginx git openssl
 sudo timedatectl set-timezone Indian/Antananarivo
+# Heure exacte : toutes les interfaces affichent l'heure du serveur.
+sudo timedatectl set-ntp true
 ```
+
+Sans Internet, l'horloge du serveur ne peut pas se recaler seule : la vérifier (`timedatectl`) et la corriger au besoin (`sudo timedatectl set-time "2026-11-21 08:30:00"` après `set-ntp false`), ou utiliser un serveur de temps du réseau local.
 
 ## 2. Utilisateur et dossiers
 
@@ -165,7 +169,7 @@ sudo chmod +x scripts/*.sh
 sudo crontab -u gfa deploiement/crontab
 ```
 
-- Clôture des tickets à 20 h 05, puis une seconde fois la nuit.
+- Clôture des tickets à 23 h 59 (les numéros repartent à 001 le lendemain), puis une seconde fois la nuit.
 - Sauvegarde chaque soir à 22 h, vers `/var/backups/gfa`, avec copie sur un second support (adapter `/media/sauvegarde_usb`).
 - Test de restauration le 1er de chaque mois dans une base distincte.
 

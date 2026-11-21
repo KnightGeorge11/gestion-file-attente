@@ -528,6 +528,8 @@ class ClotureTests(BaseCircuit):
     def test_cloture_a_20h_des_tickets_du_jour(self):
         avant_20h = LUNDI_MATIN.replace(hour=16, minute=30)   # 19:30 heure du centre
         apres_20h = LUNDI_MATIN.replace(hour=17, minute=5)    # 20:05 heure du centre
+        self.d.centre.heure_cloture_tickets = datetime.time(20, 0)   # heure réglable par centre
+        self.d.centre.save()
         self.assertEqual(str(self.d.centre.heure_cloture_tickets), "20:00:00")
         with a_heure(LUNDI_MATIN):
             ticket = self.d.ticket("M")

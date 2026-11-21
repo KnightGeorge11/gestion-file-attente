@@ -286,6 +286,13 @@ class Passage(ModeleCentre):
             return self.date_fin - self.date_debut
         return None
 
+    @property
+    def duree_passage(self):
+        """Durée totale du passage dans le service : de l'arrivée à la fin (attente comprise)."""
+        if self.date_fin:
+            return self.date_fin - self.date_arrivee
+        return None
+
 
 class EntreeFile(ModeleCentre):
     """Entrée et position (rang) d'un passage dans une file d'attente."""
@@ -469,7 +476,10 @@ class ReservationQuota(ModeleCentre):
     reservee_par = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
+        null=True,
+        blank=True,
         related_name="reservations_quota",
+        help_text="Vide : place réservée à la borne de l'accueil, à l'émission du ticket.",
     )
     date_reservation = models.DateTimeField()
 

@@ -14,7 +14,7 @@
     <div class="non-imprime">
         <span class="statut-impression ok">{% icone "check" %}</span>
         <h1>Votre ticket s'imprime</h1>
-        <p class="accroche">Récupérez-le sous la tablette, puis présentez-vous à l'accueil.</p>
+        <p class="accroche">Récupérez-le sous la tablette. {{ consigne }}</p>
     </div>
 {% elif impression == "echec" %}
     <div class="non-imprime">
@@ -36,7 +36,7 @@
     <div class="service-ticket">{% if ticket.parcours %}{{ ticket.parcours.libelle_borne }}{% else %}{{ ticket.demande.motif|default:"Autre demande" }}{% endif %}</div>
     <div>{{ ticket.get_mode_display }} · {{ ticket.date_emission|date:"d/m/Y H:i" }}</div>
     <div class="separateur"></div>
-    <div><strong>Présentez-vous à l'accueil.</strong><br>{{ devant }} personne(s) avant vous.</div>
+    <div><strong>{{ consigne }}</strong><br>{{ devant }} personne(s) avant vous.</div>
     <div style="margin-top:2mm;font-size:9pt">Surveillez l'écran d'appel.</div>
 </div>
 <div class="non-imprime actions-borne" style="margin-top:28px">

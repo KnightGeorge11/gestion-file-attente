@@ -78,6 +78,14 @@ def _texte(valeur, page_codes):
     return b"".join(morceaux)
 
 
+def consigne_ticket(ticket):
+    """Où aller avec le ticket : l'accueil, ou directement le service (l'accueil délivre les tickets)."""
+    premier = ticket.passages.order_by("pk").first()
+    if premier is not None and not premier.service.est_accueil:
+        return f"Présentez-vous au service {premier.nom_service}."
+    return "Présentez-vous à l'accueil."
+
+
 def contenu_ticket(ticket, imprimante, devant=0):
     """Octets ESC/POS du ticket (testables sans imprimante)."""
     pc = imprimante.page_codes
@@ -101,7 +109,7 @@ def contenu_ticket(ticket, imprimante, devant=0):
         t(ticket.get_mode_display()), b"\n",
         t(local.strftime("%d/%m/%Y  %H:%M")), b"\n",
         trait, b"\n",
-        GRAS, t("Présentez-vous à l'accueil."), b"\n", NORMAL_GRAS,
+        GRAS, t(consigne_ticket(ticket)), b"\n", NORMAL_GRAS,
         t(f"{devant} personne(s) avant vous."), b"\n",
         t("Surveillez l'écran d'appel."), b"\n",
         ALIGNER_GAUCHE, AVANCER_ET_COUPER,

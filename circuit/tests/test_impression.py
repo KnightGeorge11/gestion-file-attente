@@ -19,7 +19,7 @@ from circuit.impression import contenu_ticket, etat_imprimantes, imprimer_test
 from circuit.management.commands.imprimante_simulee import texte_lisible
 from circuit.models import Evenement, Ticket
 
-from .base import Donnees
+from .base import activer_borne, Donnees
 
 
 class ImprimanteFactice:
@@ -74,7 +74,7 @@ class ImpressionReseauTests(TestCase):
         self.borne = Borne(centre=self.d.centre, code="TAB", libelle="Tablette entrée", imprimante=self.imprimante)
         self.cle = self.borne.generer_cle()
         self.borne.save()
-        self.client.post(reverse("circuit:borne"), {"centre": "TAM", "code": "TAB", "cle": self.cle})
+        activer_borne(self.client, Borne.objects.get(centre__code="TAM", code="TAB"))
 
     def _prendre_ticket(self, prefixe="E"):
         return self.client.post(
@@ -119,7 +119,7 @@ class ImpressionReseauTests(TestCase):
         self.imprimante.port = self.imprimante_reelle.port
         self.imprimante.save()
         borne_client = self.client_class()
-        borne_client.post(reverse("circuit:borne"), {"centre": "TAM", "code": "TAB", "cle": self.cle})
+        activer_borne(borne_client, Borne.objects.get(centre__code="TAM", code="TAB"))
         borne_client.post(reverse("circuit:borne_reimprimer", args=[ticket.pk]))
         self.assertEqual(len(self.imprimante_reelle.attendre(1)), 1)
         self.assertEqual(etat_imprimantes(self.d.centre), [])

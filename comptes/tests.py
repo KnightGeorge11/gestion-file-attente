@@ -342,9 +342,9 @@ class AdministrateurDeCentreSecuriteTests(BaseComptes):
         self.assertNotContains(bornes, "Borne du centre B")
 
     def test_actions_d_administration_exigent_le_droit_de_modifier(self):
-        from centres.admin import BorneAdmin, ImprimanteTicketAdmin
+        from centres.admin import EcranAffichageAdmin, ImprimanteTicketAdmin
         from parcours.admin import ParcoursAdmin, ParcoursVersionAdmin
 
-        for admin_classe, action in ((BorneAdmin, "regenerer_cle"), (ImprimanteTicketAdmin, "imprimer_test"),
+        for admin_classe, action in ((EcranAffichageAdmin, "regenerer_cle"), (ImprimanteTicketAdmin, "imprimer_test"),
                                      (ParcoursAdmin, "creer_brouillon"), (ParcoursVersionAdmin, "publier")):
             self.assertEqual(list(getattr(admin_classe, action).allowed_permissions), ["change"], action)

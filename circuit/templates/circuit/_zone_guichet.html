@@ -1,4 +1,4 @@
-{% load interface %}
+{% load durees interface %}
 {# Messages en hors-bande seulement pour une action HTMX : une navigation boostée affiche déjà la page complète (sinon deux #messages-page). #}
 {% if request.headers.HX_Request and not request.headers.HX_Boosted and not sans_messages %}{% include "_messages.html" with oob=True %}{% endif %}
 <div class="grille-guichet">
@@ -35,6 +35,12 @@
                 <div class="mesure"><div class="libelle">Attente</div><div class="valeur">{% if tenue.date_premier_appel %}{{ tenue.passage.date_arrivee|timesince:tenue.date_premier_appel }}{% else %}—{% endif %}</div></div>
                 <div class="mesure"><div class="libelle">{% if tenue.statut == "APPELE" %}Dernier appel{% else %}Début{% endif %}</div><div class="valeur">{% if tenue.statut == "APPELE" %}{{ tenue.date_dernier_appel|time:"H:i:s" }}{% else %}{{ tenue.date_debut|time:"H:i" }}{% endif %}</div></div>
             </div>
+            {% if passages_precedents %}
+            <div class="section-titre">{% icone "transfert" %}Passages précédents</div>
+            <ul class="chronologie">{% for p in passages_precedents %}
+                <li><strong>{{ p.nom_service }}</strong> · {{ p.duree_passage|duree }} <span class="discret">(attente {{ p.duree_attente|duree }}, prise en charge {{ p.duree_prise_en_charge|duree }})</span></li>
+            {% endfor %}</ul>
+            {% endif %}
             <p class="discret ligne">{% icone "historique" %}<a href="{% url 'circuit:ticket' ticket.pk %}">historique</a> du ticket{% if suivante %}<span class="pousse etape-suivante">Étape suivante : <strong>{{ suivante.service.nom }}</strong>{% icone "fleche-droite" %}</span>{% endif %}</p>
 
             {% if tenue.statut == "APPELE" %}

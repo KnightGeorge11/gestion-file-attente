@@ -199,6 +199,10 @@ def _contexte_guichet(request, service, file):
             {
                 "ticket": ticket,
                 "suivante": services.etape_suivante(ticket, passage),
+                # Durée de chaque passage déjà fait (décision du 21/11/2026).
+                "passages_precedents": list(
+                    ticket.passages.filter(date_fin__isnull=False).exclude(pk=passage.pk).order_by("date_arrivee")
+                ),
                 "transfert_possible": services.peut_transferer_pharmacie(passage),
                 "prochain_appel": tenue.prochain_appel_possible(),
                 "appels_max": tenue.nb_appels >= file.nb_appels_avant_absence,

@@ -55,9 +55,19 @@ class ComptesTestTests(TestCase):
 @override_settings(DEBUG=True)
 class SimulationTests(TestCase):
     def setUp(self):
-        self.a = Centre.objects.create(code="AAA", nom="Centre A")
-        self.b = Centre.objects.create(code="BBB", nom="Centre B")
+        # Circuit historique (file de l'accueil) ; le circuit « l'accueil délivre
+        # les tickets » est simulé dans test_simulation_accueil_delivre_les_tickets.
+        self.a = Centre.objects.create(code="AAA", nom="Centre A", accueil_delivre_tickets=False)
+        self.b = Centre.objects.create(code="BBB", nom="Centre B", accueil_delivre_tickets=False)
         commande("creer_comptes_test")
+
+    def test_simulation_accueil_delivre_les_tickets(self):
+        Centre.objects.filter(pk=self.a.pk).update(accueil_delivre_tickets=True)
+        commande("simuler_patients", "AAA", "--tickets", "15", "--etapes", "30", "--graine", "3")
+        soins = Ticket.objects.filter(centre=self.a).exclude(mode="AUTRE")
+        self.assertTrue(soins.exists())
+        # Aucun ticket de soins ne passe par la file de l'accueil.
+        self.assertFalse(Passage.objects.filter(ticket__in=soins, service__est_accueil=True).exists())
 
     def test_simulation_avance_les_patients_dans_le_respect_des_regles(self):
         commande("simuler_patients", "AAA", "--tickets", "25", "--etapes", "60",

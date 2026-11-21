@@ -12,12 +12,12 @@
         <div class="date" data-horloge="date" data-fuseau="{{ centre.fuseau_horaire }}"></div>
     </div>
 </header>
-<div id="zone-appels" hx-get="{% url 'circuit:ecran_appels' %}" hx-trigger="load, every 3s" hx-swap="innerHTML"></div>
+<div id="zone-appels" hx-get="{{ url_appels }}" hx-trigger="load, every 3s" hx-swap="innerHTML"></div>
 <footer class="ecran-pied">
     <span>{% icone "info" %} Gardez votre ticket et surveillez cet écran : votre numéro s'affiche quand un service vous appelle.</span>
     <span>Merci de votre patience</span>
 </footer>
-<button class="bouton-son non-imprime" id="activer-son" type="button" onclick="activerSon()">{% icone "son" %}Activer le son</button>
+<button class="bouton-son non-imprime" id="activer-son" type="button" onclick="activerSon()">{% icone "son" %}{% if salle %}Plein écran et son{% else %}Activer le son{% endif %}</button>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -31,19 +31,30 @@
     function sonDemande() {
         try { return localStorage.getItem("ecran-son") === "1"; } catch (e) { return false; }
     }
+    const salle = {% if salle %}true{% else %}false{% endif %};
     window.activerSon = function () {
         contexte = contexte || new (window.AudioContext || window.webkitAudioContext)();
         if (contexte.resume) { contexte.resume(); }
+        // Écran de la salle (second écran de l'ordinateur) : plein écran en même temps.
+        if (salle && !document.fullscreenElement && document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen().catch(function () {});
+        }
         bouton.hidden = true;
         memoriser("1");   // le son reste demandé après un rechargement de la TV
     };
+    if (salle) {
+        // Sortie du plein écran (Échap) : le bouton revient pour y retourner.
+        document.addEventListener("fullscreenchange", function () {
+            if (!document.fullscreenElement) { bouton.hidden = false; }
+        });
+    }
     // Après un rechargement, le son est repris tout seul si le navigateur de
     // la TV l'autorise (mode kiosque, lecture automatique permise) ; sinon le
     // bouton reste affiché et le premier appui sur la télécommande le réactive.
     if (sonDemande()) {
         try {
             contexte = new (window.AudioContext || window.webkitAudioContext)();
-            if (contexte.state === "running") { bouton.hidden = true; }
+            if (contexte.state === "running" && !salle) { bouton.hidden = true; }
         } catch (e) { contexte = null; }
         ["click", "keydown", "touchstart"].forEach(function (evenement) {
             document.addEventListener(evenement, function reprendre() {

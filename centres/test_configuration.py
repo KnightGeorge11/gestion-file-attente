@@ -12,7 +12,8 @@ class ParametresCentreTests(TestCase):
         centre = Centre.objects.create(code="TAM", nom="Centre TAM")
 
         self.assertEqual(centre.heure_coupure_matin, datetime.time(12, 0))
-        self.assertEqual(centre.heure_cloture_tickets, datetime.time(20, 0))  # décision du 18/11/2026
+        self.assertEqual(centre.heure_cloture_tickets, datetime.time(23, 59))  # décision du 21/11/2026
+        self.assertTrue(centre.accueil_delivre_tickets)                         # décision du 21/11/2026
         self.assertEqual(centre.max_reintegrations, 1)
         self.assertEqual(centre.max_tickets_ouverts_par_patient, 1)
 
