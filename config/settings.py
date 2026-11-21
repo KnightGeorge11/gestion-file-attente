@@ -179,6 +179,8 @@ RESEAU_LOCAL_UNIQUEMENT = os.getenv("RESEAU_LOCAL_UNIQUEMENT", "True").lower() =
 BORNE_DELAI_MIN_SECONDES = float(os.getenv("BORNE_DELAI_MIN_SECONDES", "2"))
 # Imprimante simulée sur ce poste (python manage.py imprimante_simulee) : développement seulement.
 IMPRIMANTE_SIMULEE_AUTORISEE = env_bool("IMPRIMANTE_SIMULEE_AUTORISEE", str(DEBUG))
+# Annonce vocale des appels fabriquée par le serveur (voix française installée sur la machine).
+ANNONCE_VOCALE_SERVEUR = env_bool("ANNONCE_VOCALE_SERVEUR", "True")
 # Plafond de tickets par borne sur une heure glissante (protection contre l'inondation).
 BORNE_MAX_TICKETS_PAR_HEURE = int(os.getenv("BORNE_MAX_TICKETS_PAR_HEURE", "150"))
 

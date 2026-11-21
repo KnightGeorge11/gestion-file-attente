@@ -73,16 +73,43 @@
             o.start(t); o.stop(t + 0.32);
         });
     }
-    function annoncer(textes) {
-        if (!("speechSynthesis" in window) || !textes.length) return;
-        // Les annonces sont mises en file : chaque appel est lu, dans l'ordre.
-        setTimeout(function () {
-            textes.forEach(function (texte) {
-                const message = new SpeechSynthesisUtterance(texte);
-                message.lang = "fr-FR";
-                window.speechSynthesis.speak(message);
+    // Annonce vocale. Voix fabriquée par le serveur (les navigateurs des TV
+    // Android n'ont pas de synthèse vocale), jouée par l'écran ; à défaut,
+    // synthèse vocale du navigateur. Les annonces passent l'une après l'autre.
+    const voixServeur = {% if voix_serveur %}true{% else %}false{% endif %};
+    const urlAnnonce = "{% url 'circuit:ecran_annonce' 0 %}";
+    let fileAnnonces = Promise.resolve();
+    function attendre(ms) { return new Promise(function (fin) { setTimeout(fin, ms); }); }
+    function parler(texte) {
+        if (!("speechSynthesis" in window)) return Promise.resolve();
+        return new Promise(function (fin) {
+            const message = new SpeechSynthesisUtterance(texte);
+            message.lang = "fr-FR";
+            message.onend = fin; message.onerror = fin;
+            window.speechSynthesis.speak(message);
+        });
+    }
+    function jouerAnnonce(id) {
+        return fetch(urlAnnonce.replace("/0/", "/" + id + "/"), {credentials: "same-origin"})
+            .then(function (r) { if (!r.ok) { throw new Error("HTTP " + r.status); } return r.arrayBuffer(); })
+            .then(function (octets) { return new Promise(function (ok, ko) { contexte.decodeAudioData(octets, ok, ko); }); })
+            .then(function (son) {
+                return new Promise(function (fin) {
+                    const source = contexte.createBufferSource();
+                    source.buffer = son; source.connect(contexte.destination);
+                    source.onended = fin; source.start();
+                });
             });
-        }, 800);
+    }
+    function annoncer(appels) {
+        appels.forEach(function (appel, rang) {
+            fileAnnonces = fileAnnonces.then(function () { return attendre(rang ? 400 : 800); }).then(function () {
+                if (voixServeur && contexte && contexte.state === "running") {
+                    return jouerAnnonce(appel.id).catch(function () { return parler(appel.texte); });
+                }
+                return parler(appel.texte);
+            });
+        });
     }
     document.body.addEventListener("htmx:afterSwap", function (e) {
         if (e.target.id !== "zone-appels") return;
@@ -106,7 +133,7 @@
                 carillon();
                 const vedette = e.target.querySelector("[data-annonce]");
                 if (vedette && vedette.dataset.annonce === "1") {
-                    annoncer(nouveaux.map(function (a) { return a.texte; }));
+                    annoncer(nouveaux);
                 }
             }
         }

@@ -35,6 +35,7 @@ from core.reseau import est_reseau_local
 from core.timeutils import fuseau_horaire_centre, maintenant_centre
 
 from . import services
+from .annonce_vocale import fichier_annonce, texte_annonce, voix_disponible
 from .impression import consigne_ticket, contenu_ticket, etat_imprimante_borne, imprimer_ticket, resultat_impression_android
 from .models import Appel, EntreeFile, MotifDemande, Ticket
 from .services import ErreurCircuit
@@ -466,6 +467,7 @@ def ecran(request):
         )
         return reponse or redirect("circuit:ecran")
     return render(request, "circuit/ecran.html", {
+        "voix_serveur": voix_disponible(),
         "centre": centre, "poste": poste, "url_appels": reverse("circuit:ecran_appels"),
     })
 
@@ -487,6 +489,7 @@ def ecran_salle(request, code_centre):
     """
     centre = _centre_de_la_salle(request, code_centre)
     return render(request, "circuit/ecran.html", {
+        "voix_serveur": voix_disponible(),
         "centre": centre, "poste": None, "salle": True,
         "url_appels": reverse("circuit:ecran_salle_appels", args=[centre.code]),
     })
@@ -635,6 +638,7 @@ def ecran_tv(request):
     else:
         timezone.activate(fuseau_horaire_centre(centre))
         reponse = render(request, "circuit/ecran.html", {
+        "voix_serveur": voix_disponible(),
             "centre": centre, "poste": None, "salle": True, "url_appels": reverse("ecran_tv_appels"),
         })
     return _retenir_tv(reponse, request)
@@ -654,3 +658,23 @@ def ecran_tv_appels(request):
     if appareil is None or not appareil.centre_id or not appareil.centre.actif:
         return _vers_tv()
     return _appels_de_l_ecran(request, appareil.centre, None)
+
+
+
+def ecran_annonce(request, appel_id):
+    """
+    Annonce vocale d'un appel (fichier WAV fabriqué par le serveur), jouée par
+    l'écran. Réseau local uniquement ; le texte vient de l'appel enregistré.
+    """
+    from django.http import Http404
+
+    if not _reseau_local(request):
+        raise PermissionDenied("Accès réservé au réseau local.")
+    appel = get_object_or_404(Appel.objects.filter(centre__actif=True), pk=appel_id)
+    fichier = fichier_annonce(texte_annonce(appel))
+    if fichier is None:
+        raise Http404("Aucune voix française disponible sur le serveur.")
+    # Quelques centaines de Ko : lu d'un coup (aucun fichier laissé ouvert).
+    reponse = HttpResponse(fichier.read_bytes(), content_type="audio/wav")
+    reponse["Cache-Control"] = "max-age=86400"
+    return reponse

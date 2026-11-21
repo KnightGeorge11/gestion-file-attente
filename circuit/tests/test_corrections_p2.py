@@ -79,7 +79,8 @@ class StructureP2Tests(BaseVues):
             return len(q)
 
         avant = requetes()
-        for prefixe in ("M", "D", "E", "I"):
+        # Pas de ticket dentiste : son quota dépend du jour et de l'heure réels (fermé le samedi après-midi).
+        for prefixe in ("M", "E", "I", "M"):
             self.d.accueillir(self.d.ticket(prefixe), self.accueil)
         self.assertEqual(requetes(), avant)
 

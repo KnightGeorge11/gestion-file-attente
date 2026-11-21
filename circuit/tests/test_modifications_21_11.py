@@ -345,3 +345,44 @@ class EcransDuWifiTests(BaseVues):
     @override_settings(RESEAU_LOCAL_UNIQUEMENT=True)
     def test_adresse_tv_jamais_depuis_internet(self):
         self.assertEqual(self.client.get(reverse("ecran_tv"), REMOTE_ADDR="8.8.8.8").status_code, 403)
+
+
+@override_settings(RESEAU_LOCAL_UNIQUEMENT=True)
+class AnnonceVocaleServeurTests(BaseVues):
+    """La voix des annonces est fabriquée par le serveur : les navigateurs des TV Android n'en ont pas."""
+
+    def _appel(self):
+        self.d.ticket("M")
+        return services.appeler(self.d.file("ACC"), self.accueil, poste="Guichet 1")
+
+    def test_texte_de_l_annonce(self):
+        from circuit.annonce_vocale import texte_annonce
+
+        self.assertEqual(texte_annonce(self._appel()), "Ticket M 0 0 1, Accueil, Guichet 1")
+
+    def test_l_ecran_recoit_le_fichier_audio_de_l_annonce(self):
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+
+        appel = self._appel()
+        with tempfile.TemporaryDirectory() as dossier:
+            faux = Path(dossier, "annonce.wav")
+            faux.write_bytes(b"RIFF....WAVEfmt ")
+            with mock.patch("circuit.views_postes.fichier_annonce", return_value=faux) as fabriquer:
+                reponse = self.client.get(reverse("circuit:ecran_annonce", args=[appel.pk]))
+                self.assertEqual(reponse["Content-Type"], "audio/wav")
+                self.assertEqual(reponse.content, b"RIFF....WAVEfmt ")
+            fabriquer.assert_called_once_with("Ticket M 0 0 1, Accueil, Guichet 1")   # texte de l'appel, jamais du navigateur
+        with mock.patch("circuit.views_postes.fichier_annonce", return_value=None):
+            self.assertEqual(self.client.get(reverse("circuit:ecran_annonce", args=[appel.pk])).status_code, 404)
+        reponse = self.client.get(reverse("circuit:ecran_annonce", args=[appel.pk]), REMOTE_ADDR="8.8.8.8")
+        self.assertEqual(reponse.status_code, 403)
+
+    def test_l_ecran_joue_la_voix_du_serveur(self):
+        from unittest import mock
+
+        with mock.patch("circuit.views_postes.voix_disponible", return_value=True):
+            page = self.client.get(reverse("circuit:ecran_salle", args=["TAM"]))
+        self.assertContains(page, "const voixServeur = true")
+        self.assertContains(page, reverse("circuit:ecran_annonce", args=[0]))

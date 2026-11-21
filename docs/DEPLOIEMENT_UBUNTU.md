@@ -21,6 +21,8 @@ Les scripts de sauvegarde sont dans `scripts/` :
 ```bash
 sudo apt update
 sudo apt install -y python3 python3-venv python3-dev postgresql nginx git openssl
+# Voix française des annonces de l'écran (hors ligne) : pico2wave, sinon espeak-ng.
+sudo apt install -y libttspico-utils espeak-ng
 sudo timedatectl set-timezone Indian/Antananarivo
 # Heure exacte : toutes les interfaces affichent l'heure du serveur.
 sudo timedatectl set-ntp true
