@@ -358,7 +358,7 @@ class AnnonceVocaleServeurTests(BaseVues):
     def test_texte_de_l_annonce(self):
         from circuit.annonce_vocale import texte_annonce
 
-        self.assertEqual(texte_annonce(self._appel()), "M 001 Accueil, Guichet 1")
+        self.assertEqual(texte_annonce(self._appel()), "M 0 0 1, Accueil, Guichet 1")
 
     def test_l_ecran_recoit_le_fichier_audio_de_l_annonce(self):
         import tempfile
@@ -373,7 +373,7 @@ class AnnonceVocaleServeurTests(BaseVues):
                 reponse = self.client.get(reverse("circuit:ecran_annonce", args=[appel.pk]))
                 self.assertEqual(reponse["Content-Type"], "audio/wav")
                 self.assertEqual(reponse.content, b"RIFF....WAVEfmt ")
-            fabriquer.assert_called_once_with("M 001 Accueil, Guichet 1")   # texte de l'appel, jamais du navigateur
+            fabriquer.assert_called_once_with("M 0 0 1, Accueil, Guichet 1")   # texte de l'appel, jamais du navigateur
         with mock.patch("circuit.views_postes.fichier_annonce", return_value=None):
             self.assertEqual(self.client.get(reverse("circuit:ecran_annonce", args=[appel.pk])).status_code, 404)
         reponse = self.client.get(reverse("circuit:ecran_annonce", args=[appel.pk]), REMOTE_ADDR="8.8.8.8")
@@ -441,7 +441,7 @@ class SalleDuMedecinTests(BaseVues):
         self.client.post(reverse("circuit:guichet_action", args=[med, "appeler"]), {"poste": ""})
         appel = Appel.objects.get(service__code="MED")
         self.assertEqual(appel.poste, "1")
-        self.assertEqual(texte_annonce(appel), "M 001 Médecins, 1")
+        self.assertEqual(texte_annonce(appel), "M 0 0 1, Médecins, 1")
 
     def test_les_autres_agents_ne_sont_pas_obliges(self):
         self.connecter(self.accueil, self.d.centre, salle_indiquee=False)
@@ -452,4 +452,4 @@ class SalleDuMedecinTests(BaseVues):
         services.appeler(self.d.file("ACC"), self.accueil, poste="Guichet 1")
         self.connecter(self.accueil, self.d.centre)
         fragment = self.client.get(reverse("circuit:ecran_appels"))
-        self.assertContains(fragment, 'data-texte="M 001 Accueil, Guichet 1"')
+        self.assertContains(fragment, 'data-texte="M 0 0 1, Accueil, Guichet 1"')
