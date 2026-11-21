@@ -49,7 +49,7 @@ Utiliser le **centre 002** (le plus propre pour une démonstration).
 | **Borne** (à l'accueil) | Tablette, ou un **autre navigateur** que celui des agents (ex. Edge) | http://localhost:8000/circuit/borne/ — la première fois : **Connexion administrateur**, choisir « Tablette entrée » |
 | **Accueil** | Navigateur principal | `accueil1` / `1234`, centre 002 |
 | **Service** (infirmerie, médecin…) | Autre onglet ou autre appareil | ex. `medecin1` / `1234` |
-| **Écran de la salle** | TV ou moniteur relié au PC (HDMI, ou sans fil avec Windows + K) | Menu **Écran** → **Rechercher les écrans** → **Afficher les appels ici** sur l'écran de la salle |
+| **Écran de la salle** | TV branchée au PC (HDMI) ou TV du Wi-Fi | Menu **Écran** → **Rechercher les écrans** → **Afficher les appels ici**. TV Wi-Fi : ouvrir une fois `http://192.168.3.212:8000/tv/` sur la TV (Google TV : application « TV Bro »), puis la choisir dans la page Écran |
 | **Statistiques** | En fin de démonstration | `direction1` / `1234` |
 
 **Activer la borne (une seule fois)** : sur l'appareil de la borne, ouvrir http://localhost:8000/circuit/borne/ → **Connexion administrateur** (`tedy` ou `admin1`) → choisir « Tablette entrée » → **Activer cette borne**. Vous êtes déconnecté ; la borne reste activée, sans clé, et ne se déconnecte plus.

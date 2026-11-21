@@ -1,26 +1,37 @@
 {% load interface %}
-{# Écrans du même réseau (Wi-Fi ou câble) : TV qui s'annoncent, et appareils qui affichent déjà les appels. #}
-<div class="carte-entete"><h2><span class="titre-icone">{% icone "envoyer" %}</span>Écrans sur le Wi-Fi</h2><span class="etiquette">{{ ecrans|length }} trouvé{{ ecrans|length|pluralize }}</span></div>
-<p class="discret">TV connectées et boîtiers (Google TV, Android TV, Chromecast, Samsung, LG…) annoncés sur le même réseau que le serveur. Rien ne passe par Internet.</p>
+{# Écrans Wi-Fi : prêts (ils ont ouvert …/tv/ une fois, on les choisit d'un clic) ou à préparer (TV annoncées sur le réseau). #}
+{% if request.method == "POST" %}{% include "_messages.html" with oob=True %}{% endif %}
+<div class="carte-entete"><h2><span class="titre-icone">{% icone "envoyer" %}</span>Écrans sur le Wi-Fi</h2><span class="etiquette">{{ appareils|length }} prêt{{ appareils|length|pluralize }}</span></div>
+<p class="discret">Choisissez l'écran : les appels s'y affichent en quelques secondes, sans toucher à la TV. Rien ne passe par Internet.</p>
 <div class="tuiles">
-{% for e in ecrans %}
+{% for a in appareils %}
     <div class="carte tuile">
         <div class="tuile-haut">
             <span class="tuile-icone">{% icone "ecran" %}</span>
-            <div><h2>{{ e.nom }}</h2>{% if e.affiche %}<span class="etiquette ok">Affiche les appels</span>{% else %}<span class="etiquette info">{{ e.marque|default:"Écran" }}{% if e.modele %} · {{ e.modele }}{% endif %}</span>{% endif %}</div>
+            <div>
+                <h2>{{ a.nom_affiche }}</h2>
+                {% if a.centre_id == centre_actif.pk %}<span class="etiquette ok">Affiche les appels</span>
+                {% elif a.centre_id %}<span class="etiquette attention">Utilisé par {{ a.centre.nom }}</span>
+                {% else %}<span class="etiquette info">Libre</span>{% endif %}
+            </div>
         </div>
-        <p class="discret">Adresse sur le réseau : {{ e.adresse_ip }}</p>
-        {% if not e.affiche %}
-        <p class="discret" style="margin-bottom:0">Pour y afficher les appels : {% if e.dial %}« Rechercher une TV (Cast) » ci-dessous (Chrome), ou {% endif %}ouvrez sur cette TV son navigateur à l'adresse <code>{{ adresse_ecran }}</code>.</p>
-        {% endif %}
+        <p class="discret">Code {{ a.code }}{% if a.marque %} · {{ a.marque }}{% endif %}{% if a.adresse_ip %} · {{ a.adresse_ip }}{% endif %} · {% if a.en_ligne %}en ligne{% else %}hors ligne depuis {{ a.derniere_activite|time:"H:i" }}{% endif %}</p>
+        <form hx-post="{% url 'circuit:ecran_wifi_choisir' %}" hx-target="#ecrans-reseau" hx-swap="innerHTML" method="post" action="{% url 'circuit:ecran_wifi_choisir' %}">
+            {% csrf_token %}<input type="hidden" name="appareil" value="{{ a.pk }}">
+            {% if a.centre_id == centre_actif.pk %}
+            <button class="large" name="action" value="arreter">{% icone "croix" %}Arrêter l'affichage</button>
+            {% elif not a.centre_id %}
+            <button class="principal large" name="action" value="afficher" {% if not a.en_ligne %}disabled{% endif %}>{% icone "ecran" %}Afficher les appels ici</button>
+            {% endif %}
+        </form>
     </div>
 {% empty %}
-    <div class="carte tuile"><p class="discret" style="margin:0">Aucun écran trouvé sur le réseau. Vérifiez que la TV est allumée et connectée au même Wi-Fi que le serveur.</p></div>
+    <div class="carte tuile"><p class="discret" style="margin:0">Aucun écran Wi-Fi prêt. Sur la TV, ouvrez une fois l'adresse <code>{{ adresse_tv }}</code> : elle apparaîtra ici.</p></div>
 {% endfor %}
 </div>
-{% if connectes %}
-<div class="section-titre">{% icone "ecran" %}Appareils qui ont affiché les appels</div>
-<ul class="chronologie">{% for c in connectes %}
-    <li><strong>{{ c }}</strong> · {{ c.adresse_ip }} · {% if c.en_ligne %}<span class="etiquette ok">En ligne</span>{% else %}<span class="etiquette">Hors ligne depuis {{ c.derniere_activite|time:"H:i" }}{% if c.derniere_activite|date:"Ymd" != aujourdhui %} le {{ c.derniere_activite|date:"d/m" }}{% endif %}</span>{% endif %}</li>
+{% if a_preparer %}
+<div class="section-titre">{% icone "recherche" %}TV trouvées sur le réseau, à préparer</div>
+<ul class="chronologie">{% for e in a_preparer %}
+    <li><strong>{{ e.nom }}</strong>{% if e.marque %} · {{ e.marque }}{% if e.modele %} {{ e.modele }}{% endif %}{% endif %} · {{ e.adresse_ip }} — sur cette TV, ouvrez une fois <code>{{ adresse_tv }}</code> dans son navigateur (Google TV : application « TV Bro » ou « Puffin TV »).</li>
 {% endfor %}</ul>
 {% endif %}

@@ -87,33 +87,91 @@ def ecran_connexion(request):
     adresse = adresse_pour_le_reseau(request, reverse("circuit:ecran_salle", args=[centre.code]))
     return render(request, "circuit/ecran_connexion.html", {
         "adresse_ecran": adresse,
+        "adresse_tv": adresse_pour_le_reseau(request, reverse("ecran_tv")),
         # Toujours « localhost » : aucune adresse réseau trouvée (PC hors réseau).
         "adresse_locale": urlsplit(adresse).hostname in ("localhost", "127.0.0.1", "::1"),
     })
 
 
-@centre_actif_requis
-def ecrans_reseau(request):
+def _contexte_ecrans_wifi(request, rechercher=True):
     """
-    Fragment HTMX : écrans trouvés sur le même réseau que le serveur (TV qui
-    s'annoncent par UPnP/DIAL) et appareils qui affichent déjà les appels.
+    Écrans Wi-Fi du point de vue du centre actif :
+    - prêts : TV qui ont ouvert une fois …/tv/ (on les choisit d'un clic) ;
+    - à préparer : TV annoncées sur le réseau (UPnP/DIAL) qui n'ont pas encore
+      ouvert …/tv/.
     """
-    from centres.models import EcranConnecte
+    from datetime import timedelta
+
+    from django.core.cache import cache
+
+    from centres.models import AppareilEcran
     from core.decouverte import rechercher_ecrans
     from core.reseau import adresse_pour_le_reseau
 
     centre = request.centre_actif
-    connectes = list(EcranConnecte.objects.filter(centre=centre)[:20])
-    en_ligne = {c.adresse_ip for c in connectes if c.en_ligne}
-    ecrans = rechercher_ecrans(attente=3)
-    for ecran in ecrans:
-        ecran["affiche"] = ecran["adresse_ip"] in en_ligne
-    return render(request, "circuit/_ecrans_reseau.html", {
-        "ecrans": ecrans,
-        "connectes": connectes,
-        "aujourdhui": maintenant_centre(centre).strftime("%Y%m%d"),
-        "adresse_ecran": adresse_pour_le_reseau(request, reverse("circuit:ecran_salle", args=[centre.code])),
-    })
+    # Recherche sur le réseau (environ 3 s) : gardée 30 s pour les actions qui suivent.
+    trouves = cache.get("circuit:ecrans-annonces")
+    if trouves is None or rechercher:
+        trouves = rechercher_ecrans(attente=3)
+        cache.set("circuit:ecrans-annonces", trouves, 30)
+    noms = {e["adresse_ip"]: e for e in trouves}
+    recents = timezone.now() - timedelta(minutes=10)
+    appareils = list(
+        AppareilEcran.objects.select_related("centre")
+        .filter(Q(derniere_activite__gte=recents) | Q(centre=centre))
+        .order_by("-derniere_activite")[:30]
+    )
+    for appareil in appareils:
+        annonce = noms.get(appareil.adresse_ip)
+        appareil.nom_affiche = appareil.nom or (annonce["nom"] if annonce else "") or f"Écran {appareil.code}"
+        appareil.marque = f"{annonce['marque']} {annonce['modele']}".strip() if annonce else ""
+    adresses_pretes = {a.adresse_ip for a in appareils}
+    return {
+        "appareils": appareils,
+        "a_preparer": [e for e in trouves if e["adresse_ip"] not in adresses_pretes],
+        "adresse_tv": adresse_pour_le_reseau(request, reverse("ecran_tv")),
+    }
+
+
+@centre_actif_requis
+def ecrans_reseau(request):
+    """Fragment HTMX : écrans Wi-Fi prêts ou à préparer (« rechercher=1 » : nouvelle recherche sur le réseau)."""
+    rechercher = request.GET.get("rechercher") == "1"
+    return render(request, "circuit/_ecrans_reseau.html", _contexte_ecrans_wifi(request, rechercher))
+
+
+@require_POST
+@centre_actif_requis
+def ecran_wifi_choisir(request):
+    """
+    « Afficher les appels ici » / « Arrêter » sur un écran Wi-Fi, depuis la
+    page Écran. Un écran utilisé par un autre centre ne peut pas être pris
+    (sauf par l'administrateur de la plateforme).
+    """
+    from audit.journal import journaliser
+    from audit.models import JournalAudit
+    from centres.access import est_administrateur_central
+    from centres.models import AppareilEcran
+
+    centre = request.centre_actif
+    appareil = get_object_or_404(AppareilEcran.objects.select_related("centre"), pk=request.POST.get("appareil"))
+    pris_ailleurs = appareil.centre_id and appareil.centre_id != centre.pk
+    if pris_ailleurs and not est_administrateur_central(request.user):
+        messages.error(request, f"Cet écran affiche les appels du centre {appareil.centre.nom}.")
+    elif request.POST.get("action") == "arreter":
+        appareil.centre = None
+        appareil.save(update_fields=["centre"])
+        messages.success(request, f"Affichage arrêté sur « {appareil} ».")
+        journaliser(JournalAudit.Action.MODIFICATION, request.user, centre=centre,
+                    details={"ecran_wifi": appareil.code, "action": "arrêt"}, request=request)
+    else:
+        appareil.centre = centre
+        appareil.save(update_fields=["centre"])
+        messages.success(request, f"Les appels s'affichent sur « {appareil} » (dans 3 secondes au plus).")
+        journaliser(JournalAudit.Action.MODIFICATION, request.user, centre=centre,
+                    details={"ecran_wifi": appareil.code, "action": "affichage"}, request=request)
+    reponse = render(request, "circuit/_ecrans_reseau.html", _contexte_ecrans_wifi(request, rechercher=False))
+    return reponse
 
 
 @centre_actif_requis

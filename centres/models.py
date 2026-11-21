@@ -633,3 +633,39 @@ class EcranConnecte(ModeleCentre):
 
         return timezone.now() - self.derniere_activite < datetime.timedelta(minutes=2)
 
+
+class AppareilEcran(models.Model):
+    """
+    Écran Wi-Fi (TV connectée, boîtier, mini-PC) qui a ouvert une fois
+    l'adresse courte …/tv/ (décision du 21/11/2026). Il attend alors, avec un
+    code à l'écran, qu'on le choisisse dans la page Écran de la plateforme ;
+    il affiche ensuite les appels du centre choisi, jusqu'à ce qu'on l'arrête.
+    Reconnu par un jeton gardé sur l'appareil (cookie), sans compte ni clé.
+    """
+
+    jeton = models.CharField(max_length=64, unique=True)
+    code = models.CharField(max_length=4)
+    nom = models.CharField(max_length=100, blank=True, help_text="Nom donné à l'écran (ex. TV salle d'attente).")
+    adresse_ip = models.GenericIPAddressField(null=True, blank=True)
+    navigateur = models.CharField(max_length=255, blank=True)
+    centre = models.ForeignKey(
+        Centre, on_delete=models.SET_NULL, null=True, blank=True, related_name="appareils_ecran",
+        help_text="Centre dont l'écran affiche les appels. Vide : écran libre, en attente.",
+    )
+    date_creation = models.DateTimeField(auto_now_add=True)
+    derniere_activite = models.DateTimeField()
+
+    class Meta:
+        ordering = ["-derniere_activite"]
+        verbose_name = "Écran Wi-Fi"
+        verbose_name_plural = "Écrans Wi-Fi"
+
+    def __str__(self):
+        return self.nom or f"Écran {self.code}"
+
+    @property
+    def en_ligne(self):
+        from django.utils import timezone
+
+        return timezone.now() - self.derniere_activite < datetime.timedelta(seconds=90)
+

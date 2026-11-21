@@ -11,7 +11,7 @@ from centres.access import est_administrateur_central
 from core.admin import CentreAdminMixin
 
 from .models import (
-    Borne, Centre, EcranAffichage, EcranConnecte, FileAttente, HoraireService, ImprimanteTicket, Service,
+    AppareilEcran, Borne, Centre, EcranAffichage, EcranConnecte, FileAttente, HoraireService, ImprimanteTicket, Service,
 )
 
 
@@ -311,6 +311,30 @@ class EcranAffichageAdmin(CentreAdminMixin, admin.ModelAdmin):
     @admin.action(description="Régénérer la clé des écrans sélectionnés", permissions=["change"])
     def regenerer_cle(self, request, queryset):
         _regenerer_cle_ecrans(self, request, queryset)
+
+
+@admin.register(AppareilEcran)
+class AppareilEcranAdmin(admin.ModelAdmin):
+    """Écrans Wi-Fi (TV qui ont ouvert …/tv/) : on peut les nommer ou les retirer ; réservé à la plateforme."""
+
+    list_display = ("__str__", "code", "adresse_ip", "centre", "en_ligne", "derniere_activite")
+    list_filter = ("centre",)
+    fields = ("nom", "code", "centre", "adresse_ip", "navigateur", "date_creation", "derniere_activite")
+    readonly_fields = ("code", "adresse_ip", "navigateur", "date_creation", "derniere_activite")
+
+    @admin.display(boolean=True, description="En ligne")
+    def en_ligne(self, obj):
+        return obj.en_ligne
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_module_permission(self, request):
+        return est_administrateur_central(request.user)
+
+    has_view_permission = has_change_permission = has_delete_permission = (
+        lambda self, request, obj=None: est_administrateur_central(request.user)
+    )
 
 
 @admin.register(EcranConnecte)

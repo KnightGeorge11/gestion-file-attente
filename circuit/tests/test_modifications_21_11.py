@@ -103,7 +103,8 @@ class EcranDeLaSalleTests(BaseVues):
     def test_page_de_connexion_a_l_ecran_physique(self):
         self.connecter(self.accueil, self.d.centre)
         page = self.client.get(reverse("circuit:ecran_connexion"))
-        self.assertContains(page, "Écrans reliés à cet ordinateur")
+        self.assertContains(page, "Écrans reliés par câble")
+        self.assertContains(page, reverse("circuit:ecrans_reseau"))       # écrans du Wi-Fi
         self.assertContains(page, "getScreenDetails")             # détection des écrans physiques
         self.assertContains(page, "screenschange")                # réaffichage quand l'écran est rebranché
         self.assertContains(page, "PresentationRequest")          # TV sans fil (Cast)
@@ -292,22 +293,55 @@ class EcransDuWifiTests(BaseVues):
         self.assertEqual(ecrans[0]["nom"], "Écran 192.168.3.50")
 
     @override_settings(RESEAU_LOCAL_UNIQUEMENT=True)
-    def test_page_ecran_liste_les_tv_et_les_ecrans_en_ligne(self):
+    def test_choisir_un_ecran_wifi_depuis_la_plateforme(self):
         from unittest import mock
 
-        from centres.models import EcranConnecte
+        from centres.models import AppareilEcran
 
-        # La TV ouvre l'écran des appels : elle est repérée par son adresse IP.
-        self.client.get(reverse("circuit:ecran_salle_appels", args=["TAM"]), REMOTE_ADDR="192.168.3.226")
-        self.client.get(reverse("circuit:ecran_salle_appels", args=["TAM"]), REMOTE_ADDR="192.168.3.226")
-        tv = EcranConnecte.objects.get()
-        self.assertEqual((tv.centre, tv.adresse_ip, tv.en_ligne), (self.d.centre, "192.168.3.226", True))
-        tv_trouvee = [{"adresse_ip": "192.168.3.226", "dial": True, "nom": "GoogleTV8572", "marque": "TCL",
-                       "modele": "Smart TV", "type": ""}]
-        self.connecter(self.accueil, self.d.centre)
-        self.assertContains(self.client.get(reverse("circuit:ecran_connexion")), reverse("circuit:ecrans_reseau"))
-        with mock.patch("core.decouverte.rechercher_ecrans", return_value=tv_trouvee):
-            fragment = self.client.get(reverse("circuit:ecrans_reseau"))
-        self.assertContains(fragment, "GoogleTV8572")
-        self.assertContains(fragment, "Affiche les appels")
-        self.assertContains(fragment, "En ligne")
+        tv = {"REMOTE_ADDR": "192.168.3.226"}
+        trouvees = [{"adresse_ip": "192.168.3.226", "dial": True, "nom": "GoogleTV8572", "marque": "TCL",
+                     "modele": "Smart TV", "type": ""},
+                    {"adresse_ip": "192.168.3.99", "dial": True, "nom": "Salon LG", "marque": "LG",
+                     "modele": "", "type": ""}]
+        # 1. La TV ouvre une fois …/tv/ : « Écran prêt » et un code.
+        page_tv = self.client.get(reverse("ecran_tv"), **tv)
+        appareil = AppareilEcran.objects.get()
+        self.assertContains(page_tv, "Écran prêt")
+        self.assertContains(page_tv, appareil.code)
+        self.assertEqual(self.client.get(reverse("ecran_tv_etat"), **tv).status_code, 204)
+        # 2. La plateforme la liste (nom trouvé sur le réseau) ; l'autre TV est « à préparer ».
+        agent = self.client_class()
+        agent.force_login(self.accueil)
+        session = agent.session
+        session["centre_actif_id"] = self.d.centre.pk
+        session.save()
+        with mock.patch("core.decouverte.rechercher_ecrans", return_value=trouvees):
+            liste = agent.get(reverse("circuit:ecrans_reseau") + "?rechercher=1")
+        self.assertContains(liste, "GoogleTV8572")
+        self.assertContains(liste, "Libre")
+        self.assertContains(liste, "Afficher les appels ici")
+        self.assertContains(liste, "Salon LG")
+        self.assertContains(liste, "http://testserver/tv/")
+        # 3. « Afficher les appels ici » : la TV passe aux appels du centre, sans qu'on la touche.
+        reponse = agent.post(reverse("circuit:ecran_wifi_choisir"), {"appareil": appareil.pk, "action": "afficher"})
+        self.assertContains(reponse, "Affiche les appels")
+        self.assertEqual(self.client.get(reverse("ecran_tv_etat"), **tv)["HX-Redirect"], reverse("ecran_tv"))
+        self.assertContains(self.client.get(reverse("ecran_tv"), **tv), reverse("ecran_tv_appels"))
+        self.assertEqual(self.client.get(reverse("ecran_tv_appels"), **tv).status_code, 200)
+        # Un agent d'un autre centre ne peut pas le prendre.
+        autre = self.client_class()
+        autre.force_login(self.agent_b)
+        session = autre.session
+        session["centre_actif_id"] = self.b.centre.pk
+        session.save()
+        autre.post(reverse("circuit:ecran_wifi_choisir"), {"appareil": appareil.pk, "action": "afficher"})
+        appareil.refresh_from_db()
+        self.assertEqual(appareil.centre, self.d.centre)
+        # 4. « Arrêter » : la TV revient à l'attente.
+        agent.post(reverse("circuit:ecran_wifi_choisir"), {"appareil": appareil.pk, "action": "arreter"})
+        self.assertEqual(self.client.get(reverse("ecran_tv_appels"), **tv)["HX-Redirect"], reverse("ecran_tv"))
+        self.assertContains(self.client.get(reverse("ecran_tv"), **tv), "Écran prêt")
+
+    @override_settings(RESEAU_LOCAL_UNIQUEMENT=True)
+    def test_adresse_tv_jamais_depuis_internet(self):
+        self.assertEqual(self.client.get(reverse("ecran_tv"), REMOTE_ADDR="8.8.8.8").status_code, 403)

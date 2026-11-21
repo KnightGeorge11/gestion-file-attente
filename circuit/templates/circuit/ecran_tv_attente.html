@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% load interface %}
+{% block titre %}Écran prêt{% endblock %}
+{% block classe_body %}ecran{% endblock %}
+{% block barre %}{% endblock %}
+{% block boost %}{% endblock %}
+{% block contenu %}
+<header class="ecran-entete">
+    <div class="marque"><span class="logo">F</span><span class="titre">Écran de la salle<small>SMIE FUNTOA</small></span></div>
+    <div class="temps"><div class="heure" data-horloge="minutes" data-fuseau="Indian/Antananarivo">{% now "H:i" %}</div></div>
+</header>
+{# Écran libre : il attend qu'on le choisisse dans la plateforme (vérification toutes les 3 s). #}
+<div id="zone-appels" hx-get="{% url 'ecran_tv_etat' %}" hx-trigger="every 3s" hx-swap="none">
+    <div class="ecran-vide">
+        <div>
+            {% icone "ecran" %}
+            <p>Écran prêt</p>
+            <div class="code-ecran">{{ appareil.code }}</div>
+            <small>Dans la plateforme, menu <strong>Écran</strong>, choisissez cet écran (code {{ appareil.code }}) : les appels s'afficheront ici.</small>
+        </div>
+    </div>
+</div>
+<footer class="ecran-pied">
+    <span>{% icone "info" %} Laissez cette page ouverte sur la TV.</span>
+    <span>Réseau local uniquement</span>
+</footer>
+{% endblock %}

@@ -561,3 +561,96 @@ def poste_deconnexion(request):
     """Désactive l'écran à clé de cet appareil. La borne, elle, ne se déconnecte jamais."""
     request.session.pop(SESSION_ECRAN, None)
     return redirect("circuit:ecran")
+
+
+# ---------------------------------------------------------------------------
+# Écran Wi-Fi (TV) : ouvert une fois à l'adresse courte …/tv/, piloté ensuite
+# depuis la page Écran de la plateforme (décision du 21/11/2026).
+# ---------------------------------------------------------------------------
+
+COOKIE_TV = "ecran_tv"
+SEL_COOKIE_TV = "circuit.ecran_tv"
+
+
+def _appareil_tv(request, creer=False):
+    """Écran Wi-Fi de cet appareil (cookie signé). Le crée au premier passage si `creer`."""
+    import secrets
+
+    from centres.models import AppareilEcran
+    from core.reseau import adresse_client
+
+    if not _reseau_local(request):
+        raise PermissionDenied("Accès réservé au réseau local.")
+    appareil = None
+    try:
+        jeton = request.get_signed_cookie(COOKIE_TV, salt=SEL_COOKIE_TV)
+        appareil = AppareilEcran.objects.select_related("centre").filter(jeton=jeton).first()
+    except (KeyError, BadSignature):
+        pass
+    maintenant = timezone.now()
+    if appareil is None:
+        if not creer:
+            return None
+        appareil = AppareilEcran.objects.create(
+            jeton=secrets.token_urlsafe(32), code=f"{secrets.randbelow(9000) + 1000}",
+            derniere_activite=maintenant,
+        )
+        request._tv_nouveau = appareil
+    ip = adresse_client(request)
+    # Suivi de l'écran : au plus une écriture toutes les 30 s.
+    if maintenant - appareil.derniere_activite > timedelta(seconds=30) or appareil.adresse_ip != ip:
+        appareil.derniere_activite = maintenant
+        appareil.adresse_ip = ip
+        appareil.navigateur = request.headers.get("User-Agent", "")[:255]
+        appareil.save(update_fields=["derniere_activite", "adresse_ip", "navigateur"])
+    return appareil
+
+
+def _retenir_tv(reponse, request):
+    appareil = getattr(request, "_tv_nouveau", None)
+    if appareil is not None:
+        reponse.set_signed_cookie(
+            COOKIE_TV, appareil.jeton, salt=SEL_COOKIE_TV, max_age=DUREE_COOKIE_BORNE,
+            httponly=True, samesite="Lax", secure=request.is_secure(),
+        )
+    return reponse
+
+
+def _vers_tv():
+    reponse = HttpResponse(status=200)
+    reponse["HX-Redirect"] = reverse("ecran_tv")
+    return reponse
+
+
+def ecran_tv(request):
+    """
+    Adresse à ouvrir une fois sur la TV. Écran libre : « Écran prêt » et son
+    code, en attendant qu'on le choisisse dans la plateforme. Écran choisi :
+    les appels du centre, jusqu'à ce qu'on l'arrête depuis la plateforme.
+    """
+    appareil = _appareil_tv(request, creer=True)
+    centre = appareil.centre if appareil.centre_id and appareil.centre.actif else None
+    if centre is None:
+        reponse = render(request, "circuit/ecran_tv_attente.html", {"appareil": appareil})
+    else:
+        timezone.activate(fuseau_horaire_centre(centre))
+        reponse = render(request, "circuit/ecran.html", {
+            "centre": centre, "poste": None, "salle": True, "url_appels": reverse("ecran_tv_appels"),
+        })
+    return _retenir_tv(reponse, request)
+
+
+def ecran_tv_etat(request):
+    """Écran en attente : dès qu'il est choisi dans la plateforme, il affiche les appels."""
+    appareil = _appareil_tv(request)
+    if appareil is None or appareil.centre_id:
+        return _vers_tv()
+    return HttpResponse(status=204)
+
+
+def ecran_tv_appels(request):
+    """Appels du centre choisi ; écran arrêté depuis la plateforme : retour à l'attente."""
+    appareil = _appareil_tv(request)
+    if appareil is None or not appareil.centre_id or not appareil.centre.actif:
+        return _vers_tv()
+    return _appels_de_l_ecran(request, appareil.centre, None)

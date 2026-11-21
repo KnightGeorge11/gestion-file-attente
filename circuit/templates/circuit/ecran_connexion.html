@@ -5,7 +5,7 @@
 <div class="entete-page">
     <div>
         <h1>Écran de la salle</h1>
-        <p class="sous-titre">Afficher les appels sur un écran physique relié à cet ordinateur · {{ centre_actif.nom }}</p>
+        <p class="sous-titre">Choisissez l'écran qui affiche les appels : relié par câble ou par Wi-Fi · {{ centre_actif.nom }}</p>
     </div>
     <div class="ligne">
         <button type="button" class="principal" id="rechercher-ecrans">{% icone "recherche" %}Rechercher les écrans</button>
@@ -16,30 +16,31 @@
 <div class="encart" id="encart-permission" hidden>{% icone "info" %}<span>Le navigateur va demander l'autorisation de <strong>gérer les fenêtres sur tous vos écrans</strong> : acceptez-la. Autorisez aussi les <strong>fenêtres surgissantes</strong> pour ce site, pour que l'écran des appels se rouvre tout seul quand l'écran est rebranché.</span></div>
 
 <section class="carte">
-    <div class="carte-entete"><h2><span class="titre-icone">{% icone "ecran" %}</span>Écrans reliés à cet ordinateur</h2><span class="etiquette" id="nombre-ecrans">—</span></div>
-    <p class="discret">Branchez l'écran ou la TV de la salle en <strong>HDMI</strong>, ou connectez-le <strong>sans fil</strong> (ci-dessous) : il apparaît ici dès que Windows le reconnaît. Choisissez-le une fois ; ensuite, l'écran des appels s'y affiche en plein écran à chaque fois qu'il est reconnecté.</p>
+    <div class="carte-entete"><h2><span class="titre-icone">{% icone "ecran" %}</span>Écrans reliés par câble</h2><span class="etiquette" id="nombre-ecrans">—</span></div>
+    <p class="discret">Écran ou TV branché à cet ordinateur en <strong>HDMI</strong> (ou connecté par Miracast) : il apparaît ici dès que Windows le reconnaît. Choisissez-le une fois ; ensuite, les appels s'y affichent en plein écran à chaque fois qu'il est reconnecté.</p>
     <div class="tuiles" id="liste-ecrans">
         <div class="carte tuile"><p class="discret" style="margin:0">Cliquez sur « Rechercher les écrans ».</p></div>
     </div>
 </section>
 
-{# Écrans du même Wi-Fi : recherche par le serveur (environ 3 secondes), relancée sur demande. #}
+{# Écrans Wi-Fi : recherche sur le réseau au chargement et sur demande ; état des écrans actualisé toutes les 15 s. #}
 <section class="carte" style="margin-top:var(--espace-5)">
-    <div id="ecrans-reseau" hx-get="{% url 'circuit:ecrans_reseau' %}" hx-trigger="load, rechercher-reseau from:body" hx-swap="innerHTML">
+    <div id="ecrans-reseau" hx-get="{% url 'circuit:ecrans_reseau' %}?rechercher=1" hx-trigger="load, rechercher-reseau from:body" hx-swap="innerHTML">
         <div class="carte-entete"><h2><span class="titre-icone">{% icone "envoyer" %}</span>Écrans sur le Wi-Fi</h2></div>
         <p class="discret">Recherche des écrans sur le réseau…</p>
     </div>
+    <div hx-get="{% url 'circuit:ecrans_reseau' %}" hx-trigger="every 15s [pasDeSaisie()]" hx-target="#ecrans-reseau" hx-swap="innerHTML" hidden></div>
     <p class="ligne" style="margin-top:var(--espace-4)"><button type="button" onclick="document.body.dispatchEvent(new Event('rechercher-reseau'))">{% icone "recherche" %}Relancer la recherche sur le Wi-Fi</button></p>
 </section>
 
 <div class="grille-guichet" style="margin-top:var(--espace-5)">
     <section class="carte">
-        <div class="carte-entete"><h2><span class="titre-icone">{% icone "envoyer" %}</span>Écran sans fil</h2></div>
+        <div class="carte-entete"><h2><span class="titre-icone">{% icone "envoyer" %}</span>Autres façons de diffuser</h2></div>
         <p class="discret">Le Bluetooth ne transporte pas l'image : un écran sans fil se connecte par le <strong>Wi-Fi</strong>.</p>
         <p class="ligne"><button type="button" id="rechercher-cast">{% icone "recherche" %}Rechercher une TV (Cast)</button></p>
         <p class="discret">TV ou boîtier compatible Cast (Google TV, Chromecast, Android TV…) sur le même réseau. Ce bouton fonctionne dans <strong>Google Chrome</strong>.</p>
         <p class="discret">Avec <strong>Microsoft Edge</strong> : ouvrez l'écran des appels (<a href="{{ adresse_ecran }}" target="_blank" rel="noopener">{{ adresse_ecran }}</a>), puis menu ⋯ → <em>Plus d'outils</em> → <em>Diffuser du contenu multimédia sur un appareil</em> → choisissez la TV. L'ordinateur doit rester allumé.</p>
-        <p class="discret"><strong>Le plus fiable pour une TV installée en permanence</strong> : installez un navigateur sur la TV (Google TV : application « TV Bro » ou « Puffin TV » du Play Store) et ouvrez-y l'adresse <code>{{ adresse_ecran }}</code>. La TV affiche alors les appels seule, même ordinateur éteint, et apparaît « En ligne » ci-dessus.</p>
+        <p class="discret"><strong>Préparer une TV Wi-Fi (une seule fois)</strong> : dans le navigateur de la TV (Google TV : application « TV Bro » ou « Puffin TV » du Play Store), ouvrez <code>{{ adresse_tv }}</code>. La TV affiche « Écran prêt » et un code, et apparaît dans « Écrans sur le Wi-Fi » : choisissez-la ensuite d'ici, sans retoucher la TV. Elle affiche les appels seule, même ordinateur éteint.</p>
         {% if adresse_locale %}<div class="encart attention">{% icone "alerte" %}<span>Cet ordinateur n'est connecté à aucun réseau : la TV ne pourra pas le joindre. Connectez-le au même Wi-Fi que la TV.</span></div>{% endif %}
         <p class="ligne"><a class="bouton" href="ms-settings:display">{% icone "reglages" %}Connecter un écran Miracast</a></p>
         <p class="discret">Écran ou TV compatible Miracast : dans Windows, « Se connecter à un écran sans fil » (ou touches <strong>Windows + K</strong>). Une fois connecté, il apparaît dans la liste ci-dessus.</p>
@@ -138,7 +139,11 @@
         });
     }
 
-    document.getElementById("rechercher-ecrans").addEventListener("click", rechercher);
+    // Un seul bouton : écrans reliés par câble et écrans du Wi-Fi.
+    document.getElementById("rechercher-ecrans").addEventListener("click", function () {
+        rechercher();
+        document.body.dispatchEvent(new Event("rechercher-reseau"));
+    });
     // Autorisation déjà donnée : la recherche démarre seule à l'ouverture de la page.
     if (navigator.permissions && "getScreenDetails" in window) {
         navigator.permissions.query({name: "window-management"}).then(function (etat) {
