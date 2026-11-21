@@ -81,11 +81,14 @@ def ecran_connexion(request):
     """
     from urllib.parse import urlsplit
 
+    from core.reseau import adresse_pour_le_reseau
+
     centre = request.centre_actif
-    hote = urlsplit(request.build_absolute_uri()).hostname or ""
+    adresse = adresse_pour_le_reseau(request, reverse("circuit:ecran_salle", args=[centre.code]))
     return render(request, "circuit/ecran_connexion.html", {
-        "adresse_ecran": request.build_absolute_uri(reverse("circuit:ecran_salle", args=[centre.code])),
-        "adresse_locale": hote in ("localhost", "127.0.0.1", "::1"),
+        "adresse_ecran": adresse,
+        # Toujours « localhost » : aucune adresse réseau trouvée (PC hors réseau).
+        "adresse_locale": urlsplit(adresse).hostname in ("localhost", "127.0.0.1", "::1"),
     })
 
 
@@ -97,6 +100,7 @@ def ecrans_reseau(request):
     """
     from centres.models import EcranConnecte
     from core.decouverte import rechercher_ecrans
+    from core.reseau import adresse_pour_le_reseau
 
     centre = request.centre_actif
     connectes = list(EcranConnecte.objects.filter(centre=centre)[:20])
@@ -108,7 +112,7 @@ def ecrans_reseau(request):
         "ecrans": ecrans,
         "connectes": connectes,
         "aujourdhui": maintenant_centre(centre).strftime("%Y%m%d"),
-        "adresse_ecran": request.build_absolute_uri(reverse("circuit:ecran_salle", args=[centre.code])),
+        "adresse_ecran": adresse_pour_le_reseau(request, reverse("circuit:ecran_salle", args=[centre.code])),
     })
 
 

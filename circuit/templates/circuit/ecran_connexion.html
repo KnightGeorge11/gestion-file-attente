@@ -37,8 +37,10 @@
         <div class="carte-entete"><h2><span class="titre-icone">{% icone "envoyer" %}</span>Écran sans fil</h2></div>
         <p class="discret">Le Bluetooth ne transporte pas l'image : un écran sans fil se connecte par le <strong>Wi-Fi</strong>.</p>
         <p class="ligne"><button type="button" id="rechercher-cast">{% icone "recherche" %}Rechercher une TV (Cast)</button></p>
-        <p class="discret">TV ou boîtier compatible Cast (Chromecast, Android TV…) sur le même réseau : la TV affiche elle-même les appels.</p>
-        {% if adresse_locale %}<div class="encart attention">{% icone "alerte" %}<span>Cette page est ouverte avec l'adresse « {{ request.get_host }} », que la TV ne peut pas joindre. Ouvrez l'application avec l'adresse réseau de l'ordinateur (ex. http://192.168.1.10:8000) avant de rechercher une TV.</span></div>{% endif %}
+        <p class="discret">TV ou boîtier compatible Cast (Google TV, Chromecast, Android TV…) sur le même réseau. Ce bouton fonctionne dans <strong>Google Chrome</strong>.</p>
+        <p class="discret">Avec <strong>Microsoft Edge</strong> : ouvrez l'écran des appels (<a href="{{ adresse_ecran }}" target="_blank" rel="noopener">{{ adresse_ecran }}</a>), puis menu ⋯ → <em>Plus d'outils</em> → <em>Diffuser du contenu multimédia sur un appareil</em> → choisissez la TV. L'ordinateur doit rester allumé.</p>
+        <p class="discret"><strong>Le plus fiable pour une TV installée en permanence</strong> : installez un navigateur sur la TV (Google TV : application « TV Bro » ou « Puffin TV » du Play Store) et ouvrez-y l'adresse <code>{{ adresse_ecran }}</code>. La TV affiche alors les appels seule, même ordinateur éteint, et apparaît « En ligne » ci-dessus.</p>
+        {% if adresse_locale %}<div class="encart attention">{% icone "alerte" %}<span>Cet ordinateur n'est connecté à aucun réseau : la TV ne pourra pas le joindre. Connectez-le au même Wi-Fi que la TV.</span></div>{% endif %}
         <p class="ligne"><a class="bouton" href="ms-settings:display">{% icone "reglages" %}Connecter un écran Miracast</a></p>
         <p class="discret">Écran ou TV compatible Miracast : dans Windows, « Se connecter à un écran sans fil » (ou touches <strong>Windows + K</strong>). Une fois connecté, il apparaît dans la liste ci-dessus.</p>
     </section>

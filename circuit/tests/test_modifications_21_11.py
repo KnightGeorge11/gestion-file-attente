@@ -108,9 +108,16 @@ class EcranDeLaSalleTests(BaseVues):
         self.assertContains(page, "screenschange")                # réaffichage quand l'écran est rebranché
         self.assertContains(page, "PresentationRequest")          # TV sans fil (Cast)
         self.assertContains(page, "http://testserver" + reverse("circuit:ecran_salle", args=["TAM"]))
-        self.assertNotContains(page, "que la TV ne peut pas joindre")
-        locale = self.client.get(reverse("circuit:ecran_connexion"), HTTP_HOST="localhost")
-        self.assertContains(locale, "que la TV ne peut pas joindre")
+        # Page ouverte avec « localhost » : la TV reçoit l'adresse réseau de l'ordinateur.
+        from unittest import mock
+
+        with mock.patch("config.settings._adresses_de_cet_ordinateur", return_value=["192.168.3.212"]):
+            locale = self.client.get(reverse("circuit:ecran_connexion"), HTTP_HOST="localhost:8000")
+        self.assertContains(locale, "http://192.168.3.212:8000" + reverse("circuit:ecran_salle", args=["TAM"]))
+        self.assertNotContains(locale, "http://localhost:8000" + reverse("circuit:ecran_salle", args=["TAM"]))
+        with mock.patch("config.settings._adresses_de_cet_ordinateur", return_value=[]):
+            hors_reseau = self.client.get(reverse("circuit:ecran_connexion"), HTTP_HOST="localhost:8000")
+        self.assertContains(hors_reseau, "connecté à aucun réseau")
 
     def test_lanceur_windows_present(self):
         from pathlib import Path

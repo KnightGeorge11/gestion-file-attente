@@ -40,6 +40,27 @@ def est_reseau_local(request):
     return ip.is_private or ip.is_loopback
 
 
+def adresse_pour_le_reseau(request, chemin):
+    """
+    Adresse complète de `chemin`, joignable par les autres appareils du réseau
+    (TV, borne). Si la page est ouverte avec « localhost », celui-ci est
+    remplacé par l'adresse réseau de l'ordinateur : pour une TV, « localhost »
+    désigne la TV elle-même.
+    """
+    from urllib.parse import urlsplit, urlunsplit
+
+    adresse = request.build_absolute_uri(chemin)
+    morceaux = urlsplit(adresse)
+    if morceaux.hostname in ("localhost", "127.0.0.1", "::1"):
+        from config.settings import _adresses_de_cet_ordinateur
+
+        reseau = _adresses_de_cet_ordinateur()
+        if reseau:
+            hote = reseau[0] + (f":{morceaux.port}" if morceaux.port else "")
+            adresse = urlunsplit(morceaux._replace(netloc=hote))
+    return adresse
+
+
 def est_adresse_privee(valeur):
     """Adresse du réseau local (imprimantes) : privée, ni boucle locale ni lien local."""
     try:
