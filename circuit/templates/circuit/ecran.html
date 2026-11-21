@@ -113,6 +113,12 @@
     }
     document.body.addEventListener("htmx:afterSwap", function (e) {
         if (e.target.id !== "zone-appels") return;
+        // Serveur mis à jour depuis l'ouverture de la page : on la recharge.
+        const version = e.target.querySelector("[data-version-ecrans]");
+        if (version && version.dataset.versionEcrans !== "{{ version_ecrans }}") {
+            window.location.reload();
+            return;
+        }
         // Tous les appels en cours (le plus récent en grand). Chaque appel plus
         // récent que tous ceux déjà vus est annoncé, même si plusieurs services
         // appellent dans le même intervalle de 3 s. Quand un service termine,

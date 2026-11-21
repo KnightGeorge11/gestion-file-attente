@@ -1,5 +1,6 @@
 {% load interface tz %}
 {# Fragment rafraîchi toutes les 3 s. À gauche, les appels en cours (le plus récent en grand) ; à droite, les appels terminés. Aucune information personnelle. #}
+<span hidden data-version-ecrans="{{ version_ecrans }}"></span>
 {% if en_cours or precedents %}
 {% timezone fuseau %}
 <div class="ecran-corps">

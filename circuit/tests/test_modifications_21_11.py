@@ -386,3 +386,14 @@ class AnnonceVocaleServeurTests(BaseVues):
             page = self.client.get(reverse("circuit:ecran_salle", args=["TAM"]))
         self.assertContains(page, "const voixServeur = true")
         self.assertContains(page, reverse("circuit:ecran_annonce", args=[0]))
+
+
+@override_settings(RESEAU_LOCAL_UNIQUEMENT=True)
+class RechargementDesEcransTests(BaseVues):
+    def test_l_ecran_se_recharge_quand_le_serveur_est_mis_a_jour(self):
+        from circuit.views_postes import VERSION_ECRANS
+
+        page = self.client.get(reverse("circuit:ecran_salle", args=["TAM"]))
+        self.assertContains(page, f'!== "{VERSION_ECRANS}"')
+        fragment = self.client.get(reverse("circuit:ecran_salle_appels", args=["TAM"]))
+        self.assertContains(fragment, f'data-version-ecrans="{VERSION_ECRANS}"')

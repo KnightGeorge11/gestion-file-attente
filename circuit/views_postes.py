@@ -41,6 +41,10 @@ from .models import Appel, EntreeFile, MotifDemande, Ticket
 from .services import ErreurCircuit
 
 SESSION_BORNE = "borne_id"
+# Version du serveur (son démarrage) : un écran ouvert depuis longtemps
+# recharge sa page quand le serveur a été mis à jour, pour en prendre les
+# nouveautés (ex. voix des annonces) sans qu'on touche à la TV.
+VERSION_ECRANS = str(int(timezone.now().timestamp()))
 # Borne : cookie signé, indépendant de la session (une déconnexion d'agent ou
 # d'administrateur sur l'appareil ne désactive pas la borne).
 COOKIE_BORNE = "borne_poste"
@@ -468,6 +472,7 @@ def ecran(request):
         return reponse or redirect("circuit:ecran")
     return render(request, "circuit/ecran.html", {
         "voix_serveur": voix_disponible(),
+        "version_ecrans": VERSION_ECRANS,
         "centre": centre, "poste": poste, "url_appels": reverse("circuit:ecran_appels"),
     })
 
@@ -490,6 +495,7 @@ def ecran_salle(request, code_centre):
     centre = _centre_de_la_salle(request, code_centre)
     return render(request, "circuit/ecran.html", {
         "voix_serveur": voix_disponible(),
+        "version_ecrans": VERSION_ECRANS,
         "centre": centre, "poste": None, "salle": True,
         "url_appels": reverse("circuit:ecran_salle_appels", args=[centre.code]),
     })
@@ -555,6 +561,7 @@ def _appels_de_l_ecran(request, centre, poste):
             "fuseau": fuseau_horaire_centre(centre),
             "recents": recents,
             "annonce": poste.annonce_vocale if poste else True,
+            "version_ecrans": VERSION_ECRANS,
         },
     )
 
@@ -639,6 +646,7 @@ def ecran_tv(request):
         timezone.activate(fuseau_horaire_centre(centre))
         reponse = render(request, "circuit/ecran.html", {
         "voix_serveur": voix_disponible(),
+        "version_ecrans": VERSION_ECRANS,
             "centre": centre, "poste": None, "salle": True, "url_appels": reverse("ecran_tv_appels"),
         })
     return _retenir_tv(reponse, request)
