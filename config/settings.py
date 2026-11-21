@@ -31,6 +31,34 @@ ALLOWED_HOSTS = [
     if host.strip()
 ]
 
+
+def _adresses_de_cet_ordinateur():
+    """Adresses IP de l'ordinateur sur le réseau local (Wi-Fi, câble)."""
+    import socket
+
+    adresses = set()
+    try:
+        adresses.update(socket.gethostbyname_ex(socket.gethostname())[2])
+    except OSError:
+        pass
+    try:
+        # Adresse utilisée pour sortir sur le réseau (aucun paquet n'est envoyé).
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as prise:
+            prise.connect(("192.168.255.255", 1))
+            adresses.add(prise.getsockname()[0])
+    except OSError:
+        pass
+    return sorted(a for a in adresses if not a.startswith(("127.", "169.254.")))
+
+
+# Développement (DEBUG) : l'écran de la salle, la borne ou une TV du même Wi-Fi
+# joignent le serveur par l'adresse réseau de cet ordinateur (ex.
+# http://192.168.3.212:8000). Sans elle dans ALLOWED_HOSTS, Django répond
+# « 400 » et la TV n'affiche rien. En production, DJANGO_ALLOWED_HOSTS reste
+# la seule liste (adresse et nom du serveur).
+if DEBUG and env_bool("DJANGO_AUTORISER_ADRESSES_LOCALES", "True"):
+    ALLOWED_HOSTS += [a for a in _adresses_de_cet_ordinateur() if a not in ALLOWED_HOSTS]
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
