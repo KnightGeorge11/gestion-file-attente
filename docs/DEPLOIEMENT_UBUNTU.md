@@ -159,6 +159,8 @@ sudo ufw allow OpenSSH
 sudo ufw enable
 ```
 
+Recherche des écrans du Wi-Fi (page Écran) : le serveur envoie une question UPnP (UDP 1900, multidiffusion) et reçoit les réponses des TV. Si la liste reste vide alors que la TV est allumée sur le même réseau, autoriser ces réponses : `sudo ufw allow from 192.168.1.0/24 proto udp to any`.
+
 PostgreSQL n'écoute que sur `127.0.0.1` (valeur par défaut d'Ubuntu) : ne pas l'ouvrir au réseau.
 
 ## 9. Tâches planifiées et sauvegardes

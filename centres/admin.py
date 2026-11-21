@@ -10,7 +10,9 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from centres.access import est_administrateur_central
 from core.admin import CentreAdminMixin
 
-from .models import Borne, Centre, EcranAffichage, FileAttente, HoraireService, ImprimanteTicket, Service
+from .models import (
+    Borne, Centre, EcranAffichage, EcranConnecte, FileAttente, HoraireService, ImprimanteTicket, Service,
+)
 
 
 @admin.register(Centre)
@@ -309,6 +311,23 @@ class EcranAffichageAdmin(CentreAdminMixin, admin.ModelAdmin):
     @admin.action(description="Régénérer la clé des écrans sélectionnés", permissions=["change"])
     def regenerer_cle(self, request, queryset):
         _regenerer_cle_ecrans(self, request, queryset)
+
+
+@admin.register(EcranConnecte)
+class EcranConnecteAdmin(CentreAdminMixin, admin.ModelAdmin):
+    """Appareils qui affichent les appels, repérés automatiquement (on peut seulement les nommer)."""
+
+    list_display = ("__str__", "adresse_ip", "centre", "en_ligne", "derniere_activite")
+    list_filter = ("centre",)
+    fields = ("centre", "nom", "adresse_ip", "navigateur", "premiere_activite", "derniere_activite")
+    readonly_fields = ("centre", "adresse_ip", "navigateur", "premiere_activite", "derniere_activite")
+
+    @admin.display(boolean=True, description="En ligne")
+    def en_ligne(self, obj):
+        return obj.en_ligne
+
+    def has_add_permission(self, request):
+        return False
 
 
 @admin.register(ImprimanteTicket)

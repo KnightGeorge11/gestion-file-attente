@@ -90,6 +90,29 @@ def ecran_connexion(request):
 
 
 @centre_actif_requis
+def ecrans_reseau(request):
+    """
+    Fragment HTMX : écrans trouvés sur le même réseau que le serveur (TV qui
+    s'annoncent par UPnP/DIAL) et appareils qui affichent déjà les appels.
+    """
+    from centres.models import EcranConnecte
+    from core.decouverte import rechercher_ecrans
+
+    centre = request.centre_actif
+    connectes = list(EcranConnecte.objects.filter(centre=centre)[:20])
+    en_ligne = {c.adresse_ip for c in connectes if c.en_ligne}
+    ecrans = rechercher_ecrans(attente=3)
+    for ecran in ecrans:
+        ecran["affiche"] = ecran["adresse_ip"] in en_ligne
+    return render(request, "circuit/_ecrans_reseau.html", {
+        "ecrans": ecrans,
+        "connectes": connectes,
+        "aujourdhui": maintenant_centre(centre).strftime("%Y%m%d"),
+        "adresse_ecran": request.build_absolute_uri(reverse("circuit:ecran_salle", args=[centre.code])),
+    })
+
+
+@centre_actif_requis
 def guichets(request):
     centre = request.centre_actif
     services.cloture_automatique(centre)

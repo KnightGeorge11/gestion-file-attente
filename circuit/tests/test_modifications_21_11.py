@@ -229,3 +229,78 @@ class AccueilDelivreLesTicketsTests(BaseVues):
 class _Imprimante:
     page_codes = "cp858"
     largeur_caracteres = 48
+
+
+class EcransDuWifiTests(BaseVues):
+    """Les écrans du même réseau sont détectés par le serveur (UPnP/DIAL) et suivis en ligne."""
+
+    REPONSE_TV = (
+        b"HTTP/1.1 200 OK\r\nST: urn:dial-multiscreen-org:service:dial:1\r\n"
+        b"LOCATION: http://192.168.3.226:8008/ssdp/device-desc.xml\r\n\r\n"
+    )
+    FICHE_TV = (
+        b'<?xml version="1.0"?><root xmlns="urn:schemas-upnp-org:device-1-0"><device>'
+        b"<deviceType>urn:dial-multiscreen-org:device:dial:1</deviceType>"
+        b"<friendlyName>GoogleTV8572</friendlyName><manufacturer>TCL</manufacturer>"
+        b"<modelName>Smart TV</modelName></device></root>"
+    )
+
+    def setUp(self):
+        super().setUp()
+        from django.core.cache import cache
+
+        cache.clear()
+
+    def _reseau(self, attente):
+        return [
+            ("192.168.3.226", self.REPONSE_TV),
+            ("8.8.8.8", self.REPONSE_TV),                                   # hors réseau local : ignoré
+            ("192.168.3.40", b"HTTP/1.1 200 OK\r\nST: upnp:rootdevice\r\n\r\n"),   # routeur : pas un écran
+        ]
+
+    def test_detection_d_une_tv_du_reseau(self):
+        from unittest import mock
+
+        from core.decouverte import rechercher_ecrans
+
+        reponse = mock.MagicMock()
+        reponse.__enter__.return_value.read.return_value = self.FICHE_TV
+        with mock.patch("core.decouverte.urllib.request.urlopen", return_value=reponse) as ouvrir:
+            ecrans = rechercher_ecrans(envoyer=self._reseau)
+        self.assertEqual(ecrans, [{
+            "adresse_ip": "192.168.3.226", "dial": True, "nom": "GoogleTV8572", "marque": "TCL",
+            "modele": "Smart TV", "type": "urn:dial-multiscreen-org:device:dial:1",
+        }])
+        ouvrir.assert_called_once()                                          # seule la fiche locale est lue
+
+    def test_fiche_hors_reseau_local_jamais_lue(self):
+        from unittest import mock
+
+        from core.decouverte import rechercher_ecrans
+
+        piege = b"HTTP/1.1 200 OK\r\nST: urn:dial-multiscreen-org:service:dial:1\r\nLOCATION: http://8.8.8.8/x.xml\r\n\r\n"
+        with mock.patch("core.decouverte.urllib.request.urlopen") as ouvrir:
+            ecrans = rechercher_ecrans(envoyer=lambda attente: [("192.168.3.50", piege)])
+        ouvrir.assert_not_called()
+        self.assertEqual(ecrans[0]["nom"], "Écran 192.168.3.50")
+
+    @override_settings(RESEAU_LOCAL_UNIQUEMENT=True)
+    def test_page_ecran_liste_les_tv_et_les_ecrans_en_ligne(self):
+        from unittest import mock
+
+        from centres.models import EcranConnecte
+
+        # La TV ouvre l'écran des appels : elle est repérée par son adresse IP.
+        self.client.get(reverse("circuit:ecran_salle_appels", args=["TAM"]), REMOTE_ADDR="192.168.3.226")
+        self.client.get(reverse("circuit:ecran_salle_appels", args=["TAM"]), REMOTE_ADDR="192.168.3.226")
+        tv = EcranConnecte.objects.get()
+        self.assertEqual((tv.centre, tv.adresse_ip, tv.en_ligne), (self.d.centre, "192.168.3.226", True))
+        tv_trouvee = [{"adresse_ip": "192.168.3.226", "dial": True, "nom": "GoogleTV8572", "marque": "TCL",
+                       "modele": "Smart TV", "type": ""}]
+        self.connecter(self.accueil, self.d.centre)
+        self.assertContains(self.client.get(reverse("circuit:ecran_connexion")), reverse("circuit:ecrans_reseau"))
+        with mock.patch("core.decouverte.rechercher_ecrans", return_value=tv_trouvee):
+            fragment = self.client.get(reverse("circuit:ecrans_reseau"))
+        self.assertContains(fragment, "GoogleTV8572")
+        self.assertContains(fragment, "Affiche les appels")
+        self.assertContains(fragment, "En ligne")

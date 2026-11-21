@@ -503,7 +503,34 @@ def ecran_appels(request):
     return _appels_de_l_ecran(request, centre, poste)
 
 
+def _noter_ecran_connecte(request, centre):
+    """
+    Repère l'appareil qui affiche les appels (TV, mini-PC…) par son adresse
+    IP : la page Écran liste ainsi les écrans du réseau en ligne. Au plus une
+    écriture par minute et par appareil.
+    """
+    from django.core.cache import cache
+
+    from centres.models import EcranConnecte
+    from core.reseau import adresse_client
+
+    ip = adresse_client(request)
+    cle = f"circuit:ecran-connecte:{centre.pk}:{ip}"
+    if not ip or not cache.add(cle, True, 60):
+        return
+    maintenant = timezone.now()
+    EcranConnecte.objects.update_or_create(
+        centre=centre, adresse_ip=ip,
+        defaults={"derniere_activite": maintenant, "navigateur": request.headers.get("User-Agent", "")[:255]},
+        create_defaults={
+            "premiere_activite": maintenant, "derniere_activite": maintenant,
+            "navigateur": request.headers.get("User-Agent", "")[:255],
+        },
+    )
+
+
 def _appels_de_l_ecran(request, centre, poste):
+    _noter_ecran_connecte(request, centre)
     services.cloture_automatique(centre)
     if poste is not None and (
         poste.derniere_activite is None or timezone.now() - poste.derniere_activite > timedelta(minutes=1)

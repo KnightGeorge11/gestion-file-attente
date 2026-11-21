@@ -600,3 +600,36 @@ class EcranAffichage(ModeleCentre):
 
     def __str__(self):
         return f"{self.libelle} ({self.centre.code})"
+
+
+class EcranConnecte(ModeleCentre):
+    """
+    Appareil du réseau local qui affiche l'écran des appels (TV, mini-PC,
+    tablette…), repéré automatiquement par son adresse IP quand il interroge
+    le serveur (décision du 21/11/2026). Sert à voir quels écrans sont en
+    ligne ; aucune information personnelle.
+    """
+
+    adresse_ip = models.GenericIPAddressField()
+    navigateur = models.CharField(max_length=255, blank=True)
+    nom = models.CharField(max_length=100, blank=True, help_text="Nom donné par l'administrateur (ex. TV salle d'attente).")
+    premiere_activite = models.DateTimeField()
+    derniere_activite = models.DateTimeField()
+
+    class Meta:
+        ordering = ["centre", "-derniere_activite"]
+        verbose_name = "Écran connecté"
+        verbose_name_plural = "Écrans connectés"
+        constraints = [
+            models.UniqueConstraint(fields=["centre", "adresse_ip"], name="unique_ecran_connecte_par_centre"),
+        ]
+
+    def __str__(self):
+        return self.nom or f"Écran {self.adresse_ip}"
+
+    @property
+    def en_ligne(self):
+        from django.utils import timezone
+
+        return timezone.now() - self.derniere_activite < datetime.timedelta(minutes=2)
+

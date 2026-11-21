@@ -1,0 +1,26 @@
+{% load interface %}
+{# Écrans du même réseau (Wi-Fi ou câble) : TV qui s'annoncent, et appareils qui affichent déjà les appels. #}
+<div class="carte-entete"><h2><span class="titre-icone">{% icone "envoyer" %}</span>Écrans sur le Wi-Fi</h2><span class="etiquette">{{ ecrans|length }} trouvé{{ ecrans|length|pluralize }}</span></div>
+<p class="discret">TV connectées et boîtiers (Google TV, Android TV, Chromecast, Samsung, LG…) annoncés sur le même réseau que le serveur. Rien ne passe par Internet.</p>
+<div class="tuiles">
+{% for e in ecrans %}
+    <div class="carte tuile">
+        <div class="tuile-haut">
+            <span class="tuile-icone">{% icone "ecran" %}</span>
+            <div><h2>{{ e.nom }}</h2>{% if e.affiche %}<span class="etiquette ok">Affiche les appels</span>{% else %}<span class="etiquette info">{{ e.marque|default:"Écran" }}{% if e.modele %} · {{ e.modele }}{% endif %}</span>{% endif %}</div>
+        </div>
+        <p class="discret">Adresse sur le réseau : {{ e.adresse_ip }}</p>
+        {% if not e.affiche %}
+        <p class="discret" style="margin-bottom:0">Pour y afficher les appels : {% if e.dial %}« Rechercher une TV (Cast) » ci-dessous (Chrome), ou {% endif %}ouvrez sur cette TV son navigateur à l'adresse <code>{{ adresse_ecran }}</code>.</p>
+        {% endif %}
+    </div>
+{% empty %}
+    <div class="carte tuile"><p class="discret" style="margin:0">Aucun écran trouvé sur le réseau. Vérifiez que la TV est allumée et connectée au même Wi-Fi que le serveur.</p></div>
+{% endfor %}
+</div>
+{% if connectes %}
+<div class="section-titre">{% icone "ecran" %}Appareils qui ont affiché les appels</div>
+<ul class="chronologie">{% for c in connectes %}
+    <li><strong>{{ c }}</strong> · {{ c.adresse_ip }} · {% if c.en_ligne %}<span class="etiquette ok">En ligne</span>{% else %}<span class="etiquette">Hors ligne depuis {{ c.derniere_activite|time:"H:i" }}{% if c.derniere_activite|date:"Ymd" != aujourdhui %} le {{ c.derniere_activite|date:"d/m" }}{% endif %}</span>{% endif %}</li>
+{% endfor %}</ul>
+{% endif %}

@@ -23,6 +23,15 @@
     </div>
 </section>
 
+{# Écrans du même Wi-Fi : recherche par le serveur (environ 3 secondes), relancée sur demande. #}
+<section class="carte" style="margin-top:var(--espace-5)">
+    <div id="ecrans-reseau" hx-get="{% url 'circuit:ecrans_reseau' %}" hx-trigger="load, rechercher-reseau from:body" hx-swap="innerHTML">
+        <div class="carte-entete"><h2><span class="titre-icone">{% icone "envoyer" %}</span>Écrans sur le Wi-Fi</h2></div>
+        <p class="discret">Recherche des écrans sur le réseau…</p>
+    </div>
+    <p class="ligne" style="margin-top:var(--espace-4)"><button type="button" onclick="document.body.dispatchEvent(new Event('rechercher-reseau'))">{% icone "recherche" %}Relancer la recherche sur le Wi-Fi</button></p>
+</section>
+
 <div class="grille-guichet" style="margin-top:var(--espace-5)">
     <section class="carte">
         <div class="carte-entete"><h2><span class="titre-icone">{% icone "envoyer" %}</span>Écran sans fil</h2></div>
