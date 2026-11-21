@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% load interface %}
+{% block titre %}Votre salle{% endblock %}
+{% block contenu %}
+<div class="entete-page">
+    <div>
+        <h1>Votre salle</h1>
+        <p class="sous-titre">Indiquée une fois à la connexion, annoncée à chacun de vos appels · {{ centre_actif.nom }}</p>
+    </div>
+</div>
+
+<section class="carte" style="max-width:560px">
+    <div class="carte-entete"><h2><span class="titre-icone">{% icone "centre" %}</span>Où recevez-vous les patients aujourd'hui ?</h2></div>
+    <p class="discret">À chaque appel, l'écran de la salle d'attente annonce le numéro, le service et votre salle : par exemple « M 001 Médecins, 1 ». Indiquez simplement le numéro de votre salle. Vous pourrez le changer à tout moment depuis votre poste.</p>
+    {% if erreur %}<ul class="messages"><li class="error">{{ erreur }}</li></ul>{% endif %}
+    <form method="post">
+        {% csrf_token %}<input type="hidden" name="next" value="{{ suite }}">
+        <label for="salle">Numéro de salle{% if obligatoire %} (obligatoire){% endif %}</label>
+        <div class="champ-icone">{% icone "centre" %}<input id="salle" name="salle" maxlength="50" value="{{ salle }}" placeholder="ex. 1" {% if obligatoire %}required{% endif %} autofocus></div>
+        <p style="margin-top:18px"><button class="principal grand">{% icone "check" %}Enregistrer et continuer</button></p>
+    </form>
+</section>
+{% endblock %}

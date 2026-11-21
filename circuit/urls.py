@@ -7,6 +7,7 @@ app_name = "circuit"
 urlpatterns = [
     # Interfaces des services
     path("services/", views.guichets, name="guichets"),
+    path("ma-salle/", views.ma_salle, name="ma_salle"),
     path("services/<int:service_id>/", views.guichet, name="guichet"),
     path("services/<int:service_id>/liste/", views.guichet_liste, name="guichet_liste"),
     path("services/<int:service_id>/indicateurs/", views.guichet_indicateurs, name="guichet_indicateurs"),

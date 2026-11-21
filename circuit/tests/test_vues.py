@@ -26,10 +26,13 @@ class BaseVues(TestCase):
         self.pharma = self.d.agent("pha1", "Pharmacie", ["PHA"])
         self.agent_b = self.b.agent("accueil_b", "Accueil", ["ACC"])
 
-    def connecter(self, utilisateur, centre):
+    def connecter(self, utilisateur, centre, salle_indiquee=True):
         self.client.force_login(utilisateur)
         session = self.client.session
         session[SESSION_CENTRE_KEY] = centre.pk
+        if salle_indiquee:
+            # Comme si le médecin avait déjà indiqué sa salle (page « Votre salle »).
+            session["salle_indiquee"] = centre.pk
         session.save()
 
 

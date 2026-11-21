@@ -19,7 +19,7 @@ from centres.models import Borne, Centre
 from circuit import services
 from circuit.impression import contenu_ticket
 from circuit.management.commands.imprimante_simulee import texte_lisible
-from circuit.models import ReservationQuota, Ticket
+from circuit.models import Appel, ReservationQuota, Ticket
 from circuit.services import ErreurCircuit
 from circuit.views_postes import COOKIE_BORNE
 
@@ -358,7 +358,7 @@ class AnnonceVocaleServeurTests(BaseVues):
     def test_texte_de_l_annonce(self):
         from circuit.annonce_vocale import texte_annonce
 
-        self.assertEqual(texte_annonce(self._appel()), "Ticket M 0 0 1, Accueil, Guichet 1")
+        self.assertEqual(texte_annonce(self._appel()), "M 001 Accueil, Guichet 1")
 
     def test_l_ecran_recoit_le_fichier_audio_de_l_annonce(self):
         import tempfile
@@ -373,7 +373,7 @@ class AnnonceVocaleServeurTests(BaseVues):
                 reponse = self.client.get(reverse("circuit:ecran_annonce", args=[appel.pk]))
                 self.assertEqual(reponse["Content-Type"], "audio/wav")
                 self.assertEqual(reponse.content, b"RIFF....WAVEfmt ")
-            fabriquer.assert_called_once_with("Ticket M 0 0 1, Accueil, Guichet 1")   # texte de l'appel, jamais du navigateur
+            fabriquer.assert_called_once_with("M 001 Accueil, Guichet 1")   # texte de l'appel, jamais du navigateur
         with mock.patch("circuit.views_postes.fichier_annonce", return_value=None):
             self.assertEqual(self.client.get(reverse("circuit:ecran_annonce", args=[appel.pk])).status_code, 404)
         reponse = self.client.get(reverse("circuit:ecran_annonce", args=[appel.pk]), REMOTE_ADDR="8.8.8.8")
@@ -408,3 +408,48 @@ class RechargementDesEcransTests(BaseVues):
         a_jour = self.client.get(url, {"v": VERSION_ECRANS}, HTTP_HX_REQUEST="true")
         self.assertNotIn("HX-Redirect", a_jour)
         self.assertContains(self.client.get(reverse("circuit:ecran_salle", args=["TAM"])), f"?v={VERSION_ECRANS}")
+
+
+
+class SalleDuMedecinTests(BaseVues):
+    """Le médecin indique sa salle à la connexion ; elle est annoncée à chacun de ses appels."""
+
+    def test_salle_demandee_a_la_connexion_puis_annoncee(self):
+        from circuit.annonce_vocale import texte_annonce
+        from comptes.models import AffectationUtilisateur
+
+        infirmier = self.d.agent("inf_s", "Infirmerie", ["INF"])
+        ticket = self.d.ticket("M")
+        self.d.accueillir(ticket, self.accueil)
+        self.d.traiter(ticket, "INF", infirmier)                     # M001 attend chez les médecins
+        med = self.d.svc["MED"].pk
+        self.connecter(self.medecin, self.d.centre, salle_indiquee=False)
+        # À la connexion, le médecin doit d'abord indiquer sa salle.
+        reponse = self.client.get(reverse("circuit:guichet", args=[med]))
+        self.assertRedirects(reponse, reverse("circuit:ma_salle") + "?next=" + reverse("circuit:guichet", args=[med]),
+                             fetch_redirect_response=False)
+        page = self.client.get(reverse("circuit:ma_salle"))
+        self.assertContains(page, "Où recevez-vous les patients")
+        self.client.post(reverse("circuit:ma_salle"), {"salle": ""})               # obligatoire
+        self.assertEqual(AffectationUtilisateur.objects.get(utilisateur=self.medecin).salle, "")
+        self.client.post(reverse("circuit:ma_salle"), {"salle": " 1 ", "next": reverse("circuit:guichet", args=[med])})
+        self.assertEqual(AffectationUtilisateur.objects.get(utilisateur=self.medecin).salle, "1")
+        guichet = self.client.get(reverse("circuit:guichet", args=[med]))
+        self.assertContains(guichet, 'value="1"')
+        self.assertContains(guichet, "Votre salle : <strong>1</strong>")
+        # L'appel annonce la salle, sans le mot « ticket ».
+        self.client.post(reverse("circuit:guichet_action", args=[med, "appeler"]), {"poste": ""})
+        appel = Appel.objects.get(service__code="MED")
+        self.assertEqual(appel.poste, "1")
+        self.assertEqual(texte_annonce(appel), "M 001 Médecins, 1")
+
+    def test_les_autres_agents_ne_sont_pas_obliges(self):
+        self.connecter(self.accueil, self.d.centre, salle_indiquee=False)
+        self.assertEqual(self.client.get(reverse("circuit:guichets")).status_code, 200)
+
+    def test_l_ecran_n_affiche_plus_le_mot_ticket_dans_l_annonce(self):
+        self.d.ticket("M")
+        services.appeler(self.d.file("ACC"), self.accueil, poste="Guichet 1")
+        self.connecter(self.accueil, self.d.centre)
+        fragment = self.client.get(reverse("circuit:ecran_appels"))
+        self.assertContains(fragment, 'data-texte="M 001 Accueil, Guichet 1"')

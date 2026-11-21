@@ -19,7 +19,7 @@ from centres.decorators import centre_actif_requis
 from centres.models import Service
 from comptes.access import utilisateur_peut_acceder_service
 from comptes.models import Utilisateur
-from comptes.permissions import a_droit, appel_limite_aux_autres, voit_autres_seulement
+from comptes.permissions import a_droit, affectation_active, appel_limite_aux_autres, voit_autres_seulement
 from core.access import objet_du_centre
 from core.timeutils import maintenant_centre
 
@@ -174,8 +174,65 @@ def ecran_wifi_choisir(request):
     return reponse
 
 
+SESSION_SALLE = "salle_indiquee"
+ROLES_AVEC_SALLE = ("Médecin",)
+
+
+def _salle_a_indiquer(request):
+    """
+    Médecin pas encore passé par « Votre salle » depuis sa connexion dans ce
+    centre (décision du 21/11/2026) : sa salle est annoncée à chacun de ses appels.
+    """
+    affectation = affectation_active(request.user, request.centre_actif)
+    return bool(
+        affectation is not None
+        and affectation.groupe_id
+        and affectation.groupe.name in ROLES_AVEC_SALLE
+        and request.session.get(SESSION_SALLE) != request.centre_actif.pk
+    )
+
+
+def _vers_ma_salle(request):
+    return redirect(f"{reverse('circuit:ma_salle')}?next={request.get_full_path()}")
+
+
+@centre_actif_requis
+def ma_salle(request):
+    """
+    « Votre salle » : le médecin indique la salle où il reçoit (proposée à
+    chaque connexion, pré-remplie avec la dernière). Elle est annoncée à
+    l'écran à chacun de ses appels.
+    """
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    affectation = affectation_active(request.user, request.centre_actif)
+    if affectation is None:
+        raise PermissionDenied
+    suite = request.GET.get("next") or request.POST.get("next") or reverse("circuit:guichets")
+    if not url_has_allowed_host_and_scheme(suite, allowed_hosts={request.get_host()}):
+        suite = reverse("circuit:guichets")
+    obligatoire = bool(affectation.groupe_id and affectation.groupe.name in ROLES_AVEC_SALLE)
+    erreur = None
+    if request.method == "POST":
+        salle = " ".join(request.POST.get("salle", "").split())[:50]
+        if obligatoire and not salle:
+            erreur = "Indiquez le numéro de la salle où vous recevez les patients (ex. 1)."
+        else:
+            affectation.salle = salle
+            affectation.save(update_fields=["salle"])
+            request.session[SESSION_SALLE] = request.centre_actif.pk
+            if salle:
+                messages.success(request, f"Votre salle : {salle}. Elle sera annoncée à chacun de vos appels.")
+            return redirect(suite)
+    return render(request, "circuit/ma_salle.html", {
+        "salle": affectation.salle, "suite": suite, "obligatoire": obligatoire, "erreur": erreur,
+    })
+
+
 @centre_actif_requis
 def guichets(request):
+    if _salle_a_indiquer(request):
+        return _vers_ma_salle(request)
     centre = request.centre_actif
     services.cloture_automatique(centre)
     jour = maintenant_centre(centre).date()
@@ -274,6 +331,7 @@ def _contexte_guichet(request, service, file):
         "peut_orienter": a_droit(agent, "circuit.orienter_demande", request.centre_actif, service),
         # Administrateur, responsables, direction : tickets « Autre » seulement.
         "appel_autres_seulement": appel_limite_aux_autres(agent, request.centre_actif),
+        "salle_agent": getattr(affectation_active(agent, request.centre_actif), "salle", ""),
         "maintenant": timezone.now(),
         "indicateurs": _indicateurs_service(service, file, agent, jour),
         # Historique des derniers appels du service (aujourd'hui).
@@ -338,6 +396,8 @@ def _contexte_guichet(request, service, file):
 
 @centre_actif_requis
 def guichet(request, service_id):
+    if _salle_a_indiquer(request):
+        return _vers_ma_salle(request)
     service = _service_autorise(request, service_id)
     file, files = _file_du_service(request, service)
     contexte = _contexte_guichet(request, service, file)
@@ -406,7 +466,12 @@ def guichet_action(request, service_id, action):
             entree = None
             if request.POST.get("entree"):
                 entree = _entree_de_la_file(request, file)
-            appel = services.appeler(file, agent, entree=entree, poste=request.POST.get("poste", ""))
+            # Salle indiquée par l'agent à sa connexion, sauf s'il en précise une autre.
+            poste = request.POST.get("poste", "").strip()
+            if not poste:
+                affectation = affectation_active(agent, request.centre_actif)
+                poste = affectation.salle if affectation is not None else ""
+            appel = services.appeler(file, agent, entree=entree, poste=poste)
             messages.success(request, f"Ticket {appel.numero_ticket} appelé.")
         elif action == "rappeler":
             _exiger(request, "circuit.appeler", service)

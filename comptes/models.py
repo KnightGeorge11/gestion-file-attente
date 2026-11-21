@@ -102,6 +102,16 @@ class AffectationUtilisateur(models.Model):
         default=True,
     )
 
+    # Salle où se trouve l'agent (ex. « Salle 3 »), indiquée par le médecin à
+    # sa connexion et annoncée à chacun de ses appels (décision du 21/11/2026).
+    salle = models.CharField(
+        max_length=50,
+        blank=True,
+        default="",
+        db_default="",
+        help_text="Salle annoncée à l'écran lors des appels de cet agent.",
+    )
+
     date_creation = models.DateTimeField(
         auto_now_add=True,
     )

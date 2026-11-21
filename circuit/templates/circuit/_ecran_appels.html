@@ -9,7 +9,7 @@
     {% with dernier=en_cours.0 %}
     <section class="appel-vedette {% if dernier.date >= recents %}nouveau{% endif %}" data-appel="{{ dernier.pk }}"
              data-annonce="{% if annonce %}1{% else %}0{% endif %}"
-             data-texte="Ticket {{ dernier.numero_ticket|join:' ' }}, {{ dernier.nom_service }}{% if dernier.poste %}, {{ dernier.poste }}{% endif %}">
+             data-texte="{{ dernier.numero_ticket|slice:':1' }} {{ dernier.numero_ticket|slice:'1:' }} {{ dernier.nom_service }}{% if dernier.poste %}, {{ dernier.poste }}{% endif %}">
         <div class="invitation">Ticket appelé</div>
         <div class="num">{{ dernier.numero_ticket }}</div>
         <div class="destination">{% icone dernier.service|icone_service %}{{ dernier.nom_service }}</div>
@@ -20,7 +20,7 @@
     <div class="ecran-appels autres-appels-en-cours">
         {% for appel in en_cours|slice:"1:" %}
         <div class="ecran-appel en-cours {% if appel.date >= recents %}nouveau{% endif %}" data-appel-en-cours="{{ appel.pk }}"
-             data-texte="Ticket {{ appel.numero_ticket|join:' ' }}, {{ appel.nom_service }}{% if appel.poste %}, {{ appel.poste }}{% endif %}">
+             data-texte="{{ appel.numero_ticket|slice:':1' }} {{ appel.numero_ticket|slice:'1:' }} {{ appel.nom_service }}{% if appel.poste %}, {{ appel.poste }}{% endif %}">
             <span class="num">{{ appel.numero_ticket }}</span>
             <span class="service">{% icone appel.service|icone_service %}{{ appel.nom_service }}</span>
             <span class="poste">{{ appel.poste }}</span>
