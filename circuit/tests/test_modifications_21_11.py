@@ -97,9 +97,30 @@ class EcranDeLaSalleTests(BaseVues):
     def test_lien_du_menu_vers_l_ecran_de_la_salle(self):
         self.connecter(self.accueil, self.d.centre)
         page = self.client.get(reverse("circuit:guichets"))
-        self.assertContains(page, f'href="{reverse("circuit:ecran_salle", args=["TAM"])}"')
-        self.assertContains(page, "data-ecran-salle")
+        self.assertContains(page, f'href="{reverse("circuit:ecran_connexion")}"')
         self.assertContains(page, 'class="horloge-barre"')         # point 5 : heure dans la barre
+
+    def test_page_de_connexion_a_l_ecran_physique(self):
+        self.connecter(self.accueil, self.d.centre)
+        page = self.client.get(reverse("circuit:ecran_connexion"))
+        self.assertContains(page, "Écrans reliés à cet ordinateur")
+        self.assertContains(page, "getScreenDetails")             # détection des écrans physiques
+        self.assertContains(page, "screenschange")                # réaffichage quand l'écran est rebranché
+        self.assertContains(page, "PresentationRequest")          # TV sans fil (Cast)
+        self.assertContains(page, "http://testserver" + reverse("circuit:ecran_salle", args=["TAM"]))
+        self.assertNotContains(page, "que la TV ne peut pas joindre")
+        locale = self.client.get(reverse("circuit:ecran_connexion"), HTTP_HOST="localhost")
+        self.assertContains(locale, "que la TV ne peut pas joindre")
+
+    def test_lanceur_windows_present(self):
+        from pathlib import Path
+
+        from django.conf import settings
+
+        script = Path(settings.BASE_DIR, "scripts", "ecran_salle.ps1").read_text(encoding="utf-8-sig")
+        self.assertIn("AllScreens", script)
+        self.assertIn("--kiosk", script)
+        self.assertIn("DisplaySwitch.exe", script)
 
 
 class ClotureA23h59Tests(BaseVues):

@@ -290,38 +290,6 @@
     messagesEnToasts(document);
   });
 
-  /* ---------------- Écran de la salle ---------------- */
-
-  /* Le lien « Écran » ouvre l'écran des appels sur le second écran de
-     l'ordinateur (branché en HDMI, ou projeté sans fil avec Windows + K),
-     quand le navigateur sait le placer ; sinon dans une nouvelle fenêtre, à
-     glisser sur l'écran de la salle. Rien ne passe par Internet. */
-  function ouvrirEcranSalle(adresse) {
-    function ouvrir(ecran) {
-      var options = ecran
-        ? "popup,left=" + ecran.availLeft + ",top=" + ecran.availTop + ",width=" + ecran.availWidth + ",height=" + ecran.availHeight
-        : "";
-      var fenetre = window.open(adresse, "ecran-salle", options);
-      if (!fenetre) {
-        toast("Le navigateur a bloqué la fenêtre de l'écran : autorisez les fenêtres surgissantes pour ce site, puis réessayez.", "warning");
-      }
-    }
-    if (!window.getScreenDetails) { ouvrir(null); return; }
-    window.getScreenDetails().then(function (details) {
-      var autre = details.screens.filter(function (e) { return e !== details.currentScreen; })[0];
-      if (!autre) {
-        toast("Aucun second écran détecté : branchez l'écran de la salle (HDMI) ou projetez sans fil (Windows + K). L'écran s'ouvre dans une nouvelle fenêtre.", "warning");
-      }
-      ouvrir(autre || null);
-    }).catch(function () { ouvrir(null); });
-  }
-  document.addEventListener("click", function (e) {
-    var lien = e.target.closest && e.target.closest("[data-ecran-salle]");
-    if (!lien) { return; }
-    e.preventDefault();
-    ouvrirEcranSalle(lien.href);
-  });
-
   /* ---------------- Démarrage ---------------- */
 
   document.addEventListener("DOMContentLoaded", function () {

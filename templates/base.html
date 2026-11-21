@@ -28,8 +28,8 @@
         {% if voit_tickets %}<a href="{% url 'circuit:tickets' %}" class="{% if page == 'tickets' or page == 'ticket' %}actif{% endif %}">{% icone "tickets" %}Tickets</a>{% endif %}
         {% if peut_statistiques %}<a href="{% url 'statistiques:tableau' %}" class="{% if espace == 'statistiques' %}actif{% endif %}">{% icone "stats" %}Statistiques</a>{% endif %}
         <a href="{% url 'circuit:notifications' %}" class="{% if page == 'notifications' %}actif{% endif %}">{% icone "cloche" %}Notifications<span hx-get="{% url 'circuit:badge_notifications' %}" hx-trigger="every 15s" hx-swap="innerHTML">{% if nb_notifications %}<span class="pastille">{{ nb_notifications }}</span>{% endif %}</span></a>
-        {# Écran de la salle : s'ouvre sur le second écran de l'ordinateur (HDMI ou sans fil), sans clé. #}
-        <a href="{% url 'circuit:ecran_salle' centre_actif.code %}" target="_blank" rel="noopener" data-ecran-salle title="Afficher l'écran des appels sur l'écran de la salle">{% icone "ecran" %}Écran</a>
+        {# Écran de la salle : détection des écrans physiques reliés à l'ordinateur (décision du 21/11/2026). #}
+        <a href="{% url 'circuit:ecran_connexion' %}" class="{% if page == 'ecran_connexion' %}actif{% endif %}" title="Afficher les appels sur l'écran de la salle">{% icone "ecran" %}Écran</a>
         {% if user.is_staff %}<a href="{% url 'admin:index' %}" hx-boost="false">{% icone "reglages" %}Administration</a>{% endif %}
     </nav>
     {% endif %}

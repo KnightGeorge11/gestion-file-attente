@@ -72,6 +72,24 @@ def _file_du_service(request, service):
 # ---------------------------------------------------------------------------
 
 @centre_actif_requis
+def ecran_connexion(request):
+    """
+    Écran de la salle (décision du 21/11/2026) : le système détecte les écrans
+    physiques reliés à cet ordinateur (HDMI, ou sans fil une fois connectés
+    par Windows) et y affiche l'écran des appels en plein écran ; il l'y
+    réaffiche quand l'écran est rebranché. TV compatible Cast : envoi direct.
+    """
+    from urllib.parse import urlsplit
+
+    centre = request.centre_actif
+    hote = urlsplit(request.build_absolute_uri()).hostname or ""
+    return render(request, "circuit/ecran_connexion.html", {
+        "adresse_ecran": request.build_absolute_uri(reverse("circuit:ecran_salle", args=[centre.code])),
+        "adresse_locale": hote in ("localhost", "127.0.0.1", "::1"),
+    })
+
+
+@centre_actif_requis
 def guichets(request):
     centre = request.centre_actif
     services.cloture_automatique(centre)
