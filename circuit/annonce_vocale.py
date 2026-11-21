@@ -3,7 +3,7 @@ Annonce vocale des appels, fabriquée par le serveur (décision du 21/11/2026).
 
 Les navigateurs des TV Android (TV Bro, Puffin TV… : moteur WebView) n'ont
 pas de synthèse vocale : la voix ne peut pas venir de la TV. Le serveur
-fabrique donc un fichier audio (« M 0 0 1, Médecins, 1 ») avec
+fabrique donc un fichier audio (« M 0 0 1, Médecin, 1 ») avec
 une voix française installée sur la machine, sans Internet, et l'écran le
 joue. Les fichiers sont gardés en cache (un par texte).
 
@@ -48,7 +48,7 @@ $voix.Dispose()
 
 def texte_annonce(appel):
     """
-    « M 0 0 1, Médecins, 1 » (décision du 21/11/2026) : le numéro du ticket
+    « M 0 0 1, Médecin, 1 » (décision du 21/11/2026) : le numéro du ticket
     caractère par caractère, le service, puis la salle du médecin. Sans le
     mot « ticket ».
     """

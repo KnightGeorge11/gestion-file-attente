@@ -21,7 +21,7 @@ SERVICES = [
     # code, nom, ordre, options
     ("ACC", "Accueil", 1, {"est_accueil": True, "accepte_transferts": False}),
     ("INF", "Infirmerie", 2, {}),
-    ("MED", "Médecins", 3, {}),
+    ("MED", "Médecin", 3, {}),   # nom annoncé : « M 0 0 1, Médecin, 1 » (décision du 21/11/2026)
     ("DEN", "Dentiste", 4, {}),
     ("ECH", "Échographie", 5, {}),
     ("PHA", "Pharmacie", 6, {"est_pharmacie": True, "appel_oral_autorise": True}),

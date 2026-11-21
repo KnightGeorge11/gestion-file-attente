@@ -11,7 +11,7 @@
 
 <section class="carte" style="max-width:560px">
     <div class="carte-entete"><h2><span class="titre-icone">{% icone "centre" %}</span>Où recevez-vous les patients aujourd'hui ?</h2></div>
-    <p class="discret">À chaque appel, l'écran de la salle d'attente annonce le numéro, le service et votre salle : par exemple « M 0 0 1, Médecins, 1 ». Indiquez simplement le numéro de votre salle. Vous pourrez le changer à tout moment depuis votre poste.</p>
+    <p class="discret">À chaque appel, l'écran de la salle d'attente annonce le numéro, le service et votre salle : par exemple « M 0 0 1, Médecin, 1 ». Indiquez simplement le numéro de votre salle. Vous pourrez le changer à tout moment depuis votre poste.</p>
     {% if erreur %}<ul class="messages"><li class="error">{{ erreur }}</li></ul>{% endif %}
     <form method="post">
         {% csrf_token %}<input type="hidden" name="next" value="{{ suite }}">

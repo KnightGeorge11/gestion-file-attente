@@ -829,7 +829,7 @@ class VisibiliteParServiceTests(BaseVues):
             entree = self.d.entree(self.m_infirmerie)
             self.client.post(reverse("circuit:guichet_action", args=[inf, "prendre"]), {"entree": entree.pk})
             page = self.client.get(reverse("circuit:guichet", args=[inf]))
-        self.assertContains(page, "Terminer et orienter vers Médecins")
+        self.assertContains(page, "Terminer et orienter vers Médecin")
         self.assertContains(page, "Transférer à la pharmacie")
         self.assertContains(page, "Motif (obligatoire)")
         self.assertContains(page, "étapes restantes du parcours ne seront pas réalisées")

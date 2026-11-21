@@ -441,7 +441,7 @@ class SalleDuMedecinTests(BaseVues):
         self.client.post(reverse("circuit:guichet_action", args=[med, "appeler"]), {"poste": ""})
         appel = Appel.objects.get(service__code="MED")
         self.assertEqual(appel.poste, "1")
-        self.assertEqual(texte_annonce(appel), "M 0 0 1, Médecins, 1")
+        self.assertEqual(texte_annonce(appel), "M 0 0 1, Médecin, 1")
 
     def test_les_autres_agents_ne_sont_pas_obliges(self):
         self.connecter(self.accueil, self.d.centre, salle_indiquee=False)
