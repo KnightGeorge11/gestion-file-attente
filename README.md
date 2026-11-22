@@ -32,6 +32,7 @@ Le module `salles` n'a pas été créé : il reste optionnel et non validé (Tre
 - Parcours : **M** accueil → infirmerie → file commune des médecins → consultation ; **D** accueil → dentiste ; **E** accueil → échographie ; **I** accueil → infirmerie → fin. Marche avant.
 - **Progression du patient** (décision du 18/11/2026) : appelé par un service, le patient s'y rend ; quand le service appuie sur « Terminer », le patient peut être appelé par le service suivant de son parcours (celui choisi au départ). Pas de saut d'étape.
 - **Pharmacie : jamais automatique ni obligatoire.** Tout service de soins (infirmerie, médecin, dentiste, échographie) peut décider explicitement de l'envoyer à la pharmacie (« Transférer à la pharmacie ») ; le ticket se termine après la pharmacie. Depuis une étape intermédiaire (ex. infirmerie du parcours M), un **motif est obligatoire** et les étapes restantes ne sont pas réalisées (décision du 20/11/2026). Jamais depuis l'accueil (décision du 18/11/2026). Aucune version de parcours ne contient la pharmacie.
+- **Médecin en chef** (décision du 22/11/2026) : seuls les médecins y envoient un patient (« Envoyer au médecin en chef », motif facultatif) ; l'accueil y accède par la borne qu'il tient (ticket **C**). Jamais proposé sur une borne en libre-service. Le médecin en chef termine ensuite le ticket ou l'envoie à la pharmacie. Configuration : cases « Médecin en chef » et « Peut envoyer au médecin en chef » sur les services, « Réservé à la borne de l'accueil » sur le parcours.
 - **Clôture** à **23 h 59** des tickets restés ouverts et **remise à zéro des numéros** (décision du 21/11/2026, heure réglable par centre). Elle est **automatique** : dès qu'une page de la borne, d'un guichet ou de l'écran est ouverte, les tickets à clôturer sont fermés (vérification au plus une fois par minute). La commande `cloturer_tickets` reste disponible en tâche planifiée de sécurité. Après l'heure de clôture, la borne affiche « Tickets terminés pour aujourd'hui » et ne délivre plus de ticket jusqu'à minuit (audit du 20/11/2026).
 - **10 secondes** minimum entre deux appels du même patient ; absence après 3 appels.
 - **2 agents minimum par service** (décision du 18/11/2026) : chaque file accepte au moins 2 appels simultanés ; chaque agent ne tient qu'un patient à la fois.
@@ -74,7 +75,7 @@ Le module `salles` n'a pas été créé : il reste optionnel et non validé (Tre
 
 | Point (carte « Répondre aux points ouverts ») | Comportement provisoire |
 |---|---|
-| Transfert vers un autre service que la pharmacie | Non proposé |
+| Transfert vers un autre service que la pharmacie | Seulement le médecin en chef, depuis un médecin (décision du 22/11/2026) |
 | Position après réintégration | En fin de file |
 | Pharmacie, appel oral | Bouton « Appel oral » = prise en charge directe, puis « Terminer » (horaires enregistrés) |
 | File des médecins : ordre strict ou libre | Ordre strict |

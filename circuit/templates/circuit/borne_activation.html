@@ -29,7 +29,8 @@
                 <p style="margin-top:22px"><button class="principal grand large">Activer cette borne</button></p>
             </form>
             {% elif connecte %}
-            <p class="discret">Votre compte n'administre aucune borne active. Créez la borne dans l'administration (Bornes), ou connectez-vous avec un compte administrateur.</p>
+            <div class="encart attention">{% icone "alerte" %}<span>Votre compte n'administre aucune borne active. Créez la borne dans l'administration (Bornes), ou connectez-vous avec un compte administrateur.</span></div>
+            <form method="post" action="{% url 'deconnexion' %}" style="margin-top:22px">{% csrf_token %}<button type="submit" class="grand large">{% icone "sortie" %}Changer de compte</button></form>
             {% else %}
             <p class="discret">Cette borne n'est pas encore activée. Un administrateur (de la plateforme ou du centre) doit se connecter une fois sur cet appareil.</p>
             <p style="margin-top:22px"><a class="bouton principal grand large" href="{{ connexion }}">{% icone "cle" %}Connexion administrateur</a></p>

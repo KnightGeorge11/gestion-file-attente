@@ -144,6 +144,23 @@ class Service(models.Model):
         default=False,
     )
 
+    # Médecin en chef (décision du 22/11/2026) : service qui ne reçoit que les
+    # patients envoyés par un médecin, ou un ticket délivré par l'accueil à
+    # la borne qu'il tient. Jamais proposé sur une borne en libre-service.
+    est_medecin_chef = models.BooleanField(
+        default=False,
+        db_default=False,
+        verbose_name="Médecin en chef",
+        help_text="Reçoit les patients envoyés par les services autorisés ci-dessous.",
+    )
+
+    envoie_medecin_chef = models.BooleanField(
+        default=False,
+        db_default=False,
+        verbose_name="Peut envoyer au médecin en chef",
+        help_text="Les agents de ce service (les médecins) peuvent envoyer un patient au médecin en chef.",
+    )
+
     afficher_ecran_principal = models.BooleanField(
         default=True,
     )
@@ -554,6 +571,9 @@ class Borne(ModeleCentre):
         from parcours.models import Parcours
 
         tous = Parcours.objects.filter(centre_id=self.centre_id, actif=True, visible_borne=True)
+        if not self.centre.accueil_delivre_tickets:
+            # Borne en libre-service : jamais le médecin en chef (décision du 22/11/2026).
+            tous = tous.filter(reserve_accueil=False)
         if self.pk and self.parcours.exists():
             return tous.filter(pk__in=self.parcours.values("pk"))
         return tous

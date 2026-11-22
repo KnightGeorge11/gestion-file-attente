@@ -130,6 +130,9 @@ def emettre_ticket(centre, mode, parcours=None, borne=None, motif=None, precisio
             raise ErreurCircuit("Veuillez choisir un service.")
         if parcours.centre_id != centre.pk or not parcours.actif or not parcours.visible_borne:
             raise ErreurCircuit("Ce service n'est pas disponible.")
+        if parcours.reserve_accueil and not centre.accueil_delivre_tickets:
+            # Médecin en chef : jamais depuis une borne en libre-service (décision du 22/11/2026).
+            raise ErreurCircuit("Ce service n'est pas disponible.")
         version = parcours.version_publiee()
         if version is None:
             raise ErreurCircuit("Ce parcours n'a pas de version publiée.")
@@ -614,8 +617,31 @@ def peut_transferer_pharmacie(passage):
     return service_pharmacie(passage.centre) is not None
 
 
+def service_medecin_chef(centre):
+    return (
+        Service.objects.filter(centre=centre, est_medecin_chef=True, actif=True)
+        .order_by("ordre")
+        .first()
+    )
+
+
+def peut_transferer_medecin_chef(passage):
+    """
+    Seuls les médecins (services cochés « Peut envoyer au médecin en chef »)
+    envoient un patient au médecin en chef (décision du 22/11/2026). L'accueil
+    y accède par la borne qu'il tient. Jamais pour un ticket « Autre ».
+    """
+    service = passage.service
+    if not service.envoie_medecin_chef or service.est_medecin_chef:
+        return False
+    if passage.ticket.est_autre:
+        return False
+    return service_medecin_chef(passage.centre) is not None
+
+
 @transaction.atomic
-def terminer(entree, agent, transferer_pharmacie=False, motif="", derogation=False, motif_derogation=""):
+def terminer(entree, agent, transferer_pharmacie=False, motif="", derogation=False, motif_derogation="",
+             transferer_medecin_chef=False):
     """
     Fin de prise en charge.
 
@@ -628,7 +654,10 @@ def terminer(entree, agent, transferer_pharmacie=False, motif="", derogation=Fal
     - Sans transfert : le patient passe à l'étape suivante du parcours,
       sinon le ticket se termine.
     - Avec transfert (décision explicite du service) : un passage pharmacie
-      est créé ; le ticket se termine après la pharmacie. Depuis une étape
+      est créé ; le ticket se termine après la pharmacie.
+    - Vers le médecin en chef (médecins seulement, décision du 22/11/2026) :
+      un passage est créé dans sa file ; il termine ensuite le ticket ou
+      l'envoie à la pharmacie. Depuis une étape
       intermédiaire, un motif est obligatoire et les étapes restantes ne
       sont pas réalisées (décision du 20/11/2026).
     """
@@ -664,14 +693,17 @@ def terminer(entree, agent, transferer_pharmacie=False, motif="", derogation=Fal
     suivante = etape_suivante(ticket, passage)
     motif = (motif or "").strip()
 
-    if transferer_pharmacie:
-        if not peut_transferer_pharmacie(passage):
-            raise ErreurCircuit("Le transfert vers la pharmacie n'est pas possible depuis ce service.")
-        if suivante is not None and not motif:
-            raise ErreurCircuit(
-                f"Transfert avant {suivante.service.nom} : indiquez un motif "
-                "(les étapes restantes du parcours ne seront pas réalisées)."
-            )
+    if transferer_pharmacie and transferer_medecin_chef:
+        raise ErreurCircuit("Choisissez un seul service de destination.")
+    if transferer_pharmacie and not peut_transferer_pharmacie(passage):
+        raise ErreurCircuit("Le transfert vers la pharmacie n'est pas possible depuis ce service.")
+    if transferer_medecin_chef and not peut_transferer_medecin_chef(passage):
+        raise ErreurCircuit("L'envoi au médecin en chef n'est pas possible depuis ce service.")
+    if (transferer_pharmacie or transferer_medecin_chef) and suivante is not None and not motif:
+        raise ErreurCircuit(
+            f"Transfert avant {suivante.service.nom} : indiquez un motif "
+            "(les étapes restantes du parcours ne seront pas réalisées)."
+        )
 
     maintenant = timezone.now()
     entree.statut = EntreeFile.Statut.TERMINE
@@ -684,22 +716,23 @@ def terminer(entree, agent, transferer_pharmacie=False, motif="", derogation=Fal
     passage.save(update_fields=["statut", "date_fin", "termine_par"])
     _evenement(ticket, Evenement.Type.FIN_PRISE_EN_CHARGE, agent=agent, passage=passage, entree=entree)
 
-    if transferer_pharmacie:
-        pharmacie = service_pharmacie(passage.centre)
-        nouveau = _creer_passage(ticket, pharmacie, pharmacie.file_par_defaut(),
+    if transferer_pharmacie or transferer_medecin_chef:
+        destination = (service_pharmacie(passage.centre) if transferer_pharmacie
+                       else service_medecin_chef(passage.centre))
+        nouveau = _creer_passage(ticket, destination, destination.file_par_defaut(),
                                  origine=Passage.Origine.TRANSFERT)
         Transfert.objects.create(
             centre_id=ticket.centre_id,
             ticket=ticket,
             passage_origine=passage,
             passage_destination=nouveau,
-            service_destination=pharmacie,
+            service_destination=destination,
             motif=motif,
             decide_par=agent,
             date=maintenant,
         )
         _evenement(ticket, Evenement.Type.TRANSFERT, agent=agent, passage=passage,
-                   vers=pharmacie.nom, motif=motif,
+                   vers=destination.nom, motif=motif,
                    etapes_non_realisees=bool(suivante))
         return nouveau
 

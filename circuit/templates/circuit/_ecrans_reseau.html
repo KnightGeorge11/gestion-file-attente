@@ -1,7 +1,7 @@
 {% load interface %}
 {# Écrans Wi-Fi : prêts (ils ont ouvert …/tv/ une fois, on les choisit d'un clic) ou à préparer (TV annoncées sur le réseau). #}
 {% if request.method == "POST" %}{% include "_messages.html" with oob=True %}{% endif %}
-<div class="carte-entete"><h2><span class="titre-icone">{% icone "envoyer" %}</span>Écrans sur le Wi-Fi</h2><span class="etiquette">{{ appareils|length }} prêt{{ appareils|length|pluralize }}</span></div>
+<div class="carte-entete"><h2><span class="titre-icone">{% icone "envoyer" %}</span>Écrans sur le Wi-Fi</h2><span class="etiquette">{{ appareils|length }} prêt{% if appareils|length > 1 %}s{% endif %}</span></div>
 <p class="discret">Choisissez l'écran : les appels s'y affichent en quelques secondes, sans toucher à la TV. Rien ne passe par Internet.</p>
 <div class="tuiles">
 {% for a in appareils %}
@@ -26,7 +26,7 @@
         </form>
     </div>
 {% empty %}
-    <div class="carte tuile"><p class="discret" style="margin:0">Aucun écran Wi-Fi prêt. Sur la TV, ouvrez une fois l'adresse <code>{{ adresse_tv }}</code> : elle apparaîtra ici.</p></div>
+    <div class="attente-vide">{% icone "ecran" %}<strong>Aucun écran Wi-Fi prêt</strong><span class="discret">Sur la TV, ouvrez une fois l'adresse <code>{{ adresse_tv }}</code> : elle apparaîtra ici.</span></div>
 {% endfor %}
 </div>
 {% if a_preparer %}

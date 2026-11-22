@@ -16,10 +16,10 @@
 <div class="encart" id="encart-permission" hidden>{% icone "info" %}<span>Le navigateur va demander l'autorisation de <strong>gérer les fenêtres sur tous vos écrans</strong> : acceptez-la. Autorisez aussi les <strong>fenêtres surgissantes</strong> pour ce site, pour que l'écran des appels se rouvre tout seul quand l'écran est rebranché.</span></div>
 
 <section class="carte">
-    <div class="carte-entete"><h2><span class="titre-icone">{% icone "ecran" %}</span>Écrans reliés par câble</h2><span class="etiquette" id="nombre-ecrans">—</span></div>
+    <div class="carte-entete"><h2><span class="titre-icone">{% icone "ecran" %}</span>Écrans reliés par câble</h2><span class="etiquette" id="nombre-ecrans" hidden></span></div>
     <p class="discret">Écran ou TV branché à cet ordinateur en <strong>HDMI</strong> (ou connecté par Miracast) : il apparaît ici dès que Windows le reconnaît. Choisissez-le une fois ; ensuite, les appels s'y affichent en plein écran à chaque fois qu'il est reconnecté.</p>
     <div class="tuiles" id="liste-ecrans">
-        <div class="carte tuile"><p class="discret" style="margin:0">Cliquez sur « Rechercher les écrans ».</p></div>
+        <div class="attente-vide">{% icone "ecran" %}<strong>Écrans non recherchés</strong><span class="discret">Cliquez sur « Rechercher les écrans » : les écrans branchés à cet ordinateur s'afficheront ici.</span></div>
     </div>
 </section>
 
@@ -83,7 +83,9 @@
     function afficherListe() {
         const ecrans = details.screens;
         const choisi = lire();
-        document.getElementById("nombre-ecrans").textContent = ecrans.length + " écran" + (ecrans.length > 1 ? "s" : "");
+        const nombre = document.getElementById("nombre-ecrans");
+        nombre.textContent = ecrans.length + " écran" + (ecrans.length > 1 ? "s" : "");
+        nombre.hidden = false;
         liste.innerHTML = "";
         ecrans.forEach(function (ecran, rang) {
             const tuile = document.createElement("div");
@@ -107,8 +109,8 @@
         });
         if (ecrans.length < 2) {
             const aide = document.createElement("div");
-            aide.className = "encart attention";
-            aide.innerHTML = '<svg class="ic" aria-hidden="true"><use href="#i-alerte"></use></svg><span>Aucun écran de salle détecté. Branchez-le (HDMI) ou connectez-le sans fil ; s\'il est branché, choisissez « Étendre » dans Windows (touches Windows + P).</span>';
+            aide.className = "attente-vide";
+            aide.innerHTML = '<svg class="ic" aria-hidden="true"><use href="#i-ecran"></use></svg><strong>Aucun écran de salle détecté</strong><span class="discret">Branchez-le (HDMI) ou connectez-le sans fil ; s\'il est branché, choisissez « Étendre » dans Windows (touches Windows + P).</span>';
             liste.appendChild(aide);
         }
     }

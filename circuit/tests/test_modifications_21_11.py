@@ -429,7 +429,7 @@ class SalleDuMedecinTests(BaseVues):
         self.assertRedirects(reponse, reverse("circuit:ma_salle") + "?next=" + reverse("circuit:guichet", args=[med]),
                              fetch_redirect_response=False)
         page = self.client.get(reverse("circuit:ma_salle"))
-        self.assertContains(page, "Où recevez-vous les patients")
+        self.assertContains(page, "Indiquer votre salle")
         self.client.post(reverse("circuit:ma_salle"), {"salle": ""})               # obligatoire
         self.assertEqual(AffectationUtilisateur.objects.get(utilisateur=self.medecin).salle, "")
         self.client.post(reverse("circuit:ma_salle"), {"salle": " 1 ", "next": reverse("circuit:guichet", args=[med])})

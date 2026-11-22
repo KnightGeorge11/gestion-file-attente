@@ -345,6 +345,7 @@ a.etiquette:hover { text-decoration: none; filter: brightness(.97); }
 
 /* Tuiles (services, statistiques) */
 .tuiles { display: grid; gap: var(--espace-4); grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.tuiles > .attente-vide { grid-column: 1 / -1; margin-bottom: 0; }
 a.tuile, .tuile { display: block; color: inherit; position: relative; overflow: hidden; }
 a.tuile { transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition); }
 a.tuile:hover { text-decoration: none; transform: translateY(-2px); box-shadow: var(--ombre-2); border-color: #c8d4e6; }

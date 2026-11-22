@@ -21,6 +21,7 @@ class ParcoursAdmin(CentreAdminMixin, admin.ModelAdmin):
         "centre",
         "ordre_affichage",
         "visible_borne",
+        "reserve_accueil",
         "soumis_quota",
         "actif",
         "version_en_vigueur",

@@ -365,6 +365,10 @@ def _contexte_guichet(request, service, file):
                     ticket.passages.filter(date_fin__isnull=False).exclude(pk=passage.pk).order_by("date_arrivee")
                 ),
                 "transfert_possible": services.peut_transferer_pharmacie(passage),
+                "medecin_chef": (
+                    services.service_medecin_chef(passage.centre)
+                    if services.peut_transferer_medecin_chef(passage) else None
+                ),
                 "prochain_appel": tenue.prochain_appel_possible(),
                 "appels_max": tenue.nb_appels >= file.nb_appels_avant_absence,
                 "reservation": ticket.reservation_active(),
@@ -489,7 +493,8 @@ def guichet_action(request, service_id, action):
         elif action == "terminer":
             _exiger(request, "circuit.appeler", service)
             transferer = request.POST.get("pharmacie") == "1"
-            if transferer:
+            vers_chef = request.POST.get("medecin_chef") == "1"
+            if transferer or vers_chef:
                 _exiger(request, "circuit.transferer", service)
             derogation = request.POST.get("derogation") == "1"
             if derogation:
@@ -497,6 +502,7 @@ def guichet_action(request, service_id, action):
             suite = services.terminer(
                 _entree_de_la_file(request, file), agent,
                 transferer_pharmacie=transferer, motif=request.POST.get("motif", ""),
+                transferer_medecin_chef=vers_chef,
                 derogation=derogation, motif_derogation=request.POST.get("motif_derogation", ""),
             )
             if suite is None:

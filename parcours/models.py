@@ -38,6 +38,15 @@ class Parcours(ModeleCentre):
 
     visible_borne = models.BooleanField(default=True)
 
+    # Médecin en chef (décision du 22/11/2026) : proposé seulement sur la borne
+    # tenue par l'accueil (centre où l'accueil délivre les tickets).
+    reserve_accueil = models.BooleanField(
+        default=False,
+        db_default=False,
+        verbose_name="Réservé à la borne de l'accueil",
+        help_text="Proposé uniquement quand l'accueil tient la borne et délivre les tickets ; jamais en libre-service.",
+    )
+
     soumis_quota = models.BooleanField(
         default=False,
         help_text=(

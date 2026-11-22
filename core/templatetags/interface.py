@@ -15,8 +15,8 @@ register = template.Library()
 # Code de service ou préfixe de parcours -> icône (voir templates/_icones.html).
 ICONES_CODES = {
     "ACC": "accueil", "INF": "infirmerie", "MED": "medecin", "DEN": "dentiste",
-    "ECH": "echographie", "PHA": "pharmacie",
-    "M": "medecin", "D": "dentiste", "I": "infirmerie", "E": "echographie", "A": "autre",
+    "ECH": "echographie", "PHA": "pharmacie", "MEC": "medecin",
+    "M": "medecin", "D": "dentiste", "I": "infirmerie", "E": "echographie", "A": "autre", "C": "medecin",
 }
 # Mot présent dans le nom -> icône (services créés avec d'autres codes).
 ICONES_MOTS = (

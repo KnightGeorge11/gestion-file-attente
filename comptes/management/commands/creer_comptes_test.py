@@ -8,7 +8,7 @@ Usage :
     python manage.py creer_comptes_test --mot-de-passe autre
 
 Comptes créés (n = 1, 2) :
-    accueil<n>, infirmier<n>, medecin<n>, dentiste<n>, echographie<n>,
+    accueil<n>, infirmier<n>, medecin<n>, chef<n>, dentiste<n>, echographie<n>,
     pharmacie<n>, direction<n>, responsable<n>, admin<n> (administrateur de centre)
 (noms raccourcis le 19/11/2026 : les anciens comptes « …test<n> » sont
 renommés, leur historique est conservé).
@@ -39,6 +39,7 @@ COMPTES = [
     ("dentiste", "Dentiste", "DEN"),
     ("echographie", "Échographie", "ECH"),
     ("pharmacie", "Pharmacie", "PHA"),
+    ("chef", "Médecin", "MEC"),          # médecin en chef (décision du 22/11/2026)
     ("direction", "Direction", None),
     ("responsable", "Responsable", None),
     ("admin", "Administrateur de centre", None),

@@ -86,7 +86,7 @@ class Simulateur:
     # -- actions -------------------------------------------------------------
 
     def emettre(self, nombre):
-        parcours = list(Parcours.objects.filter(centre=self.centre, actif=True, visible_borne=True))
+        parcours = list(Parcours.objects.filter(centre=self.centre, actif=True, visible_borne=True, reserve_accueil=False))
         motifs = list(MotifDemande.objects.filter(centre=self.centre, actif=True))
         emis = []
         for _ in range(nombre):

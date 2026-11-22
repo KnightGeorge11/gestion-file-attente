@@ -80,6 +80,21 @@
                         </button>
                     </form>
                 </div>
+                {% if medecin_chef and peut_transferer %}
+                <details>
+                    <summary>{% icone "medecin" %}Envoyer au {{ medecin_chef.nom|lower }}</summary>
+                    <form hx-post="{% url 'circuit:guichet_action' service.pk 'terminer' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'terminer' %}">
+                        {% csrf_token %}<input type="hidden" name="entree" value="{{ tenue.pk }}"><input type="hidden" name="file" value="{{ file.pk }}">
+                        <input type="hidden" name="medecin_chef" value="1">
+                        {% if suivante %}<div class="encart attention">{% icone "alerte" %}<span>Le patient n'ira pas en {{ suivante.service.nom }} : les étapes restantes du parcours ne seront pas réalisées.</span></div>{% endif %}
+                        <label for="motif-mec">Motif {% if suivante %}(obligatoire){% else %}(facultatif){% endif %}</label>
+                        <div class="ligne">
+                            <input id="motif-mec" name="motif" maxlength="500" style="flex:1;min-width:200px" {% if suivante %}required{% endif %}>
+                            <button class="accent">{% icone "transfert" %}Terminer et envoyer au {{ medecin_chef.nom|lower }}</button>
+                        </div>
+                    </form>
+                </details>
+                {% endif %}
                 {% if transfert_possible and peut_transferer %}
                 <details>
                     <summary>{% icone "pharmacie" %}Transférer à la pharmacie</summary>

@@ -123,6 +123,7 @@ class ServiceAdmin(CentreAdminMixin, admin.ModelAdmin):
         "suspendu",
         "est_accueil",
         "est_pharmacie",
+        "est_medecin_chef",
     )
 
     search_fields = (
