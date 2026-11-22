@@ -112,15 +112,24 @@
                 {% endif %}
             {% endif %}
         {% else %}
+            {% if service.est_medecin_chef %}
+            {# Médecin en chef : aucun appel à l'écran, aucune salle annoncée (décision du 22/11/2026). #}
+            <div class="attente-vide">
+                {% icone "cloche" %}
+                <strong>Aucun patient en cours</strong>
+                <span class="discret">Les patients qui vous sont envoyés arrivent dans vos <a href="{% url 'circuit:notifications' %}">Notifications</a> et dans la file ci-contre : cliquez sur « Recevoir » quand le patient est devant vous.</span>
+            </div>
+            {% else %}
             <div class="attente-vide">
                 {% icone "appel" %}
                 <strong>Aucun patient en cours</strong>
                 <span class="discret">Appelez le patient suivant : son numéro s'affiche sur l'écran de la salle d'attente.</span>
             </div>
+            {% endif %}
             {% if appel_autres_seulement %}
             <div class="encart">{% icone "info" %}<span>Tout passe d'abord par l'accueil : seul l'accueil appelle et oriente les tickets, y compris les « Autre ». Les patients sont ensuite appelés par les agents de leur service. Les demandes qui vous concernent arrivent dans vos <a href="{% url 'circuit:notifications' %}">Notifications</a>.</span></div>
             {% endif %}
-            {% if peut_appeler and not autre_service and not appel_autres_seulement %}
+            {% if peut_appeler and not autre_service and not appel_autres_seulement and not service.est_medecin_chef %}
             <form hx-post="{% url 'circuit:guichet_action' service.pk 'appeler' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'appeler' %}" class="appel-suivant">
                 {% csrf_token %}<input type="hidden" name="file" value="{{ file.pk }}">
                 <input name="poste" maxlength="50" value="{{ salle_agent }}" placeholder="Guichet / salle (facultatif)" aria-label="Guichet ou salle">

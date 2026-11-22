@@ -8,7 +8,7 @@ Usage :
     python manage.py creer_comptes_test --mot-de-passe autre
 
 Comptes créés (n = 1, 2) :
-    accueil<n>, infirmier<n>, medecin<n>, chef<n>, dentiste<n>, echographie<n>,
+    accueil<n>, infirmier<n>, medecin<n>, chef1 (un seul), dentiste<n>, echographie<n>,
     pharmacie<n>, direction<n>, responsable<n>, admin<n> (administrateur de centre)
 (noms raccourcis le 19/11/2026 : les anciens comptes « …test<n> » sont
 renommés, leur historique est conservé).
@@ -39,15 +39,23 @@ COMPTES = [
     ("dentiste", "Dentiste", "DEN"),
     ("echographie", "Échographie", "ECH"),
     ("pharmacie", "Pharmacie", "PHA"),
-    ("chef", "Médecin", "MEC"),          # médecin en chef (décision du 22/11/2026)
+    ("chef", "Médecin", "MEC"),          # un seul médecin en chef (décision du 22/11/2026)
     ("direction", "Direction", None),
     ("responsable", "Responsable", None),
     ("admin", "Administrateur de centre", None),
 ]
 
 
+# Comptes uniques : un seul médecin en chef (décision du 22/11/2026).
+NOMBRE_PAR_PREFIXE = {"chef": 1}
+
+
+def _nombre(prefixe):
+    return NOMBRE_PAR_PREFIXE.get(prefixe, NOMBRE_PAR_SERVICE)
+
+
 def identifiants_test():
-    return [f"{prefixe}{n}" for prefixe, _, _ in COMPTES for n in range(1, NOMBRE_PAR_SERVICE + 1)]
+    return [f"{prefixe}{n}" for prefixe, _, _ in COMPTES for n in range(1, _nombre(prefixe) + 1)]
 
 
 class Command(BaseCommand):
@@ -81,7 +89,7 @@ class Command(BaseCommand):
         with transaction.atomic():
             for prefixe, role, code_service in COMPTES:
                 groupe = Group.objects.get(name=role)
-                for n in range(1, NOMBRE_PAR_SERVICE + 1):
+                for n in range(1, _nombre(prefixe) + 1):
                     username = f"{prefixe}{n}"
                     # Anciens noms : « …test<n> », puis « admincentre<n> » (19/11/2026).
                     anciens = [f"{prefixe}test{n}"] + ([f"admincentre{n}"] if prefixe == "admin" else [])

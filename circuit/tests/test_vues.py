@@ -433,17 +433,18 @@ class ModeAutreInterfaceTests(BaseVues):
         ticket = services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE, motif=self.d.motif)
         self.connecter(self.accueil, self.d.centre)
         acc = self.d.svc["ACC"].pk
-        self.client.post(reverse("circuit:guichet_action", args=[acc, "appeler"]))
         entree = self.d.entree(ticket)
-        self.client.post(reverse("circuit:guichet_action", args=[acc, "prendre"]), {"entree": entree.pk})
-        page = self.client.get(reverse("circuit:guichet", args=[acc]))
+        file_autre = {"file": entree.file_id}          # file des « Autre » (décision du 22/11/2026)
+        self.client.post(reverse("circuit:guichet_action", args=[acc, "appeler"]), file_autre)
+        self.client.post(reverse("circuit:guichet_action", args=[acc, "prendre"]), {"entree": entree.pk, **file_autre})
+        page = self.client.get(reverse("circuit:guichet", args=[acc]), file_autre)
         self.assertContains(page, "Orienter la demande")
         reponse = self.client.post(reverse("circuit:guichet_action", args=[acc, "terminer"]),
-                                   {"entree": entree.pk}, follow=True)
+                                   {"entree": entree.pk, **file_autre}, follow=True)
         self.assertContains(reponse, "Orientez d")
         self.client.post(reverse("circuit:demandes"),
                          {"demande": ticket.demande.pk, "destinataire": directeur.pk, "message": "RDV DRH"})
-        self.client.post(reverse("circuit:guichet_action", args=[acc, "terminer"]), {"entree": entree.pk})
+        self.client.post(reverse("circuit:guichet_action", args=[acc, "terminer"]), {"entree": entree.pk, **file_autre})
         ticket.refresh_from_db()
         self.assertEqual(ticket.statut, Ticket.Statut.TERMINE)
         # Le destinataire répond ensuite, ticket déjà clôturé.
@@ -801,9 +802,11 @@ class VisibiliteParServiceTests(BaseVues):
             autre = services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE, motif=self.d.motif)
             liste = set(self.client.get(reverse("circuit:tickets")).context["tickets"])
             self.assertEqual(liste, {autre})
-            page = self.client.get(reverse("circuit:guichet", args=[self.d.svc["ACC"].pk]))
+            acc = reverse("circuit:guichet", args=[self.d.svc["ACC"].pk])
+            page = self.client.get(acc, {"file": self.d.entree(autre).file_id})
+            page_patients = self.client.get(acc)
         self.assertContains(page, autre.numero)
-        self.assertNotContains(page, self.echo_accueil.numero)    # patient E à l'accueil : invisible
+        self.assertNotContains(page_patients, self.echo_accueil.numero)    # patient E à l'accueil : invisible
 
     def test_section_a_venir_dans_l_interface_des_medecins(self):
         self.connecter(self.medecin, self.d.centre)
@@ -1184,7 +1187,7 @@ class AppelVisiteurDepuisNotificationsTests(BaseVues):
         directeur = self.d.agent("dir_notif", "Direction")
         ticket = services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE, motif=self.d.motif)
         entree = self.d.entree(ticket)
-        services.appeler(self.d.file("ACC"), self.accueil, entree=entree)
+        services.appeler(entree.file, self.accueil, entree=entree)
         services.prendre_en_charge(entree, self.accueil)
         notification = services.transmettre_demande(ticket.demande, self.accueil, destinataire=directeur)
         services.terminer(entree, self.accueil)

@@ -104,6 +104,11 @@ class Command(BaseCommand):
             services[code] = service
             self._log(cree, f"Service {nom}" + ("" if cree else f" (code {service.code})"))
 
+        # File des demandes « Autre » de l'accueil, séparée des patients (décision du 22/11/2026).
+        from circuit.services import file_demandes_autre
+
+        file_demandes_autre(services["ACC"])
+
         # File commune des médecins : plusieurs médecins en parallèle.
         file_medecins = services["MED"].file_par_defaut()
 

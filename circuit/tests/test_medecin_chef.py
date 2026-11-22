@@ -8,7 +8,7 @@ from django.urls import reverse
 
 from centres.models import Borne
 from circuit import services
-from circuit.models import Ticket, Transfert
+from circuit.models import Appel, Ticket, Transfert
 from circuit.services import ErreurCircuit
 
 from .base import activer_borne
@@ -43,6 +43,12 @@ class MedecinChefTransfertTests(BaseVues):
         self.infirmier = self.d.agent("inf1", "Infirmerie", ["INF"])
         self.chef = self.d.agent("chef1", "Médecin", ["MEC"])
 
+    def _recevoir(self, ticket):
+        """Le chef reçoit le patient devant lui : sans appel à l'écran."""
+        entree = self.d.entree(ticket)
+        self.assertEqual(entree.file_id, self.d.file("MEC").pk)
+        return services.prendre_en_charge(entree, self.chef, oral=True)
+
     def _jusqu_au_medecin(self):
         ticket = self.d.ticket("M")
         self.d.accueillir(ticket, self.accueil)
@@ -58,7 +64,8 @@ class MedecinChefTransfertTests(BaseVues):
         self.assertEqual(passage.service.code, "MEC")
         self.assertTrue(Transfert.objects.filter(ticket=ticket, service_destination__code="MEC").exists())
 
-        self.d.traiter(ticket, "MEC", self.chef, transferer=True)
+        self._recevoir(ticket)
+        services.terminer(self.d.entree(ticket), self.chef, transferer_pharmacie=True)
         self.d.traiter(ticket, "PHA", self.pharma)
         ticket.refresh_from_db()
         self.assertEqual(ticket.statut, Ticket.Statut.TERMINE)
@@ -68,7 +75,7 @@ class MedecinChefTransfertTests(BaseVues):
     def test_le_chef_termine_le_ticket(self):
         ticket, entree = self._jusqu_au_medecin()
         services.terminer(entree, self.medecin, transferer_medecin_chef=True)
-        self.assertIsNone(self.d.traiter(ticket, "MEC", self.chef))
+        self.assertIsNone(services.terminer(self._recevoir(ticket), self.chef))
         ticket.refresh_from_db()
         self.assertEqual(ticket.statut, Ticket.Statut.TERMINE)
 
@@ -106,3 +113,72 @@ class MedecinChefTransfertTests(BaseVues):
         self.connecter(self.infirmier, self.d.centre)
         page = self.client.get(reverse("circuit:guichet", args=[self.d.svc["INF"].pk]))
         self.assertNotContains(page, "médecin en chef")
+
+
+class MedecinChefSansAppelTests(MedecinChefTransfertTests):
+    """Décision du 22/11/2026 : un seul chef, salle fixe jamais annoncée, aucun appel à l'écran."""
+
+    def _envoyer(self):
+        ticket, entree = self._jusqu_au_medecin()
+        services.terminer(entree, self.medecin, transferer_medecin_chef=True, motif="Avis du chef")
+        return ticket
+
+    def test_le_chef_n_appelle_jamais_a_l_ecran(self):
+        ticket = self._envoyer()
+        with self.assertRaisesMessage(ErreurCircuit, "n'appelle pas à l'écran"):
+            services.appeler(self.d.file("MEC"), self.chef)
+        self._recevoir(ticket)
+        self.assertFalse(Appel.objects.filter(ticket=ticket, service__code="MEC", mode=Appel.Mode.ECRAN).exists())
+
+    def test_patient_envoye_dans_les_notifications_du_chef(self):
+        ticket = self._envoyer()
+        self.connecter(self.chef, self.d.centre, salle_indiquee=False)
+        self.assertEqual(self.client.get(reverse("circuit:badge_notifications")).content.count(b"1"), 1)
+        page = self.client.get(reverse("circuit:notifications"))
+        self.assertContains(page, ticket.numero)
+        self.assertContains(page, "Avis du chef")
+        self.assertContains(page, "Recevoir le patient")
+        entree = self.d.entree(ticket)
+        self.client.post(reverse("circuit:guichet_action", args=[self.d.svc["MEC"].pk, "prendre"]),
+                         {"entree": entree.pk, "file": entree.file_id, "oral": "1"})
+        entree.refresh_from_db()
+        self.assertEqual(entree.statut, "EN_COURS")
+        self.assertEqual(self.client.get(reverse("circuit:badge_notifications")).content, b"")
+
+    def test_le_chef_n_indique_pas_de_salle(self):
+        self.connecter(self.chef, self.d.centre, salle_indiquee=False)
+        reponse = self.client.get(reverse("circuit:guichets"))
+        self.assertNotEqual(reponse.get("Location", ""), reverse("circuit:ma_salle"))
+        page = self.client.get(reverse("circuit:guichet", args=[self.d.svc["MEC"].pk]))
+        self.assertEqual(page.status_code, 200)
+        self.assertNotContains(page, "Appeler le suivant")
+        self.assertNotContains(page, "Votre salle")
+
+    def test_le_medecin_ne_voit_pas_de_salle_du_chef(self):
+        ticket = self._envoyer()
+        self._recevoir(ticket)
+        appel = Appel.objects.get(ticket=ticket, service__code="MEC")
+        self.assertEqual(appel.poste, "")
+
+
+class FileAutreSepareeTests(BaseVues):
+    """Décision du 22/11/2026 : les « Autre » et les patients ne sont jamais dans la même file."""
+
+    def test_ticket_autre_dans_sa_propre_file(self):
+        patient = self.d.ticket("M")
+        autre = services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE, motif=self.d.motif)
+        file_patient, file_autre = self.d.entree(patient).file, self.d.entree(autre).file
+        self.assertEqual(file_patient, self.d.file("ACC"))
+        self.assertNotEqual(file_autre, file_patient)
+        self.assertEqual(file_autre.service, self.d.svc["ACC"])
+        self.assertEqual(file_autre.code, services.CODE_FILE_AUTRE)
+        self.assertEqual(services.appeler(file_patient, self.accueil).ticket, patient)
+        self.assertFalse(services.file_en_attente(file_patient).exists())
+
+    def test_accueil_qui_delivre_les_tickets_ouvre_la_file_autre(self):
+        self.d.centre.accueil_delivre_tickets = True
+        self.d.centre.save(update_fields=["accueil_delivre_tickets"])
+        autre = services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE, motif=self.d.motif)
+        self.connecter(self.accueil, self.d.centre)
+        page = self.client.get(reverse("circuit:guichet", args=[self.d.svc["ACC"].pk]))
+        self.assertContains(page, autre.numero)

@@ -81,6 +81,25 @@ def prochain_numero(centre, prefixe, jour):
         return curseur.fetchone()[0]
 
 
+CODE_FILE_AUTRE = "AUTRE"
+
+
+def file_demandes_autre(accueil):
+    """
+    File de l'accueil réservée aux tickets « Autre » (décision du 22/11/2026) :
+    les demandes « Autre » et les patients ne sont jamais dans la même file.
+    Créée au premier besoin.
+    """
+    file, _ = FileAttente.objects.get_or_create(
+        service=accueil,
+        code=CODE_FILE_AUTRE,
+        defaults={"centre_id": accueil.centre_id, "nom": "Demandes « Autre »", "par_defaut": False},
+    )
+    if not file.actif:
+        raise ErreurCircuit("La file des demandes « Autre » de l'accueil n'est pas disponible.")
+    return file
+
+
 def _file_accueil(centre):
     accueil = (
         Service.objects.filter(centre=centre, est_accueil=True, actif=True)
@@ -139,6 +158,9 @@ def emettre_ticket(centre, mode, parcours=None, borne=None, motif=None, precisio
         prefixe = parcours.prefixe
 
     accueil, file_accueil = _file_accueil(centre)
+    if mode == Ticket.Mode.AUTRE:
+        # Jamais dans la file des patients (décision du 22/11/2026).
+        file_accueil = file_demandes_autre(accueil)
 
     maintenant = timezone.now()
     jour = maintenant_centre(centre).date()
@@ -371,6 +393,12 @@ def _appel_limite_aux_autres(agent, file):
     return appel_limite_aux_autres(agent, file.centre)
 
 
+MESSAGE_CHEF_SANS_APPEL = (
+    "Le médecin en chef n'appelle pas à l'écran : les patients qui lui sont envoyés "
+    "arrivent dans ses Notifications, où il les reçoit."
+)
+
+
 @transaction.atomic
 def appeler(file, agent, entree=None, poste=""):
     """
@@ -383,6 +411,8 @@ def appeler(file, agent, entree=None, poste=""):
     file = _verrouiller_file(file.pk)
     if not file.actif or not file.service.disponible:
         raise ErreurCircuit("Cette file n'est pas disponible.")
+    if file.service.est_medecin_chef:
+        raise ErreurCircuit(MESSAGE_CHEF_SANS_APPEL)
 
     _verifier_agent_libre(agent)
     _verifier_capacite(file)
@@ -530,7 +560,8 @@ def prendre_en_charge(entree, agent, oral=False):
     """
     Début de prise en charge. Pour un service autorisant l'appel oral
     (pharmacie), l'agent peut prendre en charge directement un patient en
-    attente : un appel « oral » est enregistré.
+    attente : un appel « oral » est enregistré. Le médecin en chef reçoit
+    toujours ainsi ses patients, sans appel à l'écran (décision du 22/11/2026).
     """
     _verrouiller_agent(agent)
     entree = _verrouiller_entree(entree.pk)
@@ -539,7 +570,7 @@ def prendre_en_charge(entree, agent, oral=False):
     ticket = passage.ticket
 
     if entree.statut == EntreeFile.Statut.EN_ATTENTE:
-        if not (oral and service.appel_oral_autorise):
+        if not (oral and (service.appel_oral_autorise or service.est_medecin_chef)):
             raise ErreurCircuit("Appelez d'abord le patient.")
         if _appel_limite_aux_autres(agent, entree.file):
             raise ErreurCircuit(MESSAGE_AUTRES_SEULEMENT)

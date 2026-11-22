@@ -190,7 +190,7 @@ class PrefixeEtModeAutreTests(BaseVues):
         with a_heure(LUNDI_MATIN):
             ticket = services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE, motif=self.d.motif)
             entree = self.d.entree(ticket)
-            services.appeler(self.d.file("ACC"), self.accueil, entree=entree)
+            services.appeler(entree.file, self.accueil, entree=entree)
             services.prendre_en_charge(entree, self.accueil)
             services.transmettre_demande(ticket.demande, self.accueil, destinataire=self.medecin)
         with a_heure(LUNDI_MATIN + datetime.timedelta(minutes=3)):

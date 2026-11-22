@@ -68,8 +68,10 @@ class Donnees:
 
     def accueillir(self, ticket, agent, **kwargs):
         """Accueil : appel, prise en charge, validation du ticket (aucune info patient)."""
-        file = self.file("ACC")
         entree = self.entree(ticket)
+        # File des patients, ou file des demandes « Autre » (décision du 22/11/2026).
+        file = entree.file
+        assert file.service_id == self.svc["ACC"].pk, f"{ticket} attendu à l'accueil, trouvé en {file}"
         services.appeler(file, agent, entree=entree)
         services.prendre_en_charge(entree, agent)
         return services.terminer(entree, agent, **kwargs)

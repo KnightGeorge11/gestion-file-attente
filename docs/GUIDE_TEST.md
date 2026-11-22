@@ -59,7 +59,7 @@ Utiliser le **centre 002** (le plus propre pour une démonstration).
 **Important** : une fenêtre de navigation privée perd la borne quand on la ferme. Utilisez une fenêtre normale (ou la tablette).
 
 Tous les comptes de test ont le mot de passe **1234** :
-`accueil1/2`, `infirmier1/2`, `medecin1/2`, `chef1/2` (médecin en chef), `dentiste1/2`, `echographie1/2`, `pharmacie1/2`, `direction1/2` (statistiques), `responsable1/2` (dérogations). `admin1/2` (administration du centre). **Tout passe d'abord par l'accueil** : seul l'accueil appelle et oriente les tickets (y compris les « Autre ») ; responsables, direction et administrateurs n'appellent aucun ticket.
+`accueil1/2`, `infirmier1/2`, `medecin1/2`, `chef1` (le médecin en chef, un seul), `dentiste1/2`, `echographie1/2`, `pharmacie1/2`, `direction1/2` (statistiques), `responsable1/2` (dérogations). `admin1/2` (administration du centre). **Tout passe d'abord par l'accueil** : seul l'accueil appelle et oriente les tickets (y compris les « Autre ») ; responsables, direction et administrateurs n'appellent aucun ticket.
 
 ---
 
@@ -84,7 +84,9 @@ Tous les comptes de test ont le mot de passe **1234** :
 
 **F. Statistiques** : `direction1` → *Statistiques* → export PDF ou Excel. Aucune donnée patient.
 
-**G. Médecin en chef** (décision du 22/11/2026) : Médecin (`medecin1`) : appeler → prendre en charge → ouvrir **« Envoyer au médecin en chef »** → terminer. Le médecin en chef (`chef1`, salle à indiquer à la connexion) appelle → prend en charge → **Terminer** ou **Transférer à la pharmacie**. L'infirmerie, le dentiste et l'échographie n'ont pas ce bouton. L'accueil peut aussi délivrer directement un ticket **C** « Médecin en chef » à la borne qu'il tient ; une borne en libre-service ne le propose jamais.
+**G. Médecin en chef** (décision du 22/11/2026) : un seul médecin en chef (`chef1`), dans sa salle fixe, jamais annoncée ; il **n'appelle pas à l'écran**. Médecin (`medecin1`) : appeler → prendre en charge → ouvrir **« Envoyer au médecin en chef »** → terminer. Le patient arrive dans les **Notifications** de `chef1` (pastille) : **Recevoir le patient** quand il est devant lui → **Terminer** ou **Transférer à la pharmacie**. L'infirmerie, le dentiste et l'échographie n'ont pas ce bouton. L'accueil peut aussi délivrer directement un ticket **C** « Médecin en chef » à la borne qu'il tient ; une borne en libre-service ne le propose jamais.
+
+**H. Demandes « Autre » à part** : à l'accueil, les tickets **A** sont dans la file « Demandes « Autre » », jamais dans la file des patients (choix de la file en haut de la page de l'accueil).
 
 ---
 

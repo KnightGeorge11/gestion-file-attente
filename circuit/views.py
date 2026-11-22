@@ -62,6 +62,10 @@ def _file_du_service(request, service):
     if file_id:
         return get_object_or_404(files, pk=file_id), files
     file = files.first()
+    if service.est_accueil and service.centre.accueil_delivre_tickets:
+        # L'accueil délivre les tickets de soins à la borne : seuls les « Autre »
+        # passent par sa file, ouverte par défaut (décision du 22/11/2026).
+        file = files.filter(code=services.CODE_FILE_AUTRE).first() or file
     if file is None:
         raise PermissionDenied
     return file, files
@@ -189,6 +193,21 @@ def _salle_a_indiquer(request):
         and affectation.groupe_id
         and affectation.groupe.name in ROLES_AVEC_SALLE
         and request.session.get(SESSION_SALLE) != request.centre_actif.pk
+        and not _seulement_medecin_chef(affectation)
+    )
+
+
+def _seulement_medecin_chef(affectation):
+    """
+    Le médecin en chef a une salle fixe, jamais demandée ni annoncée : il
+    n'appelle pas à l'écran (décision du 22/11/2026).
+    """
+    from comptes.models import AffectationService
+
+    services_autorises = AffectationService.objects.filter(affectation=affectation)
+    return (
+        services_autorises.exists()
+        and not services_autorises.filter(service__est_medecin_chef=False).exists()
     )
 
 
@@ -710,11 +729,28 @@ def notifications(request):
         request,
         "circuit/notifications.html",
         {
+            "patients_chef": _patients_chef(request.user, centre),
             "notifications": mes_notifications,
             "statuts": ReponseNotification.Statut.choices,
             "aujourd_hui": maintenant_centre(centre).date(),
         },
     )
+
+
+def _patients_chef(agent, centre):
+    """Patients envoyés au médecin en chef, avec qui les a envoyés et pourquoi."""
+    from .models import Transfert
+    from .visibilite import patients_pour_le_chef
+
+    entrees = list(patients_pour_le_chef(agent, centre))
+    transferts = {
+        t.passage_destination_id: t
+        for t in Transfert.objects.filter(passage_destination__in=[e.passage_id for e in entrees])
+        .select_related("decide_par", "passage_origine")
+    }
+    for entree in entrees:
+        entree.transfert = transferts.get(entree.passage_id)
+    return entrees
 
 
 @require_POST
@@ -734,9 +770,11 @@ def notification_appeler(request, notification_id):
 
 @centre_actif_requis
 def badge_notifications(request):
+    from .visibilite import patients_pour_le_chef
+
     nombre = Notification.objects.filter(
         centre=request.centre_actif, destinataire=request.user, date_lecture__isnull=True
-    ).count()
+    ).count() + patients_pour_le_chef(request.user, request.centre_actif).count()
     if not nombre:
         return HttpResponse("")
     return HttpResponse(f'<span class="pastille">{nombre}</span>')

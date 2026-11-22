@@ -24,10 +24,11 @@ class ComptesTestTests(TestCase):
     def test_deux_comptes_par_service_mot_de_passe_1234(self):
         commande("creer_comptes_test")
         noms = identifiants_test()
-        self.assertEqual(len(noms), 18)   # 9 rôles x 2
+        self.assertEqual(len(noms), 19)   # 9 rôles x 2 + un seul médecin en chef
         self.assertIn("medecin1", noms)
         self.assertIn("infirmier2", noms)
-        self.assertEqual(Utilisateur.objects.filter(username__in=noms).count(), 18)
+        self.assertEqual(Utilisateur.objects.filter(username__in=noms).count(), 19)
+        self.assertNotIn("chef2", noms)
         for nom in ("medecin1", "infirmier2", "accueil1", "pharmacie2"):
             self.assertTrue(self.client.login(username=nom, password="1234"), nom)
             self.client.logout()

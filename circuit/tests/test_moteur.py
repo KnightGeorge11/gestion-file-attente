@@ -473,7 +473,7 @@ class ModeAutreTests(BaseCircuit):
         directeur = self.d.agent("directeur", "Direction")
         ticket = services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE, motif=self.d.motif)
         entree = self.d.entree(ticket)
-        services.appeler(self.d.file("ACC"), self.accueil)
+        services.appeler(entree.file, self.accueil)
         services.prendre_en_charge(entree, self.accueil)
         # Pas d'identification requise, mais orientation obligatoire avant clôture.
         with self.assertRaises(ErreurCircuit):
@@ -501,7 +501,7 @@ class ModeAutreTests(BaseCircuit):
     def test_ticket_autre_jamais_transfere(self):
         ticket = services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE)
         entree = self.d.entree(ticket)
-        services.appeler(self.d.file("ACC"), self.accueil)
+        services.appeler(entree.file, self.accueil)
         services.prendre_en_charge(entree, self.accueil)
         self.assertFalse(services.peut_transferer_pharmacie(entree.passage))
 
@@ -699,10 +699,13 @@ class ToutPasseParLAccueilTests(BaseCircuit):
             for entree in (None, self.d.entree(autre), self.d.entree(patient)):
                 with self.assertRaisesMessage(ErreurCircuit, "Tout passe d'abord par l'accueil"):
                     services.appeler(self.file_acc, agent, entree=entree)
-        # L'accueil appelle les patients comme les demandes « Autre ».
+        # L'accueil appelle les patients comme les demandes « Autre », chacun dans sa file
+        # (décision du 22/11/2026 : jamais dans la même file).
         self.assertEqual(services.appeler(self.file_acc, self.accueil).ticket, patient)
         accueil2 = self.d.agent("accueil_2", "Accueil", ["ACC"])
-        self.assertEqual(services.appeler(self.file_acc, accueil2).ticket, autre)
+        file_autre = self.d.entree(autre).file
+        self.assertNotEqual(file_autre, self.file_acc)
+        self.assertEqual(services.appeler(file_autre, accueil2).ticket, autre)
 
     def test_un_service_n_appelle_pas_un_patient_que_l_accueil_n_a_pas_oriente(self):
         self.d.ticket("I")                       # pas encore validé par l'accueil
@@ -726,7 +729,7 @@ class AppelDuVisiteurAutreTests(BaseCircuit):
     def _orienter(self, **cible):
         ticket = services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE, motif=self.d.motif)
         entree = self.d.entree(ticket)
-        services.appeler(self.d.file("ACC"), self.accueil, entree=entree)
+        services.appeler(entree.file, self.accueil, entree=entree)
         services.prendre_en_charge(entree, self.accueil)
         notification = services.transmettre_demande(ticket.demande, self.accueil, **cible)
         services.terminer(entree, self.accueil)
