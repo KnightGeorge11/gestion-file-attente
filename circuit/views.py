@@ -440,6 +440,11 @@ def _contexte_guichet(request, service, file):
                     and a_droit(agent, "circuit.transferer", request.centre_actif, service)
                     and services.etape_suivante(ticket, passage) is None
                 ),
+                # « Envoyer vers médecin en chef » (médecins, fin du parcours, 23/11/2026).
+                "envoi_chef_possible": (
+                    services.peut_envoyer_medecin_chef(passage)
+                    and a_droit(agent, "circuit.transferer", request.centre_actif, service)
+                ),
                 "prochain_appel": tenue.prochain_appel_possible(),
                 "appels_max": tenue.nb_appels >= file.nb_appels_avant_absence,
                 "reservation": ticket.reservation_active(),
@@ -464,7 +469,8 @@ def _contexte_guichet(request, service, file):
             centre=request.centre_actif, statut=DemandeAutre.Statut.NOUVELLE
         ).count()
         contexte["nb_reponses_non_lues"] = ReponseNotification.objects.filter(
-            centre=request.centre_actif, lue_par_accueil=False
+            centre=request.centre_actif, lue_par_accueil=False,
+            notification__demande__ticket__mode=Ticket.Mode.AUTRE,
         ).count()
     return contexte
 
@@ -563,8 +569,10 @@ def guichet_action(request, service_id, action):
             )
         elif action == "terminer":
             _exiger(request, "circuit.appeler", service)
-            transferer = request.POST.get("pharmacie") == "1"
-            if transferer:
+            destination = request.POST.get("destination", "")
+            transferer = request.POST.get("pharmacie") == "1" or destination == "pharmacie"
+            vers_chef = destination == "medecin_chef"
+            if transferer or vers_chef:
                 _exiger(request, "circuit.transferer", service)
             derogation = request.POST.get("derogation") == "1"
             if derogation:
@@ -572,9 +580,12 @@ def guichet_action(request, service_id, action):
             suite = services.terminer(
                 _entree_de_la_file(request, file), agent,
                 transferer_pharmacie=transferer, motif=request.POST.get("motif", ""),
+                envoyer_medecin_chef=vers_chef,
                 derogation=derogation, motif_derogation=request.POST.get("motif_derogation", ""),
             )
-            if suite is None:
+            if vers_chef:
+                messages.success(request, "Prise en charge terminée : le médecin en chef a reçu le patient dans ses Notifications.")
+            elif suite is None:
                 messages.success(request, "Prise en charge terminée : fin du parcours.")
             elif suite.service.suspendu:
                 messages.warning(request, (
@@ -711,7 +722,8 @@ def demandes(request):
     jour = maintenant_centre(centre).date()
 
     if request.method == "POST":
-        demande = get_object_or_404(DemandeAutre.objects.filter(centre=centre), pk=entier(request.POST.get("demande")))
+        demande = get_object_or_404(DemandeAutre.objects.filter(centre=centre, ticket__mode=Ticket.Mode.AUTRE),
+                                    pk=entier(request.POST.get("demande")))
         destinataire = service = None
         if request.POST.get("destinataire"):
             destinataire = get_object_or_404(
@@ -732,13 +744,17 @@ def demandes(request):
         return redirect("circuit:demandes")
 
     liste = (
-        DemandeAutre.objects.filter(centre=centre)
+        # Seulement les demandes « Autre » : un patient envoyé par un médecin au
+        # médecin en chef ne concerne pas l'accueil.
+        DemandeAutre.objects.filter(centre=centre, ticket__mode=Ticket.Mode.AUTRE)
         .filter(Q(ticket__jour=jour) | ~Q(statut=DemandeAutre.Statut.CLOTUREE))
         .select_related("ticket", "motif")
         .prefetch_related("notifications__reponses", "notifications__destinataire")
         .order_by("statut", "-date_creation")
     )
-    ReponseNotification.objects.filter(centre=centre, lue_par_accueil=False).update(lue_par_accueil=True)
+    ReponseNotification.objects.filter(
+        centre=centre, lue_par_accueil=False, notification__demande__ticket__mode=Ticket.Mode.AUTRE
+    ).update(lue_par_accueil=True)
     personnes = (
         Utilisateur.objects.filter(affectations__centre=centre, affectations__actif=True, is_active=True)
         .distinct()

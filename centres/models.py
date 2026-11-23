@@ -157,9 +157,10 @@ class Service(models.Model):
         default=False,
     )
 
-    # Plus utilisés (décision du 23/11/2026) : le médecin en chef n'est plus un
-    # service mais un destinataire des demandes « Autre », comme la direction.
-    # Colonnes conservées pour l'historique (aucune migration).
+    # Médecin en chef (décision du 23/11/2026) : ce n'est plus un service mais
+    # une personne (rôle « Médecin en chef »). « est_medecin_chef » n'est plus
+    # utilisé (colonne gardée) ; « envoie_medecin_chef » : les agents de ce
+    # service (les médecins) peuvent lui envoyer un patient en fin de parcours.
     est_medecin_chef = models.BooleanField(
         default=False,
         db_default=False,

@@ -74,8 +74,14 @@ class DemandeAuMedecinEnChefTests(BaseMedecinChef):
         self.assertFalse(guichets.get("Location", "").startswith(reverse("circuit:ma_salle")))
 
 
-class PlusDEnvoiParLesMedecinsTests(BaseMedecinChef):
-    def test_pas_de_bouton_au_guichet_du_medecin(self):
+class EnvoiParLeMedecinTests(BaseMedecinChef):
+    """
+    Décision du 23/11/2026 (suite) : en fin de parcours, le médecin peut
+    « Envoyer vers médecin en chef » (motif obligatoire). Le médecin en chef
+    reçoit le patient dans ses Notifications, l'appelle à l'écran et répond.
+    """
+
+    def _au_medecin(self):
         infirmier = self.d.agent("inf1", "Infirmerie", ["INF"])
         ticket = self.d.ticket("M")
         self.d.accueillir(ticket, self.accueil)
@@ -83,7 +89,54 @@ class PlusDEnvoiParLesMedecinsTests(BaseMedecinChef):
         entree = self.d.entree(ticket)
         services.appeler(self.d.file("MED"), self.medecin, entree=entree)
         services.prendre_en_charge(entree, self.medecin)
+        return ticket, entree, infirmier
+
+    def test_bouton_coupe_en_deux_au_guichet_du_medecin(self):
+        self._au_medecin()
         self.connecter(self.medecin, self.d.centre)
         page = self.client.get(reverse("circuit:guichet", args=[self.d.svc["MED"].pk]))
-        self.assertNotContains(page, "médecin en chef")
         self.assertContains(page, "Terminer et transférer à la pharmacie")
+        self.assertContains(page, "Terminer sans pharmacie (fin du parcours)")
+        self.assertContains(page, "Envoyer vers médecin en chef")
+
+    def test_envoi_reel_vers_le_medecin_en_chef(self):
+        ticket, entree, _ = self._au_medecin()
+        self.connecter(self.medecin, self.d.centre)
+        url = reverse("circuit:guichet_action", args=[self.d.svc["MED"].pk, "terminer"])
+        self.client.post(url, {"entree": entree.pk, "file": entree.file_id, "destination": "medecin_chef", "motif": ""})
+        ticket.refresh_from_db()
+        self.assertTrue(ticket.ouvert)                                   # motif obligatoire : refusé
+        self.client.post(url, {"entree": entree.pk, "file": entree.file_id, "destination": "medecin_chef",
+                               "motif": "Avis sur douleur thoracique"})
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.statut, Ticket.Statut.TERMINE)
+        self.assertFalse(ticket.passages.filter(service__code="PHA").exists())
+        notification = ticket.demande.notifications.get()
+        self.assertEqual(notification.destinataire, self.chef)
+        self.assertEqual(notification.transmise_par, self.medecin)
+        # Le médecin en chef le voit dans ses Notifications, l'appelle à l'écran et répond.
+        self.connecter(self.chef, self.d.centre, salle_indiquee=False)
+        page = self.client.get(reverse("circuit:notifications"))
+        self.assertContains(page, ticket.numero)
+        self.assertContains(page, "Avis sur douleur thoracique")
+        self.client.post(reverse("circuit:notification_appeler", args=[notification.pk]), {"poste": ""})
+        self.assertEqual(Appel.objects.get(ticket=ticket, agent=self.chef).nom_service, "Médecin en chef")
+        services.repondre_notification(notification, self.chef, "TRAITEE")
+        # L'accueil n'a pas à s'en occuper : pas dans sa page Demandes.
+        self.connecter(self.accueil, self.d.centre)
+        demandes = self.client.get(reverse("circuit:demandes")).context["demandes"]
+        self.assertNotIn(ticket.demande, list(demandes))
+
+    def test_pas_depuis_l_infirmerie_ni_sans_medecin_en_chef(self):
+        ticket = self.d.ticket("M")
+        self.d.accueillir(ticket, self.accueil)
+        infirmier = self.d.agent("inf1", "Infirmerie", ["INF"])
+        entree = self.d.entree(ticket)
+        services.appeler(self.d.file("INF"), infirmier, entree=entree)
+        services.prendre_en_charge(entree, infirmier)
+        self.assertFalse(services.peut_envoyer_medecin_chef(entree.passage))
+        with self.assertRaises(ErreurCircuit):
+            services.terminer(entree, infirmier, envoyer_medecin_chef=True, motif="x")
+        self.chef.is_active = False
+        self.chef.save(update_fields=["is_active"])
+        self.assertIsNone(services.medecin_chef(self.d.centre))

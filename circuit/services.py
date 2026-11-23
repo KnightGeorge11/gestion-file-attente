@@ -28,6 +28,7 @@ from parcours.quotas import periode_pour, quota_applicable
 from .models import (
     Appel,
     DemandeAutre,
+    MotifDemande,
     EntreeFile,
     Evenement,
     Notification,
@@ -661,8 +662,66 @@ def peut_transferer_pharmacie(passage):
     return service_pharmacie(passage.centre) is not None
 
 
+ROLE_MEDECIN_CHEF = "Médecin en chef"
+MOTIF_MEDECIN_CHEF = "Rencontrer le médecin en chef"
+
+
+def medecin_chef(centre):
+    """Le médecin en chef du centre (compte actif, rôle « Médecin en chef »), ou None."""
+    from comptes.models import Utilisateur
+
+    return (
+        Utilisateur.objects.filter(
+            is_active=True,
+            affectations__centre=centre, affectations__actif=True,
+            affectations__groupe__name=ROLE_MEDECIN_CHEF,
+        )
+        .order_by("pk")
+        .first()
+    )
+
+
+def peut_envoyer_medecin_chef(passage):
+    """
+    « Envoyer vers médecin en chef » (décision du 23/11/2026) : depuis un
+    service coché « Peut envoyer au médecin en chef » (les médecins), à la
+    dernière étape du parcours, jamais pour un ticket « Autre ».
+    """
+    if not passage.service.envoie_medecin_chef or passage.ticket.est_autre:
+        return False
+    if etape_suivante(passage.ticket, passage) is not None:
+        return False
+    return medecin_chef(passage.centre) is not None
+
+
+def _envoyer_au_medecin_chef(ticket, passage, agent, motif):
+    """
+    Le médecin a terminé : le médecin en chef reçoit le patient dans ses
+    Notifications (numéro, médecin, motif), comme une demande transmise par
+    l'accueil ; il l'appelle à l'écran et répond. Pas de nouveau passage.
+    """
+    chef = medecin_chef(ticket.centre)
+    motif_demande = MotifDemande.objects.filter(
+        centre_id=ticket.centre_id, libelle=MOTIF_MEDECIN_CHEF
+    ).order_by("pk").first()
+    maintenant = timezone.now()
+    demande = DemandeAutre.objects.create(
+        centre_id=ticket.centre_id, ticket=ticket, motif=motif_demande,
+        precision=motif[:500], statut=DemandeAutre.Statut.TRANSMISE,
+        vue_par=agent, date_vue=maintenant,
+    )
+    notification = Notification.objects.create(
+        centre_id=ticket.centre_id, demande=demande, destinataire=chef,
+        message=motif, transmise_par=agent, date=maintenant,
+    )
+    _evenement(ticket, Evenement.Type.NOTIFICATION, agent=agent, passage=passage,
+               destinataire=chef.pk, medecin_chef=True, motif=motif)
+    return notification
+
+
 @transaction.atomic
-def terminer(entree, agent, transferer_pharmacie=False, motif="", derogation=False, motif_derogation=""):
+def terminer(entree, agent, transferer_pharmacie=False, motif="", derogation=False, motif_derogation="",
+             envoyer_medecin_chef=False):
     """
     Fin de prise en charge.
 
@@ -714,8 +773,15 @@ def terminer(entree, agent, transferer_pharmacie=False, motif="", derogation=Fal
     suivante = etape_suivante(ticket, passage)
     motif = (motif or "").strip()
 
+    if transferer_pharmacie and envoyer_medecin_chef:
+        raise ErreurCircuit("Choisissez soit la pharmacie, soit le médecin en chef.")
     if transferer_pharmacie and not peut_transferer_pharmacie(passage):
         raise ErreurCircuit("Le transfert vers la pharmacie n'est pas possible depuis ce service.")
+    if envoyer_medecin_chef:
+        if not peut_envoyer_medecin_chef(passage):
+            raise ErreurCircuit("L'envoi vers le médecin en chef n'est pas possible depuis ce service.")
+        if not motif:
+            raise ErreurCircuit("Indiquez le motif de l'envoi vers le médecin en chef.")
     if transferer_pharmacie and suivante is not None and not motif:
         raise ErreurCircuit(
             f"Transfert avant {suivante.service.nom} : indiquez un motif "
@@ -754,6 +820,12 @@ def terminer(entree, agent, transferer_pharmacie=False, motif="", derogation=Fal
                    vers=destination.nom, motif=motif,
                    etapes_non_realisees=bool(suivante))
         return nouveau
+
+    if envoyer_medecin_chef:
+        # Fin du parcours chez le médecin ; le médecin en chef est notifié.
+        _terminer_ticket(ticket, agent)
+        _envoyer_au_medecin_chef(ticket, passage, agent, motif)
+        return None
 
     if suivante is not None and passage.origine == Passage.Origine.PARCOURS:
         return _creer_passage(ticket, suivante.service, suivante.file,

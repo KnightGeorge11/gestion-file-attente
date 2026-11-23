@@ -134,9 +134,9 @@ class ServiceAdmin(CentreAdminMixin, admin.ModelAdmin):
     list_select_related = ("centre",)
 
     # Médecin en chef : plus un service (décision du 23/11/2026), mais une
-    # personne qui reçoit les demandes « Autre » comme la direction. Cases
-    # conservées en base, masquées.
-    exclude = ("est_medecin_chef", "envoie_medecin_chef")
+    # personne qui reçoit les demandes « Autre » comme la direction. La case
+    # « Peut envoyer au médecin en chef » (les médecins) reste utilisée.
+    exclude = ("est_medecin_chef",)
 
     inlines = (HoraireServiceInline, FileAttenteInline)
 

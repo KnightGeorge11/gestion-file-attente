@@ -436,7 +436,7 @@ class PharmacieActionPrincipaleTests(BaseVues):
         self._medecin_avec_patient()
         self.connecter(self.medecin, self.d.centre)
         page = self.client.get(reverse("circuit:guichet", args=[self.d.svc["MED"].pk])).content.decode()
-        principal = page.index('class="principal grand large">')
+        principal = page.index('class="principal grand large"')
         self.assertIn("Terminer et transférer à la pharmacie", page[principal:principal + 300])
         self.assertIn("Terminer sans pharmacie (fin du parcours)", page)
         self.assertNotIn("<summary>", page[page.index("Terminer sans pharmacie"):page.index("Terminer sans pharmacie") + 2000])

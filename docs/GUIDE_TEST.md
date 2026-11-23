@@ -84,7 +84,7 @@ Tous les comptes de test ont le mot de passe **1234** :
 
 **F. Statistiques** : `direction1` → *Statistiques* → export PDF ou Excel. Aucune donnée patient.
 
-**G. Médecin en chef** (décision du 23/11/2026) : comme la direction ou les RH. Borne → *Autre* → **Rencontrer le médecin en chef** → ticket **A00x** (la borne ne propose pas « Médecin en chef » comme service). Accueil : file « Demandes « Autre » » → appeler, prendre en charge → **Orienter la demande** vers `chef1` → **Terminer**. `chef1` → **Notifications** (pastille) → **Appeler le visiteur** (l'écran affiche A00x et « Médecin en chef ») → répondre. Les médecins n'ont pas de bouton « Envoyer au médecin en chef ».
+**G. Médecin en chef** (décision du 23/11/2026) : comme la direction ou les RH. Borne → *Autre* → **Rencontrer le médecin en chef** → ticket **A00x** (la borne ne propose pas « Médecin en chef » comme service). Accueil : file « Demandes « Autre » » → appeler, prendre en charge → **Orienter la demande** vers `chef1` → **Terminer**. `chef1` → **Notifications** (pastille) → **Appeler le visiteur** (l'écran affiche A00x et « Médecin en chef ») → répondre. Depuis le médecin : `medecin1` appelle et prend en charge un patient M → en fin de parcours, saisir un **motif** → **Envoyer vers médecin en chef** (à côté de « Terminer sans pharmacie ») → `chef1` le reçoit dans ses Notifications, l'appelle à l'écran (« M00x · Médecin en chef ») et répond.
 
 **H. Demandes « Autre » à part** : à l'accueil, les tickets **A** sont dans la file « Demandes « Autre » », jamais dans la file des patients (choix de la file en haut de la page de l'accueil).
 

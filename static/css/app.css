@@ -627,6 +627,11 @@ body.borne {
 .ticket-imprime .service-ticket { font-size: 14pt; font-weight: 700; }
 .ticket-imprime .separateur { border-top: 1.5px dashed #94a3b8; margin: 4mm 0; }
 @keyframes ticket-sortie { from { transform: translateY(-30px); opacity: 0; } to { transform: none; opacity: 1; } }
+/* Deux boutons côte à côte, chacun la moitié de la largeur (ex. « Terminer sans
+   pharmacie » | « Envoyer vers médecin en chef », décision du 23/11/2026). */
+.boutons-moitie { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.boutons-moitie > button { white-space: normal; min-width: 0; }
+
 @media print {
   /* Ticket toujours visible à l'impression (correction du 23/11/2026) : aucune
      animation (le ticket « apparaît » en partant de l'opacité 0, et Firefox
