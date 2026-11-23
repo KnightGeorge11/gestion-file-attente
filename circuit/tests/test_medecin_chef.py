@@ -187,3 +187,22 @@ class FileAutreSepareeTests(BaseVues):
         self.connecter(self.accueil, self.d.centre)
         page = self.client.get(reverse("circuit:guichet", args=[self.d.svc["ACC"].pk]))
         self.assertContains(page, autre.numero)
+
+
+class MedecinChefOrdreArriveeTests(BaseMedecinChef):
+    """Décision du 23/11/2026 : le médecin en chef reçoit ses patients dans l'ordre d'arrivée."""
+
+    def test_reception_dans_l_ordre_d_arrivee(self):
+        premier, entree1 = self._jusqu_au_medecin()
+        services.terminer(entree1, self.medecin, transferer_medecin_chef=True)
+        medecin2 = self.d.agent("med2", "Médecin", ["MED"])
+        second = self.d.ticket("M")
+        self.d.accueillir(second, self.accueil)
+        self.d.traiter(second, "INF", self.infirmier)
+        entree2 = self.d.entree(second)
+        services.appeler(self.d.file("MED"), medecin2, entree=entree2)
+        services.prendre_en_charge(entree2, medecin2)
+        services.terminer(entree2, medecin2, transferer_medecin_chef=True)
+        with self.assertRaisesMessage(ErreurCircuit, "Ordre strict"):
+            services.prendre_en_charge(self.d.entree(second), self.chef, oral=True)
+        self._recevoir(premier)
