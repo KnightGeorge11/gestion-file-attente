@@ -52,7 +52,7 @@ Utiliser le **centre 002** (le plus propre pour une démonstration).
 | **Écran de la salle** | TV branchée au PC (HDMI) ou TV du Wi-Fi | Menu **Écran** → **Rechercher les écrans** → **Afficher les appels ici**. TV Wi-Fi : ouvrir une fois `http://192.168.3.212:8000/tv/` sur la TV (Google TV : application « TV Bro »), puis la choisir dans la page Écran |
 | **Statistiques** | En fin de démonstration | `direction1` / `1234` |
 
-**Activer la borne (une seule fois)** : sur l'appareil de la borne, ouvrir http://localhost:8000/circuit/borne/ → **Connexion administrateur** (`tedy` ou `admin1`) → choisir « Tablette entrée » → **Activer cette borne**. Vous êtes déconnecté ; la borne reste activée, sans clé, et ne se déconnecte plus.
+**Activer la borne (une seule fois)** : sur la tablette de la borne, se connecter en administrateur (`admin1`) → onglet **Borne** → **Activer sur cet appareil** sur la bonne borne. Autre méthode : sur l'appareil de la borne, ouvrir http://localhost:8000/circuit/borne/ → **Connexion administrateur** (`tedy` ou `admin1`) → choisir « Tablette entrée » → **Activer cette borne**. Vous êtes déconnecté ; la borne reste activée, sans clé, et ne se déconnecte plus.
 
 **Activer / désactiver la borne** : Administration → *Bornes* → bouton **Désactiver** (ou **Activer**) sur la ligne, en un clic. Une borne désactivée affiche « Borne momentanément fermée » et reprend toute seule, en 20 secondes au plus, dès qu'on la réactive.
 

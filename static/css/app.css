@@ -720,6 +720,12 @@ body.ecran main { max-width: none; padding: 0; height: 100%; display: flex; flex
   .vitrine h2 { font-size: 1.6rem; }
   .vitrine .points, .vitrine .decor, .vitrine .bas { display: none; }
 }
+/* Barre des administrateurs (7 onglets) : tient sur une ligne jusqu'à 961 px. */
+@media (max-width: 1480px) and (min-width: 961px) {
+  header.barre { gap: 10px 14px; }
+  nav.menu a { padding: 8px 9px; }
+  .utilisateur .nom { display: none; }
+}
 @media (max-width: 960px) {
   .grille-guichet { grid-template-columns: 1fr; }
   header.barre { padding: 8px 16px; gap: 8px 14px; }

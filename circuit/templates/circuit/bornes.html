@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% load interface %}
+{% block titre %}Borne{% endblock %}
+{% block contenu %}
+<div class="entete-page">
+    <div>
+        <h1>Borne</h1>
+        <p class="sous-titre">Activez la borne sur l'appareil où vous êtes : tablette ou ordinateur de l'accueil · {{ centre_actif.nom }}</p>
+    </div>
+</div>
+
+{% if borne_de_l_appareil %}
+<div class="encart">{% icone "info" %}<span>Cet appareil est déjà la borne <strong>{{ borne_de_l_appareil.libelle }}</strong>. <a href="{% url 'circuit:borne' %}">Ouvrir la borne</a></span></div>
+{% endif %}
+<div class="encart attention">{% icone "alerte" %}<span>« Activer sur cet appareil » transforme <strong>cet appareil</strong> en borne : vous êtes ensuite déconnecté, et la borne reste activée, sans clé, même après un redémarrage. Faites-le sur la tablette de la borne, pas sur votre poste de travail.</span></div>
+
+<section class="carte">
+    <div class="carte-entete"><h2><span class="titre-icone">{% icone "imprimante" %}</span>Bornes du centre</h2><span class="etiquette">{{ bornes|length }} borne{% if bornes|length > 1 %}s{% endif %}</span></div>
+    <div class="tuiles">
+    {% for b in bornes %}
+        <div class="carte tuile" data-borne="{{ b.pk }}">
+            <div class="tuile-haut">
+                <span class="tuile-icone">{% icone "imprimante" %}</span>
+                <div>
+                    <h2>{{ b.libelle }}</h2>
+                    {% if b == borne_de_l_appareil %}<span class="etiquette ok">Cet appareil</span>
+                    {% elif b.actif %}<span class="etiquette info">En service</span>
+                    {% else %}<span class="etiquette alerte">Hors service</span>{% endif %}
+                </div>
+            </div>
+            <p class="discret">Code {{ b.code }} · {% if b.derniere_activite %}dernière activité le {{ b.derniere_activite|date:"d/m à H:i" }}{% else %}jamais utilisée{% endif %}</p>
+            <p class="discret">{% icone "services" %} {{ b.services|join:", "|default:"Aucun service proposé" }}</p>
+            <p class="discret">{% icone "imprimante" %} {% if b.imprimante %}{{ b.imprimante }}{% else %}Impression par le navigateur{% endif %}</p>
+            <div class="ligne">
+                <form method="post" action="{% url 'circuit:borne' %}" hx-boost="false" style="flex:1 1 100%">
+                    {% csrf_token %}<input type="hidden" name="borne" value="{{ b.pk }}">
+                    <button class="principal large" {% if not b.actif or b == borne_de_l_appareil %}disabled{% endif %}>{% icone "check" %}Activer sur cet appareil</button>
+                </form>
+                {% if peut_modifier %}
+                <form method="post" action="{% url 'circuit:borne_basculer' b.pk %}" style="flex:1 1 100%">
+                    {% csrf_token %}
+                    <button class="large {% if b.actif %}danger{% endif %}">{% if b.actif %}{% icone "croix" %}Mettre hors service{% else %}{% icone "check-cercle" %}Remettre en service{% endif %}</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    {% empty %}
+        <div class="attente-vide">{% icone "imprimante" %}<strong>Aucune borne dans ce centre</strong><span class="discret">Créez-la dans l'administration (Bornes), puis revenez ici pour l'activer.</span></div>
+    {% endfor %}
+    </div>
+    {% if user.is_staff %}<p class="discret" style="margin-bottom:0">Services proposés et imprimante de chaque borne : <a href="{% url 'admin:centres_borne_changelist' %}" hx-boost="false">administration des bornes</a>.</p>{% endif %}
+</section>
+{% endblock %}

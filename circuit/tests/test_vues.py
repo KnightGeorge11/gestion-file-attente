@@ -1204,17 +1204,49 @@ class AppelVisiteurDepuisNotificationsTests(BaseVues):
 
 
 class OngletBorneTests(BaseVues):
-    """Décision du 23/11/2026 : onglet « Borne » dans la barre, pour les administrateurs."""
+    """Décision du 23/11/2026 : onglet « Borne » pour activer les bornes depuis l'application."""
+
+    def setUp(self):
+        super().setUp()
+        self.admin = self.d.agent("admin_centre", "Administrateur de centre")
+        self.admin.is_staff = True
+        self.admin.save(update_fields=["is_staff"])
+        self.borne = Borne.objects.create(centre=self.d.centre, code="B1", libelle="Tablette accueil")
+        self.borne_b = Borne.objects.create(centre=self.b.centre, code="B1", libelle="Borne de l'autre centre")
 
     def test_onglet_borne_pour_l_administrateur(self):
-        admin = self.d.agent("admin_centre", "Administrateur de centre")
-        admin.is_staff = True
-        admin.save(update_fields=["is_staff"])
-        self.connecter(admin, self.d.centre)
+        self.connecter(self.admin, self.d.centre)
         page = self.client.get(reverse("circuit:guichets"))
-        self.assertContains(page, reverse("admin:centres_borne_changelist"))
+        self.assertContains(page, reverse("circuit:bornes"))
 
-    def test_pas_d_onglet_borne_pour_un_agent(self):
+    def test_pas_d_onglet_ni_de_page_pour_un_agent(self):
         self.connecter(self.accueil, self.d.centre)
-        page = self.client.get(reverse("circuit:guichets"))
-        self.assertNotContains(page, reverse("admin:centres_borne_changelist"))
+        self.assertNotContains(self.client.get(reverse("circuit:guichets")), reverse("circuit:bornes"))
+        self.assertEqual(self.client.get(reverse("circuit:bornes")).status_code, 403)
+
+    def test_page_liste_les_bornes_du_centre_seulement(self):
+        self.connecter(self.admin, self.d.centre)
+        page = self.client.get(reverse("circuit:bornes"))
+        self.assertContains(page, "Tablette accueil")
+        self.assertContains(page, "Activer sur cet appareil")
+        self.assertNotContains(page, "Borne de l'autre centre")
+
+    def test_activer_sur_cet_appareil(self):
+        self.connecter(self.admin, self.d.centre)
+        reponse = self.client.post(reverse("circuit:borne"), {"borne": self.borne.pk})
+        self.assertRedirects(reponse, reverse("circuit:borne"), fetch_redirect_response=False)
+        self.assertNotIn("_auth_user_id", self.client.session)          # administrateur déconnecté
+        page = self.client.get(reverse("circuit:borne"))                 # l'appareil est la borne
+        self.assertContains(page, "Médecin")
+
+    def test_mettre_hors_service_puis_remettre(self):
+        self.connecter(self.admin, self.d.centre)
+        url = reverse("circuit:borne_basculer", args=[self.borne.pk])
+        self.client.post(url)
+        self.borne.refresh_from_db()
+        self.assertFalse(self.borne.actif)
+        self.client.post(url)
+        self.borne.refresh_from_db()
+        self.assertTrue(self.borne.actif)
+        autre = reverse("circuit:borne_basculer", args=[self.borne_b.pk])
+        self.assertEqual(self.client.post(autre).status_code, 404)

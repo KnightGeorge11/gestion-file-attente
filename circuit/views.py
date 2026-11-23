@@ -75,6 +75,59 @@ def _file_du_service(request, service):
 # Liste des services et interface commune d'un service
 # ---------------------------------------------------------------------------
 
+def _bornes_administrees(request):
+    """Bornes du centre actif que cet utilisateur administre (sinon : refus)."""
+    from centres.models import Borne
+    from core.admin import centres_administres
+
+    centre = request.centre_actif
+    if not centres_administres(request.user, Borne).filter(pk=centre.pk).exists():
+        raise PermissionDenied
+    return Borne.objects.filter(centre=centre).select_related("imprimante").prefetch_related("parcours")
+
+
+@centre_actif_requis
+def bornes(request):
+    """
+    « Borne » (décision du 23/11/2026) : l'administrateur active une borne sur
+    l'appareil où il se trouve (tablette de l'accueil…), sans passer par
+    l'administration, et met chaque borne en service ou hors service.
+    L'activation reprend celle de la page de la borne : l'administrateur est
+    ensuite déconnecté de l'appareil, qui reste la borne.
+    """
+    from .views_postes import _borne_de_l_appareil
+
+    liste = list(_bornes_administrees(request).order_by("libelle"))
+    for borne in liste:
+        borne.services = [p.libelle_borne for p in borne.parcours_proposes().order_by("ordre_affichage")]
+    appareil = _borne_de_l_appareil(request)
+    return render(request, "circuit/bornes.html", {
+        "page": "bornes",
+        "bornes": liste,
+        "borne_de_l_appareil": next((b for b in liste if b.pk == appareil), None),
+        "peut_modifier": a_droit(request.user, "centres.change_borne", request.centre_actif),
+    })
+
+
+@require_POST
+@centre_actif_requis
+def borne_basculer(request, borne_id):
+    """Met une borne en service ou hors service (comme le bouton de l'administration)."""
+    from audit.journal import journaliser
+    from audit.models import JournalAudit
+
+    borne = get_object_or_404(_bornes_administrees(request), pk=borne_id)
+    if not a_droit(request.user, "centres.change_borne", request.centre_actif):
+        raise PermissionDenied
+    borne.actif = not borne.actif
+    borne.save(update_fields=["actif"])
+    etat = "remise en service" if borne.actif else "mise hors service"
+    journaliser(JournalAudit.Action.MODIFICATION, request.user, objet=borne,
+                details={"actif": borne.actif}, request=request)
+    messages.success(request, f"Borne « {borne.libelle} » {etat}.")
+    return redirect("circuit:bornes")
+
+
 @centre_actif_requis
 def ecran_connexion(request):
     """
