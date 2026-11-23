@@ -44,6 +44,7 @@ MOTIFS_AUTRE_PAR_DEFAUT = [
     "Entretien",
     "Cotisations (paiement ou renseignement)",
     "Rencontrer une personne du centre",
+    "Rencontrer le médecin en chef",   # décision du 23/11/2026
 ]
 
 

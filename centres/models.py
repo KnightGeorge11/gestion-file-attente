@@ -157,9 +157,9 @@ class Service(models.Model):
         default=False,
     )
 
-    # Médecin en chef (décision du 22/11/2026) : service qui ne reçoit que les
-    # patients envoyés par un médecin, ou un ticket délivré par l'accueil à
-    # la borne qu'il tient. Jamais proposé sur une borne en libre-service.
+    # Plus utilisés (décision du 23/11/2026) : le médecin en chef n'est plus un
+    # service mais un destinataire des demandes « Autre », comme la direction.
+    # Colonnes conservées pour l'historique (aucune migration).
     est_medecin_chef = models.BooleanField(
         default=False,
         db_default=False,
@@ -254,17 +254,6 @@ class Service(models.Model):
 
         if self.est_accueil and self.est_pharmacie:
             raise ValidationError("Un service ne peut pas être à la fois l'accueil et la pharmacie.")
-
-        # Un seul médecin en chef par centre (décision du 22/11/2026) : un
-        # second service coché serait ignoré sans avertissement.
-        if self.est_medecin_chef and self.centre_id:
-            autre = Service.objects.filter(
-                centre_id=self.centre_id, est_medecin_chef=True, actif=True
-            ).exclude(pk=self.pk).first()
-            if autre is not None:
-                raise ValidationError({"est_medecin_chef": (
-                    f"Le centre a déjà un médecin en chef : {autre.nom}. Il n'y en a qu'un par centre."
-                )})
 
     def save(self, *args, **kwargs):
         creation = self._state.adding

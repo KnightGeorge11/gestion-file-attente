@@ -13,7 +13,7 @@ def navigation(request):
 
     from comptes.permissions import a_droit
     from circuit.models import Notification
-    from circuit.visibilite import patients_pour_le_chef, services_operationnels
+    from circuit.visibilite import services_operationnels
 
     contexte.update(
         {
@@ -22,10 +22,9 @@ def navigation(request):
             # Onglet « Borne » : bornes du centre ACTIF administrées (les droits
             # d'administration sont l'union de toutes les affectations).
             "administre_bornes": utilisateur.is_staff and _administre_bornes(utilisateur, centre),
-            # + patients envoyés au médecin en chef, pas encore reçus (décision du 22/11/2026).
             "nb_notifications": Notification.objects.filter(
                 centre=centre, destinataire=utilisateur, date_lecture__isnull=True
-            ).count() + patients_pour_le_chef(utilisateur, centre).count(),
+            ).count(),
         }
     )
     return contexte

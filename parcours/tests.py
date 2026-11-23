@@ -296,10 +296,10 @@ class CommandeInitialisationTests(TestCase):
     def test_initialisation_complete(self):
         self.lancer("TAM", "--medecins", "3")
 
-        self.assertEqual(self.centre.services.count(), 7)   # + médecin en chef
+        self.assertEqual(self.centre.services.count(), 6)   # médecin en chef : pas un service (23/11/2026)
         self.assertEqual(
             set(Parcours.objects.values_list("prefixe", flat=True)),
-            {"M", "D", "I", "E", "C"},
+            {"M", "D", "I", "E"},
         )
 
         medecin = Parcours.objects.get(prefixe="M")
@@ -331,8 +331,8 @@ class CommandeInitialisationTests(TestCase):
         self.lancer("TAM")
         self.lancer("TAM")
 
-        self.assertEqual(self.centre.services.count(), 7)   # + médecin en chef
-        self.assertEqual(ParcoursVersion.objects.count(), 5)
+        self.assertEqual(self.centre.services.count(), 6)   # médecin en chef : pas un service (23/11/2026)
+        self.assertEqual(ParcoursVersion.objects.count(), 4)
         self.assertEqual(QuotaParcours.objects.count(), 11)
 
     def test_reutilise_un_service_existant_au_code_different(self):
@@ -343,4 +343,4 @@ class CommandeInitialisationTests(TestCase):
         self.lancer("TAM")
 
         self.assertEqual(self.centre.services.filter(est_accueil=True).count(), 1)
-        self.assertEqual(self.centre.services.count(), 7)   # + médecin en chef
+        self.assertEqual(self.centre.services.count(), 6)   # médecin en chef : pas un service (23/11/2026)

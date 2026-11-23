@@ -142,15 +142,6 @@ class DemandeAutreOrienteeDepuisLaPageDemandesTests(BaseVues):
 
 
 class ReglagesValidesTests(BaseVues):
-    def test_un_seul_medecin_en_chef_par_centre(self):
-        from django.core.exceptions import ValidationError
-
-        from centres.models import Service
-
-        second = Service(centre=self.d.centre, code="MEC2", nom="Second chef", est_medecin_chef=True)
-        with self.assertRaisesMessage(ValidationError, "déjà un médecin en chef"):
-            second.full_clean()
-
     def test_fuseau_horaire_inconnu_refuse(self):
         from django.core.exceptions import ValidationError
 
@@ -188,21 +179,6 @@ class StatistiquesRelectureTests(BaseVues):
         stats = calculer([self.d.centre], LUNDI_MATIN.date(), LUNDI_MATIN.date())
         accueil = next(l for l in stats["par_service"] if l["service"] == "Accueil")
         self.assertEqual(accueil["prise_en_charge_moy"], 2.0)
-
-    def test_envoi_au_medecin_en_chef_pas_compte_comme_pharmacie(self):
-        from statistiques.calculs import calculer
-
-        infirmier = self.d.agent("inf1", "Infirmerie", ["INF"])
-        ticket = self.d.ticket("M")
-        self.d.accueillir(ticket, self.accueil)
-        self.d.traiter(ticket, "INF", infirmier)
-        entree = self.d.entree(ticket)
-        services.appeler(self.d.file("MED"), self.medecin, entree=entree)
-        services.prendre_en_charge(entree, self.medecin)
-        services.terminer(entree, self.medecin, transferer_medecin_chef=True)
-        stats = calculer([self.d.centre], ticket.jour, ticket.jour)
-        self.assertEqual(stats["transferts"], [])
-
 
 class IdentifiantsNonNumeriquesTests(BaseVues):
     def test_pas_d_erreur_500(self):

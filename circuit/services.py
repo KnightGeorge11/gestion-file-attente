@@ -400,12 +400,6 @@ def _appel_limite_aux_autres(agent, file):
     return appel_limite_aux_autres(agent, file.centre)
 
 
-MESSAGE_CHEF_SANS_APPEL = (
-    "Le médecin en chef n'appelle pas à l'écran : les patients qui lui sont envoyés "
-    "arrivent dans ses Notifications, où il les reçoit."
-)
-
-
 @transaction.atomic
 def appeler(file, agent, entree=None, poste=""):
     """
@@ -418,8 +412,6 @@ def appeler(file, agent, entree=None, poste=""):
     file = _verrouiller_file(file.pk)
     if not file.actif or not file.service.disponible:
         raise ErreurCircuit("Cette file n'est pas disponible.")
-    if file.service.est_medecin_chef:
-        raise ErreurCircuit(MESSAGE_CHEF_SANS_APPEL)
 
     _verifier_agent_libre(agent)
     _verifier_capacite(file)
@@ -569,8 +561,7 @@ def prendre_en_charge(entree, agent, oral=False):
     """
     Début de prise en charge. Pour un service autorisant l'appel oral
     (pharmacie), l'agent peut prendre en charge directement un patient en
-    attente : un appel « oral » est enregistré. Le médecin en chef reçoit
-    toujours ainsi ses patients, sans appel à l'écran (décision du 22/11/2026).
+    attente : un appel « oral » est enregistré.
     """
     _verrouiller_agent(agent)
     # Quota du dentiste : le parcours est verrouillé avant la file, dans le
@@ -590,7 +581,7 @@ def prendre_en_charge(entree, agent, oral=False):
     ticket = passage.ticket
 
     if entree.statut == EntreeFile.Statut.EN_ATTENTE:
-        if not (oral and (service.appel_oral_autorise or service.est_medecin_chef)):
+        if not (oral and service.appel_oral_autorise):
             raise ErreurCircuit("Appelez d'abord le patient.")
         if not entree.file.actif or not service.disponible:
             raise ErreurCircuit("Cette file n'est pas disponible.")
@@ -670,31 +661,8 @@ def peut_transferer_pharmacie(passage):
     return service_pharmacie(passage.centre) is not None
 
 
-def service_medecin_chef(centre):
-    return (
-        Service.objects.filter(centre=centre, est_medecin_chef=True, actif=True)
-        .order_by("ordre")
-        .first()
-    )
-
-
-def peut_transferer_medecin_chef(passage):
-    """
-    Seuls les médecins (services cochés « Peut envoyer au médecin en chef »)
-    envoient un patient au médecin en chef (décision du 22/11/2026). L'accueil
-    y accède par la borne qu'il tient. Jamais pour un ticket « Autre ».
-    """
-    service = passage.service
-    if not service.envoie_medecin_chef or service.est_medecin_chef:
-        return False
-    if passage.ticket.est_autre:
-        return False
-    return service_medecin_chef(passage.centre) is not None
-
-
 @transaction.atomic
-def terminer(entree, agent, transferer_pharmacie=False, motif="", derogation=False, motif_derogation="",
-             transferer_medecin_chef=False):
+def terminer(entree, agent, transferer_pharmacie=False, motif="", derogation=False, motif_derogation=""):
     """
     Fin de prise en charge.
 
@@ -746,13 +714,9 @@ def terminer(entree, agent, transferer_pharmacie=False, motif="", derogation=Fal
     suivante = etape_suivante(ticket, passage)
     motif = (motif or "").strip()
 
-    if transferer_pharmacie and transferer_medecin_chef:
-        raise ErreurCircuit("Choisissez un seul service de destination.")
     if transferer_pharmacie and not peut_transferer_pharmacie(passage):
         raise ErreurCircuit("Le transfert vers la pharmacie n'est pas possible depuis ce service.")
-    if transferer_medecin_chef and not peut_transferer_medecin_chef(passage):
-        raise ErreurCircuit("L'envoi au médecin en chef n'est pas possible depuis ce service.")
-    if (transferer_pharmacie or transferer_medecin_chef) and suivante is not None and not motif:
+    if transferer_pharmacie and suivante is not None and not motif:
         raise ErreurCircuit(
             f"Transfert avant {suivante.service.nom} : indiquez un motif "
             "(les étapes restantes du parcours ne seront pas réalisées)."
@@ -769,9 +733,8 @@ def terminer(entree, agent, transferer_pharmacie=False, motif="", derogation=Fal
     passage.save(update_fields=["statut", "date_fin", "termine_par"])
     _evenement(ticket, Evenement.Type.FIN_PRISE_EN_CHARGE, agent=agent, passage=passage, entree=entree)
 
-    if transferer_pharmacie or transferer_medecin_chef:
-        destination = (service_pharmacie(passage.centre) if transferer_pharmacie
-                       else service_medecin_chef(passage.centre))
+    if transferer_pharmacie:
+        destination = service_pharmacie(passage.centre)
         file_destination = destination.file_par_defaut()
         if file_destination is None:
             raise ErreurCircuit(f"Le service {destination.nom} n'a pas de file d'attente active.")

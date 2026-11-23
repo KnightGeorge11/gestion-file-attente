@@ -28,18 +28,13 @@
             <td class="attente"><span data-depuis="{{ entree.date_entree|date:'c' }}" data-alerte-minutes="30">—</span></td>
             <td class="actions-ligne">
                 {% if not tenue and not autre_service and peut_appeler %}{% if not appel_autres_seulement %}
-                    {% if not file.ordre_strict and not forloop.first and not service.est_medecin_chef %}
+                    {% if not file.ordre_strict and not forloop.first %}
                     <form hx-post="{% url 'circuit:guichet_action' service.pk 'appeler' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'appeler' %}">
                         {% csrf_token %}<input type="hidden" name="entree" value="{{ entree.pk }}"><input type="hidden" name="file" value="{{ file.pk }}">
                         <button class="petit">{% icone "appel" %}Appeler</button>
                     </form>
                     {% endif %}
-                    {% if service.est_medecin_chef %}
-                    <form hx-post="{% url 'circuit:guichet_action' service.pk 'prendre' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'prendre' %}">
-                        {% csrf_token %}<input type="hidden" name="entree" value="{{ entree.pk }}"><input type="hidden" name="file" value="{{ file.pk }}"><input type="hidden" name="oral" value="1">
-                        <button class="petit principal" title="Le patient est devant vous : prise en charge directe, sans appel à l'écran">{% icone "check" %}Recevoir</button>
-                    </form>
-                    {% elif service.appel_oral_autorise and forloop.first or service.appel_oral_autorise and not file.ordre_strict %}
+                    {% if service.appel_oral_autorise and forloop.first or service.appel_oral_autorise and not file.ordre_strict %}
                     <form hx-post="{% url 'circuit:guichet_action' service.pk 'prendre' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'prendre' %}">
                         {% csrf_token %}<input type="hidden" name="entree" value="{{ entree.pk }}"><input type="hidden" name="file" value="{{ file.pk }}"><input type="hidden" name="oral" value="1">
                         <button class="petit principal" title="Appel oral : prise en charge directe">{% icone "son" %}Appel oral</button>

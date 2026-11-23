@@ -5,31 +5,10 @@
 <div class="entete-page">
     <div>
         <h1>Mes notifications</h1>
-        <p class="sous-titre">{% if patients_chef %}Patients qui vous sont envoyés et d{% else %}D{% endif %}emandes « Autre » qui vous ont été transmises par l'accueil.</p>
+        <p class="sous-titre">Demandes « Autre » qui vous ont été transmises par l'accueil.</p>
     </div>
 </div>
 <div id="zone-notifications" hx-get="{{ request.get_full_path }}" hx-trigger="every 10s [pasDeSaisie()]" hx-select="#zone-notifications" hx-swap="outerHTML" hx-disinherit="hx-select hx-swap hx-target">
-{% if patients_chef %}
-{# Médecin en chef : patients envoyés par un médecin ou par l'accueil, reçus sans appel à l'écran (décision du 22/11/2026). #}
-<div class="section-titre">{% icone "medecin" %}Patients envoyés au médecin en chef</div>
-<div class="cartes-demandes" data-suivi="patients-chef">
-{% for e in patients_chef %}
-<section class="carte accent" data-id="chef-{{ e.pk }}">
-    <div class="carte-entete">
-        <h2><span class="jeton">{{ e.passage.ticket.numero }}</span>Patient à recevoir</h2>
-        <span class="etiquette alerte">Nouveau</span>
-    </div>
-    <p class="discret">{% icone "envoyer" %} {% if e.transfert %}Envoyé par {{ e.transfert.decide_par }} ({{ e.transfert.passage_origine.nom_service }}){% else %}Ticket délivré par l'accueil{% endif %} à {{ e.date_entree|time:"H:i" }}</p>
-    {% if e.transfert.motif %}<div class="encart">{% icone "message" %}<span>{{ e.transfert.motif }}</span></div>{% endif %}
-    <form method="post" action="{% url 'circuit:guichet_action' e.file.service_id 'prendre' %}" style="margin-top:10px">
-        {% csrf_token %}<input type="hidden" name="entree" value="{{ e.pk }}"><input type="hidden" name="file" value="{{ e.file_id }}"><input type="hidden" name="oral" value="1">
-        <button class="principal large">{% icone "check" %}Recevoir le patient</button>
-    </form>
-</section>
-{% endfor %}
-</div>
-{% if notifications %}<div class="section-titre">{% icone "cloche" %}Demandes « Autre »</div>{% endif %}
-{% endif %}
 <div class="cartes-demandes" data-suivi="notifications">
 {% for n in notifications %}
 <section class="carte {% if not n.date_lecture %}accent{% endif %}" data-id="{{ n.pk }}">
@@ -65,7 +44,7 @@
     {% endif %}
 </section>
 {% empty %}
-{% if not patients_chef %}<div class="carte vide">{% icone "cloche" %} Aucune notification.</div>{% endif %}
+<div class="carte vide">{% icone "cloche" %} Aucune notification.</div>
 {% endfor %}
 </div>
 </div>

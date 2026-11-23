@@ -36,6 +36,11 @@ ROLES = {
     # demandes « Autre », dont elle appelle le visiteur quand l'accueil les
     # lui transmet (circuit.visibilite, appeler_visiteur).
     "Direction": ACCES_SERVICES + ["circuit.voir_statistiques"],
+    # Médecin en chef (décision du 23/11/2026) : comme la direction ou les RH,
+    # il n'appelle aucun patient ; l'accueil lui transmet les demandes
+    # « Autre » (motif « Rencontrer le médecin en chef »), il appelle le
+    # visiteur depuis ses Notifications et répond.
+    "Médecin en chef": ACCES_SERVICES,
     # Administrateur d'un centre : paramétrage de son centre dans
     # l'administration (droits Django ci-dessous) ; même règle d'appel.
     "Administrateur de centre": ACCES_SERVICES + ["circuit.voir_statistiques"],

@@ -107,31 +107,3 @@ def tickets_a_venir(service):
         .select_related("patient")
         .order_by("date_emission")
     )
-
-
-def services_medecin_chef(utilisateur, centre):
-    """Services « Médecin en chef » où cet agent reçoit les patients."""
-    if centre is None:
-        return []
-    return [
-        service
-        for service in Service.objects.filter(centre=centre, actif=True, est_medecin_chef=True)
-        if a_droit(utilisateur, "circuit.appeler", centre, service)
-    ]
-
-
-def patients_pour_le_chef(utilisateur, centre):
-    """
-    Patients envoyés au médecin en chef et pas encore reçus (décision du
-    22/11/2026) : ils arrivent dans ses Notifications, sans appel à l'écran.
-    """
-    from .models import EntreeFile
-
-    services = services_medecin_chef(utilisateur, centre)
-    if not services:
-        return EntreeFile.objects.none()
-    return (
-        EntreeFile.objects.filter(file__service__in=services, statut=EntreeFile.Statut.EN_ATTENTE)
-        .select_related("passage", "passage__ticket", "file", "file__service")
-        .order_by("rang", "id")
-    )

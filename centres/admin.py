@@ -123,7 +123,6 @@ class ServiceAdmin(CentreAdminMixin, admin.ModelAdmin):
         "suspendu",
         "est_accueil",
         "est_pharmacie",
-        "est_medecin_chef",
     )
 
     search_fields = (
@@ -133,6 +132,11 @@ class ServiceAdmin(CentreAdminMixin, admin.ModelAdmin):
     )
 
     list_select_related = ("centre",)
+
+    # Médecin en chef : plus un service (décision du 23/11/2026), mais une
+    # personne qui reçoit les demandes « Autre » comme la direction. Cases
+    # conservées en base, masquées.
+    exclude = ("est_medecin_chef", "envoie_medecin_chef")
 
     inlines = (HoraireServiceInline, FileAttenteInline)
 

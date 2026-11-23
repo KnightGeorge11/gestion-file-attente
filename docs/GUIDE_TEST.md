@@ -59,7 +59,7 @@ Utiliser le **centre 002** (le plus propre pour une démonstration).
 **Important** : une fenêtre de navigation privée perd la borne quand on la ferme. Utilisez une fenêtre normale (ou la tablette).
 
 Tous les comptes de test ont le mot de passe **1234** :
-`accueil1/2`, `infirmier1/2`, `medecin1/2`, `chef1` (le médecin en chef, un seul), `dentiste1/2`, `echographie1/2`, `pharmacie1/2`, `direction1/2` (statistiques), `responsable1/2` (dérogations). `admin1/2` (administration du centre). L'accueil délivre les tickets et oriente les « Autre » ; les patients vont directement au premier service de leur parcours. Responsables, direction et administrateurs n'appellent aucun ticket.
+`accueil1/2`, `infirmier1/2`, `medecin1/2`, `chef1` (le médecin en chef, un seul : demandes « Autre »), `dentiste1/2`, `echographie1/2`, `pharmacie1/2`, `direction1/2` (statistiques), `responsable1/2` (dérogations). `admin1/2` (administration du centre). L'accueil délivre les tickets et oriente les « Autre » ; les patients vont directement au premier service de leur parcours. Responsables, direction, médecin en chef et administrateurs n'appellent aucun patient.
 
 ---
 
@@ -84,7 +84,7 @@ Tous les comptes de test ont le mot de passe **1234** :
 
 **F. Statistiques** : `direction1` → *Statistiques* → export PDF ou Excel. Aucune donnée patient.
 
-**G. Médecin en chef** (décision du 22/11/2026) : un seul médecin en chef (`chef1`), dans sa salle fixe, jamais annoncée ; il **n'appelle pas à l'écran**. Médecin (`medecin1`) : appeler → prendre en charge → ouvrir **« Envoyer au médecin en chef »** → terminer. Le patient arrive dans les **Notifications** de `chef1` (pastille) : **Recevoir le patient** quand il est devant lui → **Terminer** ou **Transférer à la pharmacie**. L'infirmerie, le dentiste et l'échographie n'ont pas ce bouton. L'accueil peut aussi délivrer directement un ticket **C** « Médecin en chef » à la borne qu'il tient ; une borne en libre-service ne le propose jamais.
+**G. Médecin en chef** (décision du 23/11/2026) : comme la direction ou les RH. Borne → *Autre* → **Rencontrer le médecin en chef** → ticket **A00x** (la borne ne propose pas « Médecin en chef » comme service). Accueil : file « Demandes « Autre » » → appeler, prendre en charge → **Orienter la demande** vers `chef1` → **Terminer**. `chef1` → **Notifications** (pastille) → **Appeler le visiteur** (l'écran affiche A00x et « Médecin en chef ») → répondre. Les médecins n'ont pas de bouton « Envoyer au médecin en chef ».
 
 **H. Demandes « Autre » à part** : à l'accueil, les tickets **A** sont dans la file « Demandes « Autre » », jamais dans la file des patients (choix de la file en haut de la page de l'accueil).
 

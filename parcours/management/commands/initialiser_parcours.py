@@ -21,13 +21,12 @@ SERVICES = [
     # code, nom, ordre, options
     ("ACC", "Accueil", 1, {"est_accueil": True, "accepte_transferts": False}),
     ("INF", "Infirmerie", 2, {}),
-    ("MED", "Médecin", 3, {"envoie_medecin_chef": True}),   # nom annoncé : « M 0 0 1, Médecin, 1 » (décision du 21/11/2026)
+    ("MED", "Médecin", 3, {}),   # nom annoncé : « M 0 0 1, Médecin, 1 » (décision du 21/11/2026)
     ("DEN", "Dentiste", 4, {}),
     ("ECH", "Échographie", 5, {}),
     ("PHA", "Pharmacie", 6, {"est_pharmacie": True, "appel_oral_autorise": True}),
-    # Médecin en chef (décision du 22/11/2026) : patients envoyés par les
-    # médecins, ou ticket délivré par l'accueil à la borne qu'il tient.
-    ("MEC", "Médecin en chef", 7, {"est_medecin_chef": True}),
+    # Le médecin en chef n'est pas un service (décision du 23/11/2026) : il
+    # reçoit les demandes « Autre », comme la direction.
 ]
 
 PARCOURS = [
@@ -36,11 +35,11 @@ PARCOURS = [
     ("DENTISTE", "D", "Dentiste", 2, True, ["ACC", "DEN"]),
     ("INFIRMERIE", "I", "Infirmerie", 3, False, ["ACC", "INF"]),
     ("ECHOGRAPHIE", "E", "Échographie", 4, False, ["ACC", "ECH"]),
-    # Proposé seulement sur la borne tenue par l'accueil (jamais en libre-service).
-    ("MEDECIN_CHEF", "C", "Médecin en chef", 5, False, ["ACC", "MEC"]),
 ]
 
-PARCOURS_RESERVES_ACCUEIL = {"MEDECIN_CHEF"}
+# Parcours proposés seulement sur la borne tenue par l'accueil (case
+# « Réservé à la borne de l'accueil ») : aucun par défaut depuis le 23/11/2026.
+PARCOURS_RESERVES_ACCUEIL = set()
 
 # Quotas du dentiste confirmés : 7 le matin et 4 l'après-midi
 # du lundi au vendredi, 4 le samedi matin. Fermé samedi après-midi

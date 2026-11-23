@@ -96,7 +96,7 @@ def a_droit(utilisateur, permission, centre, service=None):
 # Décision du 19/11/2026 : tout passe d'abord par l'accueil. Les
 # administrateurs, les responsables et la direction n'appellent aucun ticket
 # (circuit.services.appeler) ; l'accueil leur transmet les demandes « Autre ».
-ROLES_APPEL_AUTRES_SEULEMENT = {"Responsable", "Direction", "Administrateur de centre"}
+ROLES_APPEL_AUTRES_SEULEMENT = {"Responsable", "Direction", "Administrateur de centre", "Médecin en chef"}
 
 
 def appel_limite_aux_autres(utilisateur, centre):
@@ -122,7 +122,7 @@ def voit_autres_seulement(utilisateur, centre):
     return bool(
         affectation is not None
         and affectation.groupe_id
-        and affectation.groupe.name in ("Direction", "Administrateur de centre")
+        and affectation.groupe.name in ("Direction", "Administrateur de centre", "Médecin en chef")
     )
 
 

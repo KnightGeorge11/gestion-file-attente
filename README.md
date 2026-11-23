@@ -14,7 +14,7 @@ Ce document distingue les **règles confirmées** dans Trello, les **paramètres
 | `centres` | Centres, services, horaires, files, bornes, écrans d'affichage |
 | `comptes` | Utilisateurs, affectations (centre + rôle + services + permissions individuelles), backend d'autorisation |
 | `patients` | **Inactif** (décision du 18/11/2026 : aucune information patient). Tables conservées, plus aucune page ni permission |
-| `parcours` | Parcours versionnés (M, D, I, E, et C médecin en chef), quotas du dentiste |
+| `parcours` | Parcours versionnés (M, D, I, E), quotas du dentiste |
 | `circuit` | Tickets, passages, files, appels, transferts, quotas réservés, mode Autre, événements ; interfaces agents, borne, écran |
 | `audit` | Journal d'audit (connexions, rôles, quotas, publications, désactivations, fusions, exports) |
 | `statistiques` | Tableau de bord de la direction, exports PDF et Excel |
@@ -27,14 +27,14 @@ Le module `salles` n'a pas été créé : il reste optionnel et non validé (Tre
 
 - **La sécurité n'a aucun rôle ni compte** dans le logiciel. La borne est tenue par l'accueil (« L'accueil délivre les tickets », réglage par défaut, voir plus bas) ; sinon, borne libre-service près de la sécurité.
 - Avant le ticket, le patient choisit un mode : **Interne, Externe ou Autre**. Interne et Externe suivent les mêmes parcours et files (catégorie conservée pour information).
-- Tickets **M, D, I, E** (et **C**, médecin en chef, seulement à la borne de l'accueil) à compteurs indépendants, format lettre + 3 chiffres (M001), **remise à zéro à minuit** (heure du centre) ; un numéro annulé n'est jamais réutilisé.
+- Tickets **M, D, I, E** à compteurs indépendants, format lettre + 3 chiffres (M001), **remise à zéro à minuit** (heure du centre) ; un numéro annulé n'est jamais réutilisé.
 - **Accueil** : avec « L'accueil délivre les tickets » (réglage par défaut des centres), le patient prend son ticket à l'accueil puis va **directement au premier service** de son parcours ; sans ce réglage, il prend son ticket à la borne libre-service, puis passe par la file de l'accueil qui le valide.
-- Parcours (versions publiées) : **M** accueil → infirmerie → file commune des médecins → consultation ; **D** accueil → dentiste ; **E** accueil → échographie ; **I** accueil → infirmerie → fin ; **C** accueil → médecin en chef. L'étape « accueil » est celle du ticket délivré à l'accueil. Marche avant.
+- Parcours (versions publiées) : **M** accueil → infirmerie → file commune des médecins → consultation ; **D** accueil → dentiste ; **E** accueil → échographie ; **I** accueil → infirmerie → fin. L'étape « accueil » est celle du ticket délivré à l'accueil. Marche avant.
 - **Progression du patient** (décision du 18/11/2026) : appelé par un service, le patient s'y rend ; quand le service appuie sur « Terminer », le patient peut être appelé par le service suivant de son parcours (celui choisi au départ). Pas de saut d'étape.
 - **Pharmacie : jamais automatique ni obligatoire.** Tout service de soins (infirmerie, médecin, dentiste, échographie) peut décider explicitement de l'envoyer à la pharmacie (« Transférer à la pharmacie ») ; le ticket se termine après la pharmacie. Depuis une étape intermédiaire (ex. infirmerie du parcours M), un **motif est obligatoire** et les étapes restantes ne sont pas réalisées (décision du 20/11/2026). Jamais depuis l'accueil (décision du 18/11/2026). Aucune version de parcours ne contient la pharmacie.
 - **Service suivant suspendu** (décision du 23/11/2026) : l'agent termine son patient normalement ; le patient attend dans la file du service suspendu et sera appelé à la reprise (l'agent est prévenu). Un service ou une file **désactivés** restent refusés.
-- **Médecin en chef** (décision du 22/11/2026) : seuls les médecins y envoient un patient (« Envoyer au médecin en chef », motif facultatif) ; l'accueil y accède par la borne qu'il tient (ticket **C**). Jamais proposé sur une borne en libre-service. Un seul médecin en chef, dans une salle fixe jamais annoncée : il **n'appelle pas à l'écran** ; les patients envoyés arrivent dans ses Notifications, il les reçoit (« Recevoir le patient ») **dans l'ordre d'arrivée** (décision du 23/11/2026), puis termine le ticket ou l'envoie à la pharmacie.
-- **Demandes « Autre » séparées** (décision du 22/11/2026) : à l'accueil, les tickets « Autre » ont leur propre file (« Demandes « Autre » »), jamais mêlée aux patients. Configuration : cases « Médecin en chef » et « Peut envoyer au médecin en chef » sur les services, « Réservé à la borne de l'accueil » sur le parcours.
+- **Médecin en chef** (décision du 23/11/2026, remplace celle du 22/11/2026) : ce n'est **ni un service ni un parcours** ; il est traité comme la direction, l'administrateur du centre ou les RH. Le patient ne peut pas le choisir directement à la borne : il prend un ticket **« Autre »** avec le motif « Rencontrer le médecin en chef », et l'accueil oriente la demande vers lui. Il la reçoit dans ses Notifications, appelle le visiteur à l'écran (« Médecin en chef ») et répond. Rôle « Médecin en chef » : n'appelle et ne voit aucun patient, seulement les demandes « Autre » qui lui sont transmises. Les médecins n'ont plus de bouton pour lui envoyer un patient.
+- **Demandes « Autre » séparées** (décision du 22/11/2026) : à l'accueil, les tickets « Autre » ont leur propre file (« Demandes « Autre » »), jamais mêlée aux patients. Case « Réservé à la borne de l'accueil » sur un parcours : proposé seulement à la borne tenue par l'accueil (aucun par défaut).
 - **Clôture** à **23 h 59** des tickets restés ouverts et **remise à zéro des numéros** (décision du 21/11/2026, heure réglable par centre). Elle est **automatique** : dès qu'une page de la borne, d'un guichet ou de l'écran est ouverte, les tickets à clôturer sont fermés (vérification au plus une fois par minute). La commande `cloturer_tickets` reste disponible en tâche planifiée de sécurité. Après l'heure de clôture, la borne affiche « Tickets terminés pour aujourd'hui » et ne délivre plus de ticket jusqu'à minuit (audit du 20/11/2026).
 - **10 secondes** minimum entre deux appels du même patient ; absence après 3 appels.
 - **2 agents minimum par service** (décision du 18/11/2026) : chaque file accepte au moins 2 appels simultanés ; chaque agent ne tient qu'un patient à la fois.
@@ -77,7 +77,7 @@ Le module `salles` n'a pas été créé : il reste optionnel et non validé (Tre
 
 | Point (carte « Répondre aux points ouverts ») | Comportement provisoire |
 |---|---|
-| Transfert vers un autre service que la pharmacie | Seulement le médecin en chef, depuis un médecin (décision du 22/11/2026) |
+| Transfert vers un autre service que la pharmacie | Aucun (le médecin en chef passe par les demandes « Autre », décision du 23/11/2026) |
 | Position après réintégration | En fin de file |
 | Pharmacie, appel oral | Bouton « Appel oral » = prise en charge directe, puis « Terminer » (horaires enregistrés) |
 | File des médecins : ordre strict ou libre | Ordre strict |
@@ -268,4 +268,4 @@ La borne et l'écran n'acceptent que les adresses du réseau local (`RESEAU_LOCA
 python manage.py test --noinput
 ```
 
-Tests sur PostgreSQL (base de test créée automatiquement) : comptes et permissions, isolation entre centres, numérotation et appels simultanés, recette des parcours M, D, I, E par les interfaces avec et sans pharmacie, médecin en chef (ticket C, envoi par un médecin, réception sans appel à l'écran), mode Autre, quotas, absences et réintégrations, chronométrage à horloge contrôlée, borne, écran, audit, statistiques et exports, absence de toute information patient.
+Tests sur PostgreSQL (base de test créée automatiquement) : comptes et permissions, isolation entre centres, numérotation et appels simultanés, recette des parcours M, D, I, E par les interfaces avec et sans pharmacie, médecin en chef (demande « Autre » orientée par l'accueil, appel du visiteur, aucun patient), mode Autre, quotas, absences et réintégrations, chronométrage à horloge contrôlée, borne, écran, audit, statistiques et exports, absence de toute information patient.

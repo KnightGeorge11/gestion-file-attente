@@ -39,7 +39,7 @@ COMPTES = [
     ("dentiste", "Dentiste", "DEN"),
     ("echographie", "Échographie", "ECH"),
     ("pharmacie", "Pharmacie", "PHA"),
-    ("chef", "Médecin", "MEC"),          # un seul médecin en chef (décision du 22/11/2026)
+    ("chef", "Médecin en chef", None),   # un seul ; demandes « Autre » (décision du 23/11/2026)
     ("direction", "Direction", None),
     ("responsable", "Responsable", None),
     ("admin", "Administrateur de centre", None),
