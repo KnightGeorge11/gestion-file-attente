@@ -53,13 +53,26 @@ def _entetes(reponse):
     return entetes
 
 
+class _SansRedirection(urllib.request.HTTPRedirectHandler):
+    """Aucune redirection : seule l'adresse vérifiée (réseau local) est lue,
+    jamais une autre adresse imposée par l'appareil (relecture du 23/11/2026)."""
+
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+_OUVREUR = urllib.request.build_opener(_SansRedirection)
+
+
 def _lire_fiche(adresse):
     """Nom, marque et modèle depuis la fiche UPnP de l'appareil (réseau local uniquement)."""
     hote = urlsplit(adresse).hostname or ""
     if not est_adresse_privee(hote):
         return {}
     try:
-        with urllib.request.urlopen(adresse, timeout=2) as reponse:   # noqa: S310 - adresse locale vérifiée
+        if urlsplit(adresse).scheme != "http":
+            return {}
+        with _OUVREUR.open(adresse, timeout=2) as reponse:   # noqa: S310 - adresse locale vérifiée
             contenu = reponse.read(TAILLE_MAX_FICHE)
         racine = ElementTree.fromstring(contenu)
     except (OSError, ValueError, ElementTree.ParseError):

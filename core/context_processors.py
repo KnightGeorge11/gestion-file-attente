@@ -19,6 +19,9 @@ def navigation(request):
         {
             "peut_statistiques": a_droit(utilisateur, "circuit.voir_statistiques", centre),
             "voit_tickets": bool(services_operationnels(utilisateur, centre)),
+            # Onglet « Borne » : bornes du centre ACTIF administrées (les droits
+            # d'administration sont l'union de toutes les affectations).
+            "administre_bornes": utilisateur.is_staff and _administre_bornes(utilisateur, centre),
             # + patients envoyés au médecin en chef, pas encore reçus (décision du 22/11/2026).
             "nb_notifications": Notification.objects.filter(
                 centre=centre, destinataire=utilisateur, date_lecture__isnull=True
@@ -26,3 +29,10 @@ def navigation(request):
         }
     )
     return contexte
+
+
+def _administre_bornes(utilisateur, centre):
+    from centres.models import Borne
+    from core.admin import centres_administres
+
+    return centres_administres(utilisateur, Borne).filter(pk=centre.pk).exists()

@@ -97,6 +97,14 @@ class Command(BaseCommand):
                     if ancien is not None and not Utilisateur.objects.filter(username=username).exists():
                         ancien.username = username          # ancien nom « …test<n> »
                         ancien.save(update_fields=["username"])
+                    existant = Utilisateur.objects.filter(username=username).first()
+                    if existant is not None and (
+                        existant.is_superuser or existant.type_compte == Utilisateur.TypeCompte.ADMINISTRATEUR
+                    ):
+                        # Vrai compte de la plateforme qui porte ce nom : jamais
+                        # remis à un mot de passe de test (relecture du 23/11/2026).
+                        self.stdout.write(f"  {username:<14} ignoré : compte de la plateforme")
+                        continue
                     utilisateur, cree = Utilisateur.objects.get_or_create(username=username)
                     utilisateur.first_name, utilisateur.last_name = role, str(n)
                     if prefixe == "admin":

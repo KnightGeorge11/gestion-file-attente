@@ -7,7 +7,7 @@
 {% block contenu %}
 <header class="ecran-entete">
     <div class="marque"><span class="logo">F</span><span class="titre">Écran de la salle<small>SMIE FUNTOA</small></span></div>
-    <div class="temps"><div class="heure" data-horloge="minutes" data-fuseau="Indian/Antananarivo">{% now "H:i" %}</div></div>
+    <div class="temps"><div class="heure" data-horloge="minutes" data-fuseau="{{ fuseau }}">{% now "H:i" %}</div></div>
 </header>
 {# Écran libre : il attend qu'on le choisisse dans la plateforme (vérification toutes les 3 s). #}
 <div id="zone-appels" hx-get="{% url 'ecran_tv_etat' %}" hx-trigger="every 3s" hx-swap="none">

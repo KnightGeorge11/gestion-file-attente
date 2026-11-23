@@ -31,7 +31,7 @@
         {# Écran de la salle : détection des écrans physiques reliés à l'ordinateur (décision du 21/11/2026). #}
         <a href="{% url 'circuit:ecran_connexion' %}" class="{% if page == 'ecran_connexion' %}actif{% endif %}" title="Afficher les appels sur l'écran de la salle">{% icone "ecran" %}Écran</a>
         {# Bornes du centre : services proposés, activation (administrateurs, décision du 23/11/2026). #}
-        {% if user.is_staff and perms.centres.view_borne %}<a href="{% url 'circuit:bornes' %}" class="{% if page == 'bornes' %}actif{% endif %}" title="Activer une borne sur cet appareil">{% icone "imprimante" %}Borne</a>{% endif %}
+        {% if administre_bornes %}<a href="{% url 'circuit:bornes' %}" class="{% if page == 'bornes' %}actif{% endif %}" title="Activer une borne sur cet appareil">{% icone "imprimante" %}Borne</a>{% endif %}
         {% if user.is_staff %}<a href="{% url 'admin:index' %}" hx-boost="false">{% icone "reglages" %}Administration</a>{% endif %}
     </nav>
     {% endif %}

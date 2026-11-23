@@ -54,7 +54,12 @@ def _parametres(request):
         est_administrateur_central(utilisateur) or a_droit(utilisateur, "circuit.consulter_reseau", centre)
     )
     if reseau:
-        centres = list(centres_autorises(utilisateur))
+        # Seulement les centres où il a le droit de voir les statistiques
+        # (pas ceux où il n'est qu'agent, relecture du 23/11/2026).
+        centres = [
+            c for c in centres_autorises(utilisateur)
+            if est_administrateur_central(utilisateur) or a_droit(utilisateur, "circuit.voir_statistiques", c)
+        ]
         libelle = "Tous les centres autorisés"
     else:
         centres = [centre]

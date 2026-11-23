@@ -46,7 +46,12 @@ class Simulateur:
             raise ErreurCircuit(
                 "Aucun compte de test dans ce centre : lancez d'abord « python manage.py creer_comptes_test »."
             )
-        self.files = {code: service.file_par_defaut() for code, service in self.services.items()}
+        # Toutes les files actives, dont celle des demandes « Autre » de l'accueil
+        # (sinon les « Autre » simulés s'accumulent, relecture du 23/11/2026).
+        self.files = [
+            (code, file) for code, service in self.services.items()
+            for file in service.files.filter(actif=True).order_by("-par_defaut", "nom")
+        ]
         # Les tickets simulés sont émis par une borne dédiée : la simulation
         # n'agit QUE sur ses propres tickets et QUE avec les comptes de test.
         self.borne, _ = Borne.objects.get_or_create(
@@ -172,9 +177,7 @@ class Simulateur:
             except ErreurCircuit as erreur:
                 self.journal(f"Ignoré ({entree.passage.ticket.numero}) : {' '.join(erreur.messages)}")
 
-        for code, file in self.files.items():
-            if file is None:
-                continue
+        for code, file in self.files:
             while services.file_en_attente(file).exists():
                 # Ordre strict : si le premier de la file est un vrai patient,
                 # la simulation n'appelle personne dans cette file.

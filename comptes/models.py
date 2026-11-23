@@ -30,14 +30,32 @@ class Utilisateur(AbstractUser):
         blank=True,
     )
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._type_compte_initial = self.__dict__.get("type_compte")
+
+    def clean(self):
+        super().clean()
+        # Identifiant stocké en minuscules : « Alice » et « alice » sont le même
+        # compte. Message clair au lieu d'une erreur 500 (relecture du 23/11/2026).
+        if self.username:
+            identifiant = self.username.strip().lower()
+            if Utilisateur.objects.filter(username=identifiant).exclude(pk=self.pk).exists():
+                raise ValidationError({"username": "Un compte avec cet identifiant existe déjà."})
+
     def save(self, *args, **kwargs):
         # Identifiant unique stocké en minuscules.
         if self.username:
             self.username = self.username.strip().lower()
         # Les administrateurs ont accès à l'administration Django ; celui
         # d'un centre n'y voit que ses centres (core.admin.CentreAdminMixin).
-        if self.type_compte in (self.TypeCompte.ADMINISTRATEUR, self.TypeCompte.ADMIN_CENTRE):
+        types_admin = (self.TypeCompte.ADMINISTRATEUR, self.TypeCompte.ADMIN_CENTRE)
+        if self.type_compte in types_admin:
             self.is_staff = True
+        elif self._type_compte_initial in types_admin and not self.is_superuser:
+            # Ancien administrateur redevenu agent : plus d'accès à l'administration.
+            self.is_staff = False
+        self._type_compte_initial = self.__dict__.get("type_compte")
 
         super().save(*args, **kwargs)
 

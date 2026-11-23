@@ -11,6 +11,7 @@ Les contrôles de permission (rôle, centre, service) sont faits par les vues
 avec `comptes.permissions.a_droit` ; ce module vérifie les règles métier.
 """
 
+import datetime
 from datetime import timedelta
 
 from django.core.cache import cache
@@ -591,6 +592,8 @@ def prendre_en_charge(entree, agent, oral=False):
     if entree.statut == EntreeFile.Statut.EN_ATTENTE:
         if not (oral and (service.appel_oral_autorise or service.est_medecin_chef)):
             raise ErreurCircuit("Appelez d'abord le patient.")
+        if not entree.file.actif or not service.disponible:
+            raise ErreurCircuit("Cette file n'est pas disponible.")
         if _appel_limite_aux_autres(agent, entree.file):
             raise ErreurCircuit(MESSAGE_AUTRES_SEULEMENT)
         _verifier_agent_libre(agent)
@@ -769,7 +772,10 @@ def terminer(entree, agent, transferer_pharmacie=False, motif="", derogation=Fal
     if transferer_pharmacie or transferer_medecin_chef:
         destination = (service_pharmacie(passage.centre) if transferer_pharmacie
                        else service_medecin_chef(passage.centre))
-        nouveau = _creer_passage(ticket, destination, destination.file_par_defaut(),
+        file_destination = destination.file_par_defaut()
+        if file_destination is None:
+            raise ErreurCircuit(f"Le service {destination.nom} n'a pas de file d'attente active.")
+        nouveau = _creer_passage(ticket, destination, file_destination,
                                  origine=Passage.Origine.TRANSFERT)
         Transfert.objects.create(
             centre_id=ticket.centre_id,
@@ -963,11 +969,22 @@ def annuler_ticket(ticket, agent, motif):
     return ticket
 
 
+def _heure_cloture(centre):
+    """
+    Heure de clôture dans la journée, ou None. 00:00 vaut « à minuit » (le
+    changement de jour) : sinon, toute heure étant ≥ 00:00, la borne serait
+    fermée en permanence et chaque ticket clôturé aussitôt (relecture du 23/11/2026).
+    """
+    heure = centre.heure_cloture_tickets
+    return heure if heure and heure != datetime.time(0, 0) else None
+
+
 def _jour_limite_cloture(centre):
     """Les tickets ouverts d'un jour antérieur à celui-ci sont à clôturer."""
     maintenant = maintenant_centre(centre)
     jour = maintenant.date()
-    if centre.heure_cloture_tickets and maintenant.time() >= centre.heure_cloture_tickets:
+    heure = _heure_cloture(centre)
+    if heure and maintenant.time() >= heure:
         jour = jour + timedelta(days=1)
     return jour
 
@@ -978,7 +995,8 @@ def emission_terminee(centre):
     il serait clôturé dans la minute (audit du 20/11/2026). Elle rouvre à
     minuit, au changement de jour.
     """
-    return bool(centre.heure_cloture_tickets) and maintenant_centre(centre).time() >= centre.heure_cloture_tickets
+    heure = _heure_cloture(centre)
+    return bool(heure) and maintenant_centre(centre).time() >= heure
 
 
 INTERVALLE_CLOTURE_AUTOMATIQUE = 60  # secondes
@@ -1057,6 +1075,8 @@ def transmettre_demande(demande, agent, destinataire=None, service=None, message
     if service is not None:
         if service.centre_id != demande.centre_id:
             raise ErreurCircuit("Service inconnu.")
+        if not service.actif:
+            raise ErreurCircuit(f"Le service {service.nom} n'est plus actif.")
         destinataire = service.destinataire_demandes
         if destinataire is None:
             raise ErreurCircuit(
@@ -1186,6 +1206,8 @@ def repondre_notification(notification, agent, statut, message=""):
         raise ErreurCircuit("Cette notification ne vous est pas adressée.")
     if statut not in ReponseNotification.Statut.values:
         raise ErreurCircuit("Statut de réponse inconnu.")
+    if notification.demande.statut == DemandeAutre.Statut.CLOTUREE:
+        raise ErreurCircuit("Cette demande est déjà clôturée.")
 
     reponse = ReponseNotification.objects.create(
         centre_id=notification.centre_id,

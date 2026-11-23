@@ -8,6 +8,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
 
+# Suite de tests (« manage.py test ») : seulement si « test » est la commande,
+# pas un argument (ex. « changepassword test » en production, relecture du 23/11/2026).
+EN_TEST = len(sys.argv) > 1 and sys.argv[1] == "test"
+
+
 def env_bool(nom, defaut="False"):
     return os.getenv(nom, defaut).strip().lower() in ("1", "true", "oui", "yes")
 
@@ -17,10 +22,10 @@ DEBUG = env_bool("DJANGO_DEBUG", "False")
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "")
 if not SECRET_KEY:
-    if not DEBUG and "test" not in sys.argv:
+    if not DEBUG and not EN_TEST:
         raise ImproperlyConfigured("DJANGO_SECRET_KEY est obligatoire en production (DEBUG désactivé).")
     SECRET_KEY = "django-insecure-local-development-only"
-if not DEBUG and "test" not in sys.argv and (
+if not DEBUG and not EN_TEST and (
     SECRET_KEY.startswith("django-insecure") or len(SECRET_KEY) < 50
 ):
     raise ImproperlyConfigured("DJANGO_SECRET_KEY doit être une clé aléatoire d'au moins 50 caractères.")
@@ -144,7 +149,7 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 # pour que la TV, la borne et les tablettes rechargent le CSS / JS après
 # une mise à jour au lieu de garder l'ancienne version en cache.
 # Nécessite « python manage.py collectstatic » à chaque déploiement.
-if not DEBUG and "test" not in sys.argv:
+if not DEBUG and not EN_TEST:
     STORAGES = {
         "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
         "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
@@ -174,7 +179,7 @@ LOGIN_REDIRECT_URL = "accueil"
 LOGOUT_REDIRECT_URL = "connexion"
 
 # Borne et écran : accès limité au réseau local (adresses privées).
-RESEAU_LOCAL_UNIQUEMENT = os.getenv("RESEAU_LOCAL_UNIQUEMENT", "True").lower() == "true"
+RESEAU_LOCAL_UNIQUEMENT = env_bool("RESEAU_LOCAL_UNIQUEMENT", "True")
 # Délai minimal entre deux tickets émis par une même borne (limitation de débit).
 BORNE_DELAI_MIN_SECONDES = float(os.getenv("BORNE_DELAI_MIN_SECONDES", "2"))
 # Imprimante simulée sur ce poste (python manage.py imprimante_simulee) : développement seulement.
@@ -219,5 +224,5 @@ LOGGING = {
     "root": {"handlers": ["console"], "level": os.getenv("DJANGO_LOG_LEVEL", "WARNING")},
 }
 
-if "test" in sys.argv:
+if EN_TEST:
     PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]

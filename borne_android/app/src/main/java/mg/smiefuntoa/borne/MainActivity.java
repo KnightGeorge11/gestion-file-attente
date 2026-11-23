@@ -52,6 +52,10 @@ public class MainActivity extends Activity {
     private static final int NOMBRE_TOUCHERS_REGLAGES = 5;
     private static final long DELAI_TOUCHERS_MS = 4000;
     private static final long NOUVEL_ESSAI_MS = 10000;
+    // Code des réglages : après 5 erreurs, plus d'essai pendant 5 minutes
+    // (un code de 4 chiffres ne doit pas pouvoir être essayé à la chaîne).
+    private static final int ECHECS_CODE_MAX = 5;
+    private static final long BLOCAGE_CODE_MS = 5 * 60 * 1000;
 
     private WebView web;
     private Reglages reglages;
@@ -59,6 +63,8 @@ public class MainActivity extends Activity {
     private final ExecutorService impression = Executors.newSingleThreadExecutor();
     private int touchers;
     private long premierToucher;
+    private int echecsCode;
+    private long codeBloqueJusqua;
     private String urlChargee = "";
     /** Page affichée (mise à jour sur le fil principal, lue par le pont). */
     private volatile String pageCourante = "";
@@ -160,6 +166,12 @@ public class MainActivity extends Activity {
     }
 
     private void demanderCode() {
+        long reste = codeBloqueJusqua - System.currentTimeMillis();
+        if (reste > 0) {
+            Toast.makeText(this, "Trop d'essais : réessayez dans " + (reste / 60000 + 1) + " min",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
         EditText saisie = new EditText(this);
         saisie.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
         saisie.setHint("Code");
@@ -169,8 +181,14 @@ public class MainActivity extends Activity {
                 .setNegativeButton("Annuler", null)
                 .setPositiveButton("Ouvrir", (d, w) -> {
                     if (reglages.verifierCode(saisie.getText().toString())) {
+                        echecsCode = 0;
                         startActivity(new Intent(this, ReglagesActivity.class));
                     } else {
+                        echecsCode++;
+                        if (echecsCode >= ECHECS_CODE_MAX) {
+                            echecsCode = 0;
+                            codeBloqueJusqua = System.currentTimeMillis() + BLOCAGE_CODE_MS;
+                        }
                         Toast.makeText(this, "Code incorrect", Toast.LENGTH_SHORT).show();
                     }
                 })
@@ -207,7 +225,9 @@ public class MainActivity extends Activity {
         }
         Uri uri = Uri.parse(page);
         String chemin = uri.getPath();
-        return memeServeur(uri) && chemin != null && chemin.contains("/circuit/borne");
+        // Pages de la borne seulement (/circuit/borne/…), pas /circuit/bornes/
+        // (page d'administration des bornes).
+        return memeServeur(uri) && chemin != null && chemin.matches(".*/circuit/borne(/.*)?");
     }
 
     private class Client extends WebViewClient {

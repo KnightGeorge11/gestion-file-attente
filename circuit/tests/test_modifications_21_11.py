@@ -273,7 +273,7 @@ class EcransDuWifiTests(BaseVues):
 
         reponse = mock.MagicMock()
         reponse.__enter__.return_value.read.return_value = self.FICHE_TV
-        with mock.patch("core.decouverte.urllib.request.urlopen", return_value=reponse) as ouvrir:
+        with mock.patch("core.decouverte._OUVREUR.open", return_value=reponse) as ouvrir:
             ecrans = rechercher_ecrans(envoyer=self._reseau)
         self.assertEqual(ecrans, [{
             "adresse_ip": "192.168.3.226", "dial": True, "nom": "GoogleTV8572", "marque": "TCL",
@@ -287,7 +287,7 @@ class EcransDuWifiTests(BaseVues):
         from core.decouverte import rechercher_ecrans
 
         piege = b"HTTP/1.1 200 OK\r\nST: urn:dial-multiscreen-org:service:dial:1\r\nLOCATION: http://8.8.8.8/x.xml\r\n\r\n"
-        with mock.patch("core.decouverte.urllib.request.urlopen") as ouvrir:
+        with mock.patch("core.decouverte._OUVREUR.open") as ouvrir:
             ecrans = rechercher_ecrans(envoyer=lambda attente: [("192.168.3.50", piege)])
         ouvrir.assert_not_called()
         self.assertEqual(ecrans[0]["nom"], "Écran 192.168.3.50")

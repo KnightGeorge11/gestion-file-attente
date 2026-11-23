@@ -619,15 +619,31 @@ def _appareil_tv(request, creer=False):
     except (KeyError, BadSignature):
         pass
     maintenant = timezone.now()
+    ip = adresse_client(request)
     if appareil is None:
         if not creer:
             return None
-        appareil = AppareilEcran.objects.create(
-            jeton=secrets.token_urlsafe(32), code=f"{secrets.randbelow(9000) + 1000}",
-            derniere_activite=maintenant,
+        # Même adresse, écran encore libre, ouvert depuis moins d'un jour : c'est
+        # la même TV (cookie perdu ou refusé). On la reprend au lieu de créer un
+        # nouvel écran à chaque visite (relecture du 23/11/2026).
+        appareil = (
+            AppareilEcran.objects.filter(
+                adresse_ip=ip, centre__isnull=True,
+                derniere_activite__gte=maintenant - timedelta(days=1),
+            ).order_by("-derniere_activite").first()
+            if ip else None
         )
+        if appareil is None:
+            codes_pris = set(AppareilEcran.objects.values_list("code", flat=True))
+            code = f"{secrets.randbelow(9000) + 1000}"
+            for _ in range(20):
+                if code not in codes_pris:
+                    break
+                code = f"{secrets.randbelow(9000) + 1000}"
+            appareil = AppareilEcran.objects.create(
+                jeton=secrets.token_urlsafe(32), code=code, derniere_activite=maintenant,
+            )
         request._tv_nouveau = appareil
-    ip = adresse_client(request)
     # Suivi de l'écran : au plus une écriture toutes les 30 s.
     if maintenant - appareil.derniere_activite > timedelta(seconds=30) or appareil.adresse_ip != ip:
         appareil.derniere_activite = maintenant
@@ -662,7 +678,9 @@ def ecran_tv(request):
     appareil = _appareil_tv(request, creer=True)
     centre = appareil.centre if appareil.centre_id and appareil.centre.actif else None
     if centre is None:
-        reponse = render(request, "circuit/ecran_tv_attente.html", {"appareil": appareil})
+        reponse = render(request, "circuit/ecran_tv_attente.html", {
+            "appareil": appareil, "fuseau": settings.TIME_ZONE,
+        })
     else:
         timezone.activate(fuseau_horaire_centre(centre))
         reponse = render(request, "circuit/ecran.html", {
@@ -676,7 +694,9 @@ def ecran_tv(request):
 def ecran_tv_etat(request):
     """Écran en attente : dès qu'il est choisi dans la plateforme, il affiche les appels."""
     appareil = _appareil_tv(request)
-    if appareil is None or appareil.centre_id:
+    # Centre désactivé : l'écran reste en attente (sinon /tv/ réafficherait
+    # l'attente et la page se rechargerait toutes les 3 s, sans fin).
+    if appareil is None or (appareil.centre_id and appareil.centre.actif):
         return _vers_tv()
     return HttpResponse(status=204)
 
@@ -699,7 +719,11 @@ def ecran_annonce(request, appel_id):
 
     if not _reseau_local(request):
         raise PermissionDenied("Accès réservé au réseau local.")
-    appel = get_object_or_404(Appel.objects.filter(centre__actif=True), pk=appel_id)
+    # Seulement les appels récents : l'écran ne joue que les nouveaux appels.
+    # Pas d'énumération de l'historique de tous les centres sans compte, ni de
+    # fabrication de fichiers vocaux pour d'anciens appels (relecture du 23/11/2026).
+    recents = timezone.now() - timedelta(minutes=30)
+    appel = get_object_or_404(Appel.objects.filter(centre__actif=True, date__gte=recents), pk=appel_id)
     fichier = fichier_annonce(texte_annonce(appel))
     if fichier is None:
         raise Http404("Aucune voix française disponible sur le serveur.")

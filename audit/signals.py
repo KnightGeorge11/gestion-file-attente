@@ -12,9 +12,9 @@ from django.contrib.auth.signals import (
 from django.db.models.signals import m2m_changed, post_delete, post_save, pre_save
 from django.dispatch import receiver
 
-from centres.models import Borne, EcranAffichage, ImprimanteTicket
+from centres.models import Borne, Centre, EcranAffichage, FileAttente, ImprimanteTicket, Service
 from comptes.models import AffectationService, AffectationUtilisateur
-from parcours.models import ModificationQuota, ParcoursVersion
+from parcours.models import ModificationQuota, Parcours, ParcoursVersion
 
 from .journal import journaliser
 from .models import JournalAudit
@@ -108,6 +108,11 @@ def audit_affectation(sender, instance, created, **kwargs):
         "role": instance.role,
         "actif": instance.actif,
     }
+    avant = getattr(instance, "_etat_avant", None)
+    if not created and avant is not None and all(avant[c] == apres[c] for c in avant):
+        # Seule la salle (ou un autre champ sans droit) a changé : pas un
+        # changement de rôle (relecture du 23/11/2026).
+        return
     journaliser(
         JournalAudit.Action.CREATION if created else JournalAudit.Action.ROLE,
         utilisateur_courant(),
@@ -145,6 +150,16 @@ def audit_affectation_service(sender, instance, created, **kwargs):
         utilisateur_courant(),
         objet=instance.affectation,
         details={"service_ajoute": instance.service_id},
+    )
+
+
+@receiver(post_delete, sender=AffectationService)
+def audit_retrait_affectation_service(sender, instance, **kwargs):
+    journaliser(
+        JournalAudit.Action.ROLE,
+        utilisateur_courant(),
+        objet=instance.affectation,
+        details={"service_retire": instance.service_id},
     )
 
 
@@ -193,7 +208,7 @@ def audit_version(sender, instance, created, **kwargs):
 # régénération de clé), suppression. Les clés ne sont jamais journalisées.
 # ---------------------------------------------------------------------------
 
-POSTES = (Borne, EcranAffichage, ImprimanteTicket)
+POSTES = (Borne, EcranAffichage, ImprimanteTicket, Service, FileAttente, Parcours, Centre)
 CHAMPS_SECRETS = {"cle_hash"}
 
 

@@ -265,3 +265,162 @@ class ServiceSuivantSuspenduTests(BaseVues):
         services.prendre_en_charge(entree, self.infirmier)
         with self.assertRaises(services.ErreurCircuit):
             services.terminer(entree, self.infirmier)
+
+
+# ---------------------------------------------------------------------------
+# Points mineurs
+# ---------------------------------------------------------------------------
+
+class EcransWifiMineursTests(BaseVues):
+    def test_une_tv_sans_cookie_reste_un_seul_ecran(self):
+        from centres.models import AppareilEcran
+
+        from django.test import Client
+
+        for _ in range(3):
+            Client().get(reverse("ecran_tv"))          # cookie jamais gardé
+        self.assertEqual(AppareilEcran.objects.count(), 1)
+
+    def test_tv_d_un_centre_desactive_reste_en_attente(self):
+        from centres.models import AppareilEcran
+
+        self.client.get(reverse("ecran_tv"))
+        appareil = AppareilEcran.objects.get()
+        appareil.centre = self.d.centre
+        appareil.save(update_fields=["centre"])
+        self.d.centre.actif = False
+        self.d.centre.save(update_fields=["actif"])
+        self.assertEqual(self.client.get(reverse("ecran_tv_etat")).status_code, 204)
+
+    def test_page_ecran_sans_les_tv_des_autres_centres(self):
+        from django.utils import timezone
+
+        from centres.models import AppareilEcran
+
+        AppareilEcran.objects.create(jeton="a", code="1111", nom="TV du centre B", centre=self.b.centre,
+                                     derniere_activite=timezone.now())
+        AppareilEcran.objects.create(jeton="b", code="2222", nom="TV libre", derniere_activite=timezone.now())
+        self.connecter(self.accueil, self.d.centre)
+        from unittest import mock
+
+        with mock.patch("core.decouverte.rechercher_ecrans", return_value=[]):
+            page = self.client.get(reverse("circuit:ecrans_reseau"))
+        self.assertContains(page, "TV libre")
+        self.assertNotContains(page, "TV du centre B")
+
+    def test_annonce_d_un_ancien_appel_refusee(self):
+        import datetime
+
+        from .base import LUNDI_MATIN, a_heure
+
+        with a_heure(LUNDI_MATIN):
+            ticket = self.d.ticket("M")
+            appel = services.appeler(self.d.file("ACC"), self.accueil, entree=self.d.entree(ticket))
+        with a_heure(LUNDI_MATIN + datetime.timedelta(hours=2)):
+            reponse = self.client.get(reverse("circuit:ecran_annonce", args=[appel.pk]))
+        self.assertEqual(reponse.status_code, 404)
+
+
+class OngletBorneCentreActifTests(BaseVues):
+    def test_pas_d_onglet_dans_un_centre_ou_il_n_est_qu_agent(self):
+        admin = self.d.agent("admin_a", "Administrateur de centre")
+        admin.is_staff = True
+        admin.save(update_fields=["is_staff"])
+        from comptes.models import AffectationUtilisateur
+        from django.contrib.auth.models import Group
+
+        AffectationUtilisateur.objects.create(utilisateur=admin, centre=self.b.centre,
+                                              groupe=Group.objects.get(name="Accueil"))
+        self.connecter(admin, self.d.centre)
+        self.assertContains(self.client.get(reverse("circuit:guichets")), reverse("circuit:bornes"))
+        self.connecter(admin, self.b.centre)
+        self.assertNotContains(self.client.get(reverse("circuit:guichets")), reverse("circuit:bornes"))
+
+
+class MoteurMineursTests(BaseVues):
+    def test_heure_de_cloture_minuit_ne_ferme_pas_la_borne(self):
+        import datetime
+
+        self.d.centre.heure_cloture_tickets = datetime.time(0, 0)
+        self.assertFalse(services.emission_terminee(self.d.centre))
+
+    def test_reponse_refusee_sur_une_demande_cloturee(self):
+        directeur = self.d.agent("directeur", "Direction")
+        autre = services.emettre_ticket(self.d.centre, "AUTRE", motif=self.d.motif)
+        notification = services.transmettre_demande(autre.demande, self.accueil, destinataire=directeur)
+        services.repondre_notification(notification, directeur, "TRAITEE")
+        with self.assertRaises(services.ErreurCircuit):
+            services.repondre_notification(notification, directeur, "EN_COURS")
+
+    def test_cloture_aussi_dans_un_centre_desactive(self):
+        import datetime
+
+        from django.core.management import call_command
+
+        from .base import LUNDI_MATIN, a_heure
+
+        with a_heure(LUNDI_MATIN):
+            ticket = self.d.ticket("M")
+        self.d.centre.actif = False
+        self.d.centre.save(update_fields=["actif"])
+        with a_heure(LUNDI_MATIN + datetime.timedelta(days=1)):
+            call_command("cloturer_tickets", stdout=__import__("io").StringIO())
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.statut, "CLOTURE")
+
+
+class ComptesEtAuditMineursTests(BaseVues):
+    def test_identifiant_existant_a_la_casse_pres(self):
+        from django.core.exceptions import ValidationError
+
+        from comptes.models import Utilisateur
+
+        doublon = Utilisateur(username="Accueil1")
+        doublon.set_password("Mot-de-passe-2026!")
+        with self.assertRaisesMessage(ValidationError, "existe déjà"):
+            doublon.full_clean()
+
+    def test_ancien_administrateur_redevenu_agent_sans_administration(self):
+        from comptes.models import Utilisateur
+
+        compte = Utilisateur.objects.create_user("ancien_admin", password="x",
+                                                 type_compte=Utilisateur.TypeCompte.ADMIN_CENTRE)
+        self.assertTrue(compte.is_staff)
+        compte = Utilisateur.objects.get(pk=compte.pk)
+        compte.type_compte = Utilisateur.TypeCompte.AGENT
+        compte.save()
+        self.assertFalse(compte.is_staff)
+
+    def test_changement_de_salle_n_est_pas_un_changement_de_role(self):
+        from audit.models import JournalAudit
+        from comptes.permissions import affectation_active
+
+        affectation = affectation_active(self.medecin, self.d.centre)
+        avant = JournalAudit.objects.filter(action=JournalAudit.Action.ROLE).count()
+        affectation.salle = "3"
+        affectation.save(update_fields=["salle"])
+        self.assertEqual(JournalAudit.objects.filter(action=JournalAudit.Action.ROLE).count(), avant)
+
+    def test_retrait_d_un_service_autorise_et_modification_d_un_service_journalises(self):
+        from audit.models import JournalAudit
+        from comptes.models import AffectationService
+
+        AffectationService.objects.filter(affectation__utilisateur=self.medecin).first().delete()
+        self.assertTrue(JournalAudit.objects.filter(details__has_key="service_retire").exists())
+        service = self.d.svc["DEN"]
+        service.nom = "Dentisterie"
+        service.save()
+        self.assertTrue(JournalAudit.objects.filter(
+            action=JournalAudit.Action.MODIFICATION, objet_type="centres.service", objet_id=str(service.pk),
+        ).exists())
+
+
+class DecouverteSansRedirectionTests(BaseVues):
+    def test_une_redirection_n_est_jamais_suivie(self):
+        import urllib.request
+
+        from core.decouverte import _OUVREUR, _SansRedirection
+
+        self.assertTrue(any(isinstance(h, _SansRedirection) for h in _OUVREUR.handlers))
+        requete = urllib.request.Request("http://192.168.3.226/fiche.xml")
+        self.assertIsNone(_SansRedirection().redirect_request(requete, None, 302, "Found", {}, "http://127.0.0.1/"))

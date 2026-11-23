@@ -178,9 +178,15 @@ def _contexte_ecrans_wifi(request, rechercher=True):
         cache.set("circuit:ecrans-annonces", trouves, 30)
     noms = {e["adresse_ip"]: e for e in trouves}
     recents = timezone.now() - timedelta(minutes=10)
+    # Écrans libres récents, ou ceux de ce centre : jamais les écrans (nom,
+    # adresse) des autres centres, sauf pour l'administrateur de la plateforme.
+    from centres.access import est_administrateur_central
+
+    visibles = Q(centre=centre) | Q(derniere_activite__gte=recents, centre__isnull=True)
+    if est_administrateur_central(request.user):
+        visibles |= Q(derniere_activite__gte=recents)
     appareils = list(
-        AppareilEcran.objects.select_related("centre")
-        .filter(Q(derniere_activite__gte=recents) | Q(centre=centre))
+        AppareilEcran.objects.select_related("centre").filter(visibles)
         .order_by("-derniere_activite")[:30]
     )
     for appareil in appareils:

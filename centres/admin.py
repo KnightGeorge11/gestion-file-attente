@@ -259,14 +259,24 @@ class BorneAdmin(CentreAdminMixin, admin.ModelAdmin):
             retour = reverse("admin:centres_borne_changelist")
         return redirect(retour)
 
+    # save() borne par borne (et non update()) : chaque changement passe par le
+    # journal d'audit (relecture du 23/11/2026).
     @admin.action(description="Activer les bornes sélectionnées", permissions=["change"])
     def activer(self, request, queryset):
-        nombre = queryset.update(actif=True)
+        nombre = 0
+        for borne in queryset.filter(actif=False):
+            borne.actif = True
+            borne.save(update_fields=["actif"])
+            nombre += 1
         self.message_user(request, f"{nombre} borne(s) activée(s).", messages.SUCCESS)
 
     @admin.action(description="Désactiver les bornes sélectionnées", permissions=["change"])
     def desactiver(self, request, queryset):
-        nombre = queryset.update(actif=False)
+        nombre = 0
+        for borne in queryset.filter(actif=True):
+            borne.actif = False
+            borne.save(update_fields=["actif"])
+            nombre += 1
         self.message_user(request, f"{nombre} borne(s) désactivée(s).", messages.SUCCESS)
 
     def save_model(self, request, obj, form, change):

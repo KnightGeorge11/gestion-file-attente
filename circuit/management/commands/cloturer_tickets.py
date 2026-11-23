@@ -24,7 +24,9 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         total = 0
-        for centre in Centre.objects.filter(actif=True):
+        # Aussi les centres désactivés : leurs tickets restés ouverts seraient
+        # sinon ouverts pour toujours (relecture du 23/11/2026).
+        for centre in Centre.objects.all():
             nombre = cloturer_tickets(centre)
             total += nombre
             if nombre:
