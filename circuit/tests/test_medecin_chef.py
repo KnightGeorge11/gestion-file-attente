@@ -140,3 +140,35 @@ class EnvoiParLeMedecinTests(BaseMedecinChef):
         self.chef.is_active = False
         self.chef.save(update_fields=["is_active"])
         self.assertIsNone(services.medecin_chef(self.d.centre))
+
+
+class ReponseEtAppelDuChefTests(BaseMedecinChef):
+    """Relecture du 23/11/2026."""
+
+    _au_medecin = EnvoiParLeMedecinTests._au_medecin
+
+    def _envoye(self):
+        ticket, entree, _ = self._au_medecin()
+        services.terminer(entree, self.medecin, envoyer_medecin_chef=True, motif="Avis")
+        return ticket, ticket.demande.notifications.get()
+
+    def test_le_statut_de_la_reponse_doit_etre_choisi(self):
+        self._envoye()
+        self.connecter(self.chef, self.d.centre, salle_indiquee=False)
+        page = self.client.get(reverse("circuit:notifications"))
+        self.assertContains(page, '<option value="">— Choisir le statut —</option>', html=True)
+
+    def test_l_appel_du_chef_s_affiche_sur_l_ecran_principal(self):
+        ticket, notification = self._envoye()
+        self.d.svc["MED"].afficher_ecran_principal = False
+        self.d.svc["MED"].save(update_fields=["afficher_ecran_principal"])
+        appel = services.appeler_visiteur(notification, self.chef)
+        self.assertTrue(appel.service.est_accueil)
+
+    def test_la_pastille_du_medecin_s_eteint_a_la_lecture(self):
+        _, notification = self._envoye()
+        services.repondre_notification(notification, self.chef, "RECUE", "Vu")
+        self.assertEqual(services.nombre_notifications(self.medecin, self.d.centre), 1)
+        self.connecter(self.medecin, self.d.centre)
+        self.client.get(reverse("circuit:notifications"))
+        self.assertEqual(services.nombre_notifications(self.medecin, self.d.centre), 0)

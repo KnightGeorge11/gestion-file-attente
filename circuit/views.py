@@ -174,6 +174,9 @@ def _contexte_ecrans_wifi(request, rechercher=True):
     centre = request.centre_actif
     # Recherche sur le réseau (environ 3 s) : gardée 30 s pour les actions qui suivent.
     trouves = cache.get("circuit:ecrans-annonces")
+    # Une recherche forcée au plus toutes les 10 s (environ 3 s de réseau chacune).
+    if rechercher and not cache.add("circuit:ecrans-recherche-recente", True, 10):
+        rechercher = trouves is None
     if trouves is None or rechercher:
         trouves = rechercher_ecrans(attente=3)
         cache.set("circuit:ecrans-annonces", trouves, 30)
@@ -825,8 +828,8 @@ def notifications(request):
     for n in envoyes:
         n.reponses_nouvelles = [r.pk for r in n.reponses.all() if not r.lue_par_accueil]
     ReponseNotification.objects.filter(
-        notification__in=[n.pk for n in envoyes], lue_par_accueil=False
-    ).update(lue_par_accueil=True)
+        centre=centre, notification__transmise_par=request.user, lue_par_accueil=False
+    ).exclude(notification__demande__ticket__mode=Ticket.Mode.AUTRE).update(lue_par_accueil=True)
     return render(
         request,
         "circuit/notifications.html",

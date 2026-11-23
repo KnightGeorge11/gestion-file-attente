@@ -1072,7 +1072,6 @@ def cloture_automatique(centre):
     return cloturer_tickets(centre)
 
 
-@transaction.atomic
 def cloturer_tickets(centre, avant_jour=None):
     """
     Clôture automatique des tickets restés ouverts (décision du 18/11/2026 :
@@ -1090,16 +1089,20 @@ def cloturer_tickets(centre, avant_jour=None):
     )
     nombre = 0
     for ticket_id in identifiants:
-        # Même ordre de verrous que les appels : files, puis ticket.
-        _verrouiller_files_du_ticket(ticket_id)
-        ticket = Ticket.objects.select_for_update().filter(
-            pk=ticket_id, statut__in=Ticket.STATUTS_OUVERTS
-        ).first()
-        if ticket is None:
-            continue   # fermé entre-temps (annulé, terminé)
-        _fermer_passages(ticket)
-        _terminer_ticket(ticket, None, Evenement.Type.CLOTURE, Ticket.Statut.CLOTURE)
-        nombre += 1
+        # Une transaction par ticket (relecture du 23/11/2026) : les verrous
+        # ne sont gardés que le temps d'un ticket, jamais sur toutes les files
+        # à la fois (interblocage avec un agent qui termine un patient).
+        with transaction.atomic():
+            # Même ordre de verrous que les appels : files, puis ticket.
+            _verrouiller_files_du_ticket(ticket_id)
+            ticket = Ticket.objects.select_for_update().filter(
+                pk=ticket_id, statut__in=Ticket.STATUTS_OUVERTS
+            ).first()
+            if ticket is None:
+                continue   # fermé entre-temps (annulé, terminé)
+            _fermer_passages(ticket)
+            _terminer_ticket(ticket, None, Evenement.Type.CLOTURE, Ticket.Statut.CLOTURE)
+            nombre += 1
     return nombre
 
 
@@ -1228,6 +1231,13 @@ def appeler_visiteur(notification, agent, poste=""):
         affectation = affectation_active(agent, notification.centre)
         destination = affectation.groupe.name if affectation and affectation.groupe_id else str(agent)
         service = entree.file.service
+        if not ticket.est_autre or not service.afficher_ecran_principal:
+            accueil = (
+                Service.objects.filter(centre_id=ticket.centre_id, est_accueil=True, actif=True,
+                                       afficher_ecran_principal=True)
+                .order_by("ordre").first()
+            )
+            service = accueil or service
     maintenant = timezone.now()
     appel = Appel.objects.create(
         centre_id=ticket.centre_id,

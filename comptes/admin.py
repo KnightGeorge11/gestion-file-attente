@@ -250,6 +250,14 @@ class AffectationUtilisateurAdmin(CentreAdminMixin, admin.ModelAdmin):
         # de la plateforme (pas d'auto-attribution de droits).
         if obj is not None and obj.utilisateur_id == request.user.pk and not est_administrateur_central(request.user):
             return False
+        # Ni celle d'un autre administrateur ou d'un compte de la plateforme
+        # (relecture du 23/11/2026) : consultation seulement.
+        if (
+            obj is not None
+            and not est_administrateur_central(request.user)
+            and not comptes_geres(request.user).filter(pk=obj.utilisateur_id).exists()
+        ):
+            return False
         return super().has_change_permission(request, obj)
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):

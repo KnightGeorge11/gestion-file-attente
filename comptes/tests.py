@@ -483,3 +483,19 @@ class ConnexionAdministrationBloqueeTests(BaseComptes):
         self.affecter(agent, self.a, "Accueil")
         self.client.post(reverse("admin:login"), {"username": "simple_agent", "password": MDP})
         self.assertNotIn("_auth_user_id", self.client.session)
+
+
+class AffectationDUnAutreAdministrateurTests(BaseComptes):
+    """Relecture du 23/11/2026 : l'affectation d'un autre administrateur n'est pas modifiable."""
+
+    setUp = AdministrateurDeCentreSecuriteTests.setUp
+
+    def test_affectation_d_un_autre_administrateur_en_lecture_seule(self):
+        from comptes.admin import AffectationUtilisateurAdmin
+        from django.contrib.admin.sites import site
+
+        autre = self.utilisateur("admin_a2", type_compte=Utilisateur.TypeCompte.ADMIN_CENTRE)
+        aff_autre = self.affecter(autre, self.a, "Administrateur de centre")
+        modele_admin = AffectationUtilisateurAdmin(AffectationUtilisateur, site)
+        requete = type("R", (), {"user": self.admin_a})()
+        self.assertFalse(modele_admin.has_change_permission(requete, aff_autre))

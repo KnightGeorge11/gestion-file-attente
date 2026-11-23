@@ -27,7 +27,11 @@ class Command(BaseCommand):
         # Aussi les centres désactivés : leurs tickets restés ouverts seraient
         # sinon ouverts pour toujours (relecture du 23/11/2026).
         for centre in Centre.objects.all():
-            nombre = cloturer_tickets(centre)
+            try:
+                nombre = cloturer_tickets(centre)
+            except Exception as erreur:   # noqa: BLE001 - on passe au centre suivant
+                self.stderr.write(f"  {centre} : clôture interrompue ({erreur})")
+                continue
             total += nombre
             if nombre:
                 self.stdout.write(f"  {centre} : {nombre} ticket(s) clôturé(s)")
