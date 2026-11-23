@@ -1201,3 +1201,20 @@ class AppelVisiteurDepuisNotificationsTests(BaseVues):
         # Un autre agent ne peut pas utiliser cette notification.
         self.connecter(self.medecin, self.d.centre)
         self.assertEqual(self.client.post(url).status_code, 404)
+
+
+class OngletBorneTests(BaseVues):
+    """Décision du 23/11/2026 : onglet « Borne » dans la barre, pour les administrateurs."""
+
+    def test_onglet_borne_pour_l_administrateur(self):
+        admin = self.d.agent("admin_centre", "Administrateur de centre")
+        admin.is_staff = True
+        admin.save(update_fields=["is_staff"])
+        self.connecter(admin, self.d.centre)
+        page = self.client.get(reverse("circuit:guichets"))
+        self.assertContains(page, reverse("admin:centres_borne_changelist"))
+
+    def test_pas_d_onglet_borne_pour_un_agent(self):
+        self.connecter(self.accueil, self.d.centre)
+        page = self.client.get(reverse("circuit:guichets"))
+        self.assertNotContains(page, reverse("admin:centres_borne_changelist"))
