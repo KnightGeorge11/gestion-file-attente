@@ -31,6 +31,7 @@ from django.views.decorators.http import require_POST
 from centres.access import utilisateur_peut_acceder_centre
 from centres.models import Borne, Centre, EcranAffichage
 from core.admin import centres_administres
+from core.requetes import entier
 from core.reseau import est_reseau_local
 from core.timeutils import fuseau_horaire_centre, maintenant_centre
 
@@ -166,7 +167,7 @@ def _activation_borne(request):
     )
     erreur = None
     if request.method == "POST":
-        borne = bornes.filter(pk=request.POST.get("borne") or 0).first()
+        borne = bornes.filter(pk=entier(request.POST.get("borne"))).first()
         if borne is not None:
             from audit.journal import journaliser
             from audit.models import JournalAudit
@@ -243,9 +244,9 @@ def borne_emettre(request):
     parcours = motif = None
     if mode != Ticket.Mode.AUTRE:
         # Seulement un service proposé par cette borne.
-        parcours = poste.parcours_proposes().filter(pk=request.POST.get("parcours") or 0).first()
+        parcours = poste.parcours_proposes().filter(pk=entier(request.POST.get("parcours"))).first()
     elif request.POST.get("motif"):
-        motif = MotifDemande.objects.filter(centre=centre, actif=True, pk=request.POST["motif"]).first()
+        motif = MotifDemande.objects.filter(centre=centre, actif=True, pk=entier(request.POST["motif"])).first()
 
     with transaction.atomic():
         # Verrou sur la borne : deux appuis simultanés passent l'un après

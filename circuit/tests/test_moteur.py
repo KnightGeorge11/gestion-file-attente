@@ -440,6 +440,26 @@ class QuotaTests(BaseCircuit):
         self.assertEqual(reservation.statut, ReservationQuota.Statut.CONSOMMEE)
 
 
+    def test_derogation_utilisable_une_seule_fois(self):
+        """Relecture du 23/11/2026 : une dérogation autorisée ne sert qu'une fois."""
+        responsable = self.d.agent("resp_q", "Responsable")
+        ticket = self.d.ticket("D")
+        with a_heure(LUNDI_MATIN):
+            services.autoriser_derogation(ticket, responsable, "Urgence")   # il restait des places
+        with a_heure(LUNDI_MATIN + datetime.timedelta(minutes=1)):
+            entree = self.d.entree(ticket)
+            services.appeler(self.d.file("ACC"), self.accueil, entree=entree)
+            services.prendre_en_charge(entree, self.accueil)
+            services.terminer(entree, self.accueil)                   # place réservée normalement
+            self.assertIsNone(services.derogation_autorisee(ticket))   # autorisation consommée
+            services.liberer_quota(ticket, self.accueil, "Patient parti")
+            for _ in range(7):
+                self._valider_dentiste()
+            entree = self.d.entree(ticket)
+            services.appeler(self.d.file("DEN"), self.dentiste)
+            with self.assertRaisesMessage(ErreurCircuit, "ne peut pas être reprise"):
+                services.prendre_en_charge(entree, self.dentiste)
+
 class ModeAutreTests(BaseCircuit):
     def test_demande_transmise_a_l_agent_designe_et_reponse(self):
         directeur = self.d.agent("directeur", "Direction")
@@ -767,3 +787,4 @@ class AppelDuVisiteurAutreTests(BaseCircuit):
         with a_heure(LUNDI_MATIN + datetime.timedelta(seconds=30)):
             with self.assertRaisesMessage(ErreurCircuit, "clôturée"):
                 services.appeler_visiteur(notification, self.dentiste)
+

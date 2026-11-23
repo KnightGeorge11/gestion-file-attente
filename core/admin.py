@@ -1,3 +1,7 @@
+from django.contrib import admin
+from django.contrib.admin.utils import get_fields_from_path
+from django.core.exceptions import FieldDoesNotExist
+
 from centres.access import est_administrateur_central
 from centres.models import Centre
 
@@ -43,6 +47,10 @@ def _filtrer_par_centre(queryset, centres):
         return queryset.filter(centre__in=centres)
     if "parcours" in noms:
         return queryset.filter(parcours__centre__in=centres)
+    if "affectations" in noms:
+        # Comptes (ex. « Agent désigné » d'un service) : seulement ceux
+        # affectés à ces centres (relecture du 23/11/2026).
+        return queryset.filter(affectations__centre__in=centres, affectations__actif=True).distinct()
     return queryset
 
 
@@ -75,6 +83,27 @@ class CentreAdminMixin:
         if champ is not None and not est_administrateur_central(request.user):
             champ.queryset = _filtrer_par_centre(champ.queryset, self.centres_administres(request))
         return champ
+
+    def get_list_filter(self, request):
+        """
+        Filtres latéraux sur une relation (centre, parcours…) : seulement les
+        valeurs présentes dans les données visibles, jamais la liste de tous
+        les centres ou parcours de la plateforme (relecture du 23/11/2026).
+        """
+        filtres = super().get_list_filter(request)
+        if est_administrateur_central(request.user):
+            return filtres
+        resultat = []
+        for filtre in filtres:
+            if isinstance(filtre, str):
+                try:
+                    champ = get_fields_from_path(self.model, filtre)[-1]
+                except FieldDoesNotExist:
+                    champ = None
+                if champ is not None and champ.is_relation:
+                    filtre = (filtre, admin.RelatedOnlyFieldListFilter)
+            resultat.append(filtre)
+        return resultat
 
     def formfield_for_manytomany(self, db_field, request, **kwargs):
         champ = super().formfield_for_manytomany(db_field, request, **kwargs)

@@ -256,7 +256,12 @@ class AffectationUtilisateurAdmin(CentreAdminMixin, admin.ModelAdmin):
         champ = super().formfield_for_foreignkey(db_field, request, **kwargs)
         if not est_administrateur_central(request.user):
             if db_field.name == "utilisateur":
-                champ.queryset = comptes_geres(request.user).exclude(pk=request.user.pk)
+                # Seulement les comptes déjà affectés à ses centres : un compte
+                # sans affectation (créé par la plateforme pour un autre
+                # centre) n'est pas récupérable (relecture du 23/11/2026).
+                champ.queryset = comptes_geres(request.user).filter(
+                    affectations__centre__in=centres_administres(request.user, AffectationUtilisateur)
+                ).exclude(pk=request.user.pk).distinct()
             elif db_field.name == "groupe":
                 champ.queryset = roles_metier()
         return champ

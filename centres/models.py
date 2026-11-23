@@ -101,6 +101,19 @@ class Centre(models.Model):
         verbose_name = "Centre"
         verbose_name_plural = "Centres"
 
+    def clean(self):
+        # Un fuseau inconnu (« UTC+3 », espace en trop) mettrait toutes les
+        # pages du centre en erreur (relecture du 23/11/2026).
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+        self.fuseau_horaire = (self.fuseau_horaire or "").strip()
+        try:
+            ZoneInfo(self.fuseau_horaire)
+        except (ZoneInfoNotFoundError, ValueError):
+            raise ValidationError({"fuseau_horaire": (
+                "Fuseau horaire inconnu. Utilisez un nom comme « Indian/Antananarivo »."
+            )})
+
     def __str__(self):
         return f"{self.code} - {self.nom}"
 
@@ -241,6 +254,17 @@ class Service(models.Model):
 
         if self.est_accueil and self.est_pharmacie:
             raise ValidationError("Un service ne peut pas être à la fois l'accueil et la pharmacie.")
+
+        # Un seul médecin en chef par centre (décision du 22/11/2026) : un
+        # second service coché serait ignoré sans avertissement.
+        if self.est_medecin_chef and self.centre_id:
+            autre = Service.objects.filter(
+                centre_id=self.centre_id, est_medecin_chef=True, actif=True
+            ).exclude(pk=self.pk).first()
+            if autre is not None:
+                raise ValidationError({"est_medecin_chef": (
+                    f"Le centre a déjà un médecin en chef : {autre.nom}. Il n'y en a qu'un par centre."
+                )})
 
     def save(self, *args, **kwargs):
         creation = self._state.adding

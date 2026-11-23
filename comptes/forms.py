@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from django.conf import settings
+from django.contrib.admin.forms import AdminAuthenticationForm
 from django.contrib.auth.forms import AuthenticationForm
 from django.core.exceptions import ValidationError
 from django.utils import timezone
@@ -78,3 +79,11 @@ class ConnexionForm(AuthenticationForm):
         if identifiant and echecs_recents(identifiant, adresse) >= settings.CONNEXION_MAX_ECHECS:
             raise ValidationError(self.error_messages["bloque"], code="bloque", params=params)
         return super().clean()
+
+
+class AdminConnexionForm(ConnexionForm, AdminAuthenticationForm):
+    """
+    Connexion à /admin/login/ : même blocage après plusieurs échecs que la
+    page de connexion (relecture du 23/11/2026), et compte d'administration
+    exigé comme pour le formulaire standard de l'administration.
+    """

@@ -110,3 +110,116 @@ class ActiverUneAutreBorneTests(BaseVues):
         self.connecter(self.accueil, self.d.centre)
         self.client.post(reverse("circuit:borne"), {"borne": nouvelle.pk})
         self.assertEqual(self._borne_memorisee(), ancienne.pk)
+
+
+# ---------------------------------------------------------------------------
+# Lot 2
+# ---------------------------------------------------------------------------
+
+class DemandeAutreOrienteeDepuisLaPageDemandesTests(BaseVues):
+    def test_ticket_cloture_apres_l_orientation(self):
+        directeur = self.d.agent("directeur", "Direction")
+        autre = services.emettre_ticket(self.d.centre, "AUTRE", motif=self.d.motif)
+        self.connecter(self.accueil, self.d.centre)
+        self.client.post(reverse("circuit:demandes"), {"demande": autre.demande.pk, "destinataire": directeur.pk})
+        autre.refresh_from_db()
+        self.assertEqual(autre.statut, "TERMINE")
+        self.assertFalse(autre.passages.filter(statut__in=["EN_ATTENTE", "APPELE", "EN_COURS"]).exists())
+        self.assertEqual(autre.demande.notifications.get().destinataire, directeur)
+
+    def test_ticket_tenu_au_guichet_termine_par_l_agent(self):
+        directeur = self.d.agent("directeur", "Direction")
+        autre = services.emettre_ticket(self.d.centre, "AUTRE", motif=self.d.motif)
+        entree = self.d.entree(autre)
+        services.appeler(entree.file, self.accueil, entree=entree)
+        services.prendre_en_charge(entree, self.accueil)
+        services.transmettre_demande(autre.demande, self.accueil, destinataire=directeur)
+        autre.refresh_from_db()
+        self.assertTrue(autre.ouvert)           # l'agent le termine lui-même au guichet
+        services.terminer(self.d.entree(autre), self.accueil)
+        autre.refresh_from_db()
+        self.assertEqual(autre.statut, "TERMINE")
+
+
+class ReglagesValidesTests(BaseVues):
+    def test_un_seul_medecin_en_chef_par_centre(self):
+        from django.core.exceptions import ValidationError
+
+        from centres.models import Service
+
+        second = Service(centre=self.d.centre, code="MEC2", nom="Second chef", est_medecin_chef=True)
+        with self.assertRaisesMessage(ValidationError, "déjà un médecin en chef"):
+            second.full_clean()
+
+    def test_fuseau_horaire_inconnu_refuse(self):
+        from django.core.exceptions import ValidationError
+
+        centre = self.d.centre
+        centre.fuseau_horaire = "UTC+3"
+        with self.assertRaises(ValidationError):
+            centre.full_clean()
+        centre.fuseau_horaire = " Indian/Antananarivo "
+        centre.full_clean()
+        self.assertEqual(centre.fuseau_horaire, "Indian/Antananarivo")
+
+
+class StatistiquesRelectureTests(BaseVues):
+    def test_passage_cloture_automatiquement_hors_prise_en_charge(self):
+        import datetime
+
+        from statistiques.calculs import calculer
+
+        from .base import LUNDI_MATIN, a_heure
+
+        with a_heure(LUNDI_MATIN):
+            oublie = self.d.ticket("I")
+            entree = self.d.entree(oublie)
+            services.appeler(entree.file, self.accueil, entree=entree)
+            services.prendre_en_charge(entree, self.accueil)
+        with a_heure(LUNDI_MATIN + datetime.timedelta(minutes=4)):
+            normal = self.d.ticket("I")
+            entree2 = self.d.entree(normal)
+        with a_heure(LUNDI_MATIN + datetime.timedelta(minutes=10)):
+            services.annuler_ticket(oublie, self.accueil, "Oubli")
+            services.appeler(entree2.file, self.accueil, entree=entree2)
+            services.prendre_en_charge(entree2, self.accueil)
+        with a_heure(LUNDI_MATIN + datetime.timedelta(minutes=12)):
+            services.terminer(self.d.entree(normal), self.accueil)
+        stats = calculer([self.d.centre], LUNDI_MATIN.date(), LUNDI_MATIN.date())
+        accueil = next(l for l in stats["par_service"] if l["service"] == "Accueil")
+        self.assertEqual(accueil["prise_en_charge_moy"], 2.0)
+
+    def test_envoi_au_medecin_en_chef_pas_compte_comme_pharmacie(self):
+        from statistiques.calculs import calculer
+
+        infirmier = self.d.agent("inf1", "Infirmerie", ["INF"])
+        ticket = self.d.ticket("M")
+        self.d.accueillir(ticket, self.accueil)
+        self.d.traiter(ticket, "INF", infirmier)
+        entree = self.d.entree(ticket)
+        services.appeler(self.d.file("MED"), self.medecin, entree=entree)
+        services.prendre_en_charge(entree, self.medecin)
+        services.terminer(entree, self.medecin, transferer_medecin_chef=True)
+        stats = calculer([self.d.centre], ticket.jour, ticket.jour)
+        self.assertEqual(stats["transferts"], [])
+
+
+class IdentifiantsNonNumeriquesTests(BaseVues):
+    def test_pas_d_erreur_500(self):
+        self.client.raise_request_exception = False
+        self.connecter(self.accueil, self.d.centre)
+        acc = self.d.svc["ACC"].pk
+        reponses = [
+            self.client.get(reverse("circuit:guichet", args=[acc]) + "?file=abc"),
+            self.client.post(reverse("circuit:guichet_action", args=[acc, "prendre"]), {"entree": "abc"}),
+            self.client.post(reverse("circuit:demandes"), {"demande": "abc"}),
+            self.client.post(reverse("circuit:notifications"), {"notification": "abc"}),
+            self.client.post(reverse("centres:selection"), {"centre_id": "abc"}),
+        ]
+        for reponse in reponses:
+            self.assertLess(reponse.status_code, 500, reponse.request["PATH_INFO"])
+        borne = Borne.objects.create(centre=self.d.centre, code="B1", libelle="Entrée")
+        self.client.logout()
+        activer_borne(self.client, borne)
+        reponse = self.client.post(reverse("circuit:borne_emettre"), {"mode": "EXTERNE", "parcours": "abc"})
+        self.assertLess(reponse.status_code, 500)

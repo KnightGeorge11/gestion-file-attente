@@ -4,6 +4,8 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
 from django.views.decorators.http import require_POST
 
+from core.requetes import entier
+
 from .access import (
     SESSION_CENTRE_KEY,
     centres_autorises,
@@ -18,7 +20,7 @@ def selection_centre(request):
     if request.method == "POST":
         centre_id = request.POST.get("centre_id")
 
-        centre = centres.filter(id=centre_id).first()
+        centre = centres.filter(id=entier(centre_id)).first()
 
         if centre is None:
             messages.error(

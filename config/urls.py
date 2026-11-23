@@ -2,12 +2,14 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
 
-from comptes.forms import ConnexionForm
+from comptes.forms import AdminConnexionForm, ConnexionForm
 from circuit import views_postes
 from core import views as core_views
 
 admin.site.site_header = "SMIE FUNTOA · Administration des files d'attente"
 admin.site.site_title = "Administration SMIE FUNTOA"
+# Même blocage après plusieurs échecs que la page de connexion.
+admin.site.login_form = AdminConnexionForm
 
 urlpatterns = [
     path("", core_views.accueil, name="accueil"),

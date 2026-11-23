@@ -11,6 +11,10 @@ from circuit.models import EntreeFile, Passage, ReservationQuota, Ticket, Transf
 
 ATTENTE = ExpressionWrapper(F("date_debut") - F("date_arrivee"), output_field=DurationField())
 PRISE_EN_CHARGE = ExpressionWrapper(F("date_fin") - F("date_debut"), output_field=DurationField())
+# Durée de prise en charge : seulement les passages terminés par l'agent. Un
+# passage annulé, ou clôturé automatiquement à la fin de la journée, a une
+# date de fin qui ne mesure pas la prise en charge (relecture du 23/11/2026).
+PASSAGE_TERMINE = Q(statut=Passage.Statut.TERMINE)
 DUREE_TICKET = ExpressionWrapper(F("date_fin") - F("date_emission"), output_field=DurationField())
 
 
@@ -69,7 +73,7 @@ def calculer(centres, date_debut, date_fin):
             transferts=Count("id", filter=Q(origine=Passage.Origine.TRANSFERT)),
             attente_moy=Avg(ATTENTE),
             attente_max=Max(ATTENTE),
-            pec_moy=Avg(PRISE_EN_CHARGE),
+            pec_moy=Avg(PRISE_EN_CHARGE, filter=PASSAGE_TERMINE),
         )
         .order_by("nom_service")
     ]
@@ -86,13 +90,15 @@ def calculer(centres, date_debut, date_fin):
         for ligne in passages.filter(pris_en_charge_par__isnull=False)
         .values("pris_en_charge_par__username", "pris_en_charge_par__first_name",
                 "pris_en_charge_par__last_name", "nom_service")
-        .annotate(n=Count("id"), pec=Avg(PRISE_EN_CHARGE))
+        .annotate(n=Count("id"), pec=Avg(PRISE_EN_CHARGE, filter=PASSAGE_TERMINE))
         .order_by("nom_service", "-n")
     ]
 
     transferts = [
         {"service_origine": ligne["passage_origine__nom_service"], "transferts": ligne["n"]}
-        for ligne in Transfert.objects.filter(ticket__in=tickets)
+        # Vers la pharmacie seulement : les envois au médecin en chef sont
+        # aussi des transferts, mais pas vers la pharmacie.
+        for ligne in Transfert.objects.filter(ticket__in=tickets, service_destination__est_pharmacie=True)
         .values("passage_origine__nom_service")
         .annotate(n=Count("id"))
         .order_by("passage_origine__nom_service")

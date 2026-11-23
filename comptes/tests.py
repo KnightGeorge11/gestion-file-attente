@@ -421,3 +421,65 @@ class AdministrateursDeCentreEntreEuxTests(BaseComptes):
         })
         self.collegue.refresh_from_db()
         self.assertTrue(self.collegue.is_active)
+
+
+class RelectureLot2AdministrationTests(BaseComptes):
+    """Relecture du 23/11/2026, lot 2 : administration d'un administrateur de centre."""
+
+    def setUp(self):
+        self.admin_a = self.utilisateur("admin_a", type_compte=Utilisateur.TypeCompte.ADMIN_CENTRE)
+        self.affecter(self.admin_a, self.a, "Administrateur de centre")
+        self.agent_b = self.utilisateur("agent_b")
+        self.affecter(self.agent_b, self.b, "Accueil")
+        self.client.force_login(self.admin_a)
+
+    def test_filtres_lateraux_sans_les_autres_centres(self):
+        Service.objects.filter(pk=self.inf_a.pk).update(nom="Infirmerie A")
+        page = self.client.get(reverse("admin:centres_service_changelist"))
+        self.assertContains(page, "Centre A")
+        self.assertNotContains(page, "Centre B")
+
+    def test_agent_designe_parmi_les_comptes_du_centre(self):
+        agent_a = self.utilisateur("agent_a")
+        self.affecter(agent_a, self.a, "Accueil")
+        page = self.client.get(reverse("admin:centres_service_change", args=[self.inf_a.pk]))
+        choix = page.context["adminform"].form.fields["destinataire_demandes"].queryset
+        self.assertIn(agent_a, choix)
+        self.assertNotIn(self.agent_b, choix)
+
+    def test_compte_sans_affectation_non_recuperable(self):
+        orphelin = self.utilisateur("orphelin")
+        page = self.client.get(reverse("admin:comptes_affectationutilisateur_add"))
+        self.assertNotIn(orphelin, page.context["adminform"].form.fields["utilisateur"].queryset)
+
+    def test_creer_un_compte_avec_son_affectation(self):
+        reponse = self.client.post(reverse("admin:comptes_utilisateur_add"), {
+            "username": "nouvel_agent", "password1": "Mot-de-passe-2026!", "password2": "Mot-de-passe-2026!",
+            "usable_password": "true",
+            "affectations-TOTAL_FORMS": "1", "affectations-INITIAL_FORMS": "0",
+            "affectations-0-centre": self.a.pk, "affectations-0-groupe": Group.objects.get(name="Accueil").pk,
+            "affectations-0-role": "AGENT", "affectations-0-actif": "on",
+        })
+        self.assertEqual(reponse.status_code, 302, getattr(reponse, "context", None) and reponse.context.get("errors"))
+        nouveau = Utilisateur.objects.get(username="nouvel_agent")
+        self.assertTrue(nouveau.affectations.filter(centre=self.a, groupe__name="Accueil").exists())
+
+
+class ConnexionAdministrationBloqueeTests(BaseComptes):
+    def test_admin_login_bloque_apres_les_echecs(self):
+        from django.conf import settings
+
+        admin_p = self.utilisateur("plateforme", type_compte=Utilisateur.TypeCompte.ADMINISTRATEUR, is_staff=True)
+        url = reverse("admin:login")
+        for _ in range(settings.CONNEXION_MAX_ECHECS):
+            self.client.post(url, {"username": "plateforme", "password": "faux"})
+        reponse = self.client.post(url, {"username": "plateforme", "password": MDP})
+        self.assertNotIn("_auth_user_id", self.client.session)
+        self.assertContains(reponse, "Trop de tentatives")
+        self.assertTrue(admin_p.check_password(MDP))
+
+    def test_admin_login_refuse_un_agent(self):
+        agent = self.utilisateur("simple_agent")
+        self.affecter(agent, self.a, "Accueil")
+        self.client.post(reverse("admin:login"), {"username": "simple_agent", "password": MDP})
+        self.assertNotIn("_auth_user_id", self.client.session)

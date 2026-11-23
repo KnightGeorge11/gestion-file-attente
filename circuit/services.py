@@ -503,10 +503,12 @@ def marquer_absent(entree, agent):
 @transaction.atomic
 def reintegrer(passage, agent):
     """Nouvelle entrée en fin de file pour le même passage (maximum paramétré)."""
-    # Ordre commun des verrous : la file d'abord, puis le passage et le ticket.
-    _verrouiller_file(Passage.objects.values_list("file_id", flat=True).get(pk=passage.pk))
+    # Ordre commun des verrous : la file, puis le ticket, puis le passage
+    # (comme annuler_ticket et cloturer_tickets : ticket, puis ses passages).
+    file_id, ticket_id = Passage.objects.values_list("file_id", "ticket_id").get(pk=passage.pk)
+    _verrouiller_file(file_id)
+    Ticket.objects.select_for_update().get(pk=ticket_id)
     passage = Passage.objects.select_for_update(of=("self",)).select_related("ticket", "file", "centre").get(pk=passage.pk)
-    Ticket.objects.select_for_update().get(pk=passage.ticket_id)
     if passage.statut != Passage.Statut.ABSENT:
         raise ErreurCircuit("Seul un patient absent peut être réintégré.")
     if _appel_limite_aux_autres(agent, passage.file):
@@ -564,6 +566,17 @@ def prendre_en_charge(entree, agent, oral=False):
     toujours ainsi ses patients, sans appel à l'écran (décision du 22/11/2026).
     """
     _verrouiller_agent(agent)
+    # Quota du dentiste : le parcours est verrouillé avant la file, dans le
+    # même ordre que emettre_ticket et terminer (parcours, puis file), pour
+    # ne pas se bloquer mutuellement quand une place libérée est reprise.
+    parcours_quota = (
+        EntreeFile.objects.filter(
+            pk=entree.pk, passage__ticket__parcours__soumis_quota=True,
+            passage__service__est_accueil=False,
+        ).values_list("passage__ticket__parcours_id", flat=True).first()
+    )
+    if parcours_quota is not None:
+        Parcours.objects.select_for_update().filter(pk=parcours_quota).first()
     entree = _verrouiller_entree(entree.pk)
     service = entree.file.service
     passage = entree.passage
@@ -848,13 +861,23 @@ def _reserver_quota(ticket, agent, derogation=False, motif_derogation=""):
 
 
 def derogation_autorisee(ticket):
-    """Dernière autorisation de dérogation accordée pour ce ticket, ou None."""
-    return (
+    """
+    Autorisation de dérogation encore inutilisée pour ce ticket, ou None.
+    Elle ne sert qu'une fois : dès qu'une place est réservée après elle, elle
+    est consommée. Une place libérée puis reprise au-delà du quota exige une
+    nouvelle décision (relecture du 23/11/2026).
+    """
+    autorisation = (
         ticket.evenements.filter(type=Evenement.Type.DEROGATION_AUTORISEE)
         .select_related("agent")
         .order_by("-date", "-id")
         .first()
     )
+    if autorisation is None:
+        return None
+    if ticket.reservations_quota.filter(date_reservation__gt=autorisation.date).exists():
+        return None
+    return autorisation
 
 
 @transaction.atomic
@@ -1059,7 +1082,33 @@ def transmettre_demande(demande, agent, destinataire=None, service=None, message
     demande.save(update_fields=["statut", "vue_par", "date_vue"])
     _evenement(demande.ticket, Evenement.Type.NOTIFICATION, agent=agent,
                destinataire=destinataire.pk, service=service.nom if service else None)
+    _cloturer_ticket_autre_oriente(demande.ticket_id, agent)
     return notification
+
+
+def _cloturer_ticket_autre_oriente(ticket_id, agent):
+    """
+    Demande « Autre » orientée depuis la page Demandes, sans que l'accueil ait
+    appelé le visiteur : le ticket est clôturé, comme après l'orientation au
+    guichet (le ticket est clôturé après l'orientation ; la demande reste
+    suivie par ses notifications). Si l'accueil tient le ticket au guichet
+    (appelé ou en cours), c'est l'agent qui le termine (relecture du 23/11/2026).
+    """
+    _verrouiller_files_du_ticket(ticket_id)
+    ticket = Ticket.objects.select_for_update().get(pk=ticket_id)
+    if ticket.statut not in Ticket.STATUTS_OUVERTS:
+        return
+    if EntreeFile.objects.filter(passage__ticket=ticket, statut__in=EntreeFile.STATUTS_TENUS).exists():
+        return
+    maintenant = timezone.now()
+    for passage in ticket.passages.select_for_update().filter(statut__in=Passage.STATUTS_ACTIFS):
+        passage.entrees.filter(statut=EntreeFile.Statut.EN_ATTENTE).update(
+            statut=EntreeFile.Statut.TERMINE, date_fin=maintenant)
+        passage.statut = Passage.Statut.TERMINE
+        passage.date_fin = maintenant
+        passage.termine_par = agent
+        passage.save(update_fields=["statut", "date_fin", "termine_par"])
+    _terminer_ticket(ticket, agent)
 
 
 DELAI_APPEL_VISITEUR = timedelta(seconds=10)

@@ -34,6 +34,8 @@ from .models import (
     ReservationQuota,
     Ticket,
 )
+from core.requetes import entier
+
 from .services import ErreurCircuit
 from .visibilite import services_operationnels, tickets_a_venir, tickets_visibles
 
@@ -63,7 +65,7 @@ def _file_du_service(request, service):
     files = service.files.filter(actif=True).order_by("-par_defaut", "nom")
     file_id = request.GET.get("file") or request.POST.get("file")
     if file_id:
-        return get_object_or_404(files, pk=file_id), files
+        return get_object_or_404(files, pk=entier(file_id)), files
     file = files.first()
     if service.est_accueil and service.centre.accueil_delivre_tickets:
         # L'accueil délivre les tickets de soins à la borne : seuls les « Autre »
@@ -214,7 +216,7 @@ def ecran_wifi_choisir(request):
     from centres.models import AppareilEcran
 
     centre = request.centre_actif
-    appareil = get_object_or_404(AppareilEcran.objects.select_related("centre"), pk=request.POST.get("appareil"))
+    appareil = get_object_or_404(AppareilEcran.objects.select_related("centre"), pk=entier(request.POST.get("appareil")))
     pris_ailleurs = appareil.centre_id and appareil.centre_id != centre.pk
     if pris_ailleurs and not est_administrateur_central(request.user):
         messages.error(request, f"Cet écran affiche les appels du centre {appareil.centre.nom}.")
@@ -528,7 +530,7 @@ def _reponse_guichet(request, service, file):
 def _entree_de_la_file(request, file):
     return get_object_or_404(
         EntreeFile.objects.filter(centre=request.centre_actif, file=file),
-        pk=request.POST.get("entree"),
+        pk=entier(request.POST.get("entree")),
     )
 
 
@@ -588,7 +590,7 @@ def guichet_action(request, service_id, action):
             _exiger(request, "circuit.reintegrer", service)
             passage = get_object_or_404(
                 Passage.objects.filter(centre=request.centre_actif, file=file),
-                pk=request.POST.get("passage"),
+                pk=entier(request.POST.get("passage")),
             )
             services.reintegrer(passage, agent)
             messages.success(request, f"Ticket {passage.ticket.numero} réintégré en fin de file.")
@@ -712,7 +714,7 @@ def demandes(request):
     jour = maintenant_centre(centre).date()
 
     if request.method == "POST":
-        demande = get_object_or_404(DemandeAutre.objects.filter(centre=centre), pk=request.POST.get("demande"))
+        demande = get_object_or_404(DemandeAutre.objects.filter(centre=centre), pk=entier(request.POST.get("demande")))
         destinataire = service = None
         if request.POST.get("destinataire"):
             destinataire = get_object_or_404(
@@ -720,10 +722,10 @@ def demandes(request):
                     Q(affectations__centre=centre, affectations__actif=True) | Q(is_superuser=True),
                     is_active=True,
                 ).distinct(),
-                pk=request.POST["destinataire"],
+                pk=entier(request.POST["destinataire"]),
             )
         if request.POST.get("service"):
-            service = get_object_or_404(Service.objects.filter(centre=centre, actif=True), pk=request.POST["service"])
+            service = get_object_or_404(Service.objects.filter(centre=centre, actif=True), pk=entier(request.POST["service"]))
         try:
             services.transmettre_demande(demande, request.user, destinataire=destinataire,
                                          service=service, message=request.POST.get("message", ""))
@@ -762,7 +764,7 @@ def notifications(request):
     if request.method == "POST":
         notification = get_object_or_404(
             Notification.objects.filter(centre=centre, destinataire=request.user),
-            pk=request.POST.get("notification"),
+            pk=entier(request.POST.get("notification")),
         )
         try:
             services.repondre_notification(notification, request.user, request.POST.get("statut", ""),
