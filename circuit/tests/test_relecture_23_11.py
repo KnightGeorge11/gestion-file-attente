@@ -453,3 +453,93 @@ class PharmacieActionPrincipaleTests(BaseVues):
         self.assertContains(page, "Terminer et orienter vers Médecin")
         self.assertContains(page, "<summary>")                      # pharmacie : option repliée
         self.assertNotContains(page, "Terminer sans pharmacie")
+
+
+class MessagesDeLaPlateformeTests(BaseVues):
+    """
+    Vérification du 23/11/2026 : chaque message saisi (motif de transfert,
+    envoi au médecin en chef, orientation et réponse « Autre », annulation,
+    dérogation, libération) est enregistré ET affiché là où il doit être lu.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.infirmier = self.d.agent("inf1", "Infirmerie", ["INF"])
+
+    def _au_service(self, code, agent, ticket=None):
+        ticket = ticket or self.d.ticket("M")
+        entree = self.d.entree(ticket)
+        services.appeler(self.d.file(code), agent, entree=entree)
+        services.prendre_en_charge(entree, agent)
+        return ticket, entree
+
+    def test_motif_du_medecin_lu_par_la_pharmacie(self):
+        ticket = self.d.ticket("M")
+        self.d.accueillir(ticket, self.accueil)
+        self.d.traiter(ticket, "INF", self.infirmier)
+        _, entree = self._au_service("MED", self.medecin, ticket)
+        self.connecter(self.medecin, self.d.centre)
+        self.client.post(reverse("circuit:guichet_action", args=[self.d.svc["MED"].pk, "terminer"]),
+                         {"entree": entree.pk, "file": entree.file_id, "destination": "pharmacie",
+                          "motif": "Amoxicilline 500 mg"})
+        self.connecter(self.pharma, self.d.centre)
+        pha = self.d.svc["PHA"].pk
+        self.assertContains(self.client.get(reverse("circuit:guichet", args=[pha])), "Amoxicilline 500 mg")   # dans la file
+        services.prendre_en_charge(self.d.entree(ticket), self.pharma, oral=True)
+        page = self.client.get(reverse("circuit:guichet", args=[pha]))
+        self.assertContains(page, "Amoxicilline 500 mg")                                                   # patient en cours
+        self.assertContains(self.client.get(reverse("circuit:ticket", args=[ticket.pk])), "Amoxicilline 500 mg")
+
+    def test_motif_obligatoire_de_l_infirmerie_vers_la_pharmacie(self):
+        ticket = self.d.ticket("M")
+        self.d.accueillir(ticket, self.accueil)
+        _, entree = self._au_service("INF", self.infirmier, ticket)
+        self.connecter(self.infirmier, self.d.centre)
+        url = reverse("circuit:guichet_action", args=[self.d.svc["INF"].pk, "terminer"])
+        reponse = self.client.post(url, {"entree": entree.pk, "file": entree.file_id, "pharmacie": "1", "motif": ""},
+                                   follow=True)
+        self.assertContains(reponse, "indiquez un motif")
+        self.client.post(url, {"entree": entree.pk, "file": entree.file_id, "pharmacie": "1", "motif": "Pansement"})
+        self.connecter(self.pharma, self.d.centre)
+        self.assertContains(self.client.get(reverse("circuit:guichet", args=[self.d.svc["PHA"].pk])), "Pansement")
+
+    def test_message_au_medecin_en_chef_affiche_une_seule_fois(self):
+        chef = self.d.agent("chef1", "Médecin en chef")
+        ticket = self.d.ticket("M")
+        self.d.accueillir(ticket, self.accueil)
+        self.d.traiter(ticket, "INF", self.infirmier)
+        _, entree = self._au_service("MED", self.medecin, ticket)
+        services.terminer(entree, self.medecin, envoyer_medecin_chef=True, motif="Avis cardiologique")
+        self.connecter(chef, self.d.centre)
+        page = self.client.get(reverse("circuit:notifications")).content.decode()
+        self.assertEqual(page.count("Avis cardiologique"), 1)
+        self.assertIn("medecin", page.lower())
+
+    def test_orientation_et_reponse_autre(self):
+        from circuit.models import Ticket
+
+        directeur = self.d.agent("directeur", "Direction")
+        autre = services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE, motif=self.d.motif, precision="Pour M. Rabe")
+        self.connecter(self.accueil, self.d.centre)
+        self.client.post(reverse("circuit:demandes"), {"demande": autre.demande.pk, "destinataire": directeur.pk,
+                                                         "message": "Il attend devant l'accueil"})
+        self.connecter(directeur, self.d.centre)
+        page = self.client.get(reverse("circuit:notifications"))
+        self.assertContains(page, "Il attend devant l&#x27;accueil")
+        self.assertContains(page, "Pour M. Rabe")
+        notification = autre.demande.notifications.get()
+        self.client.post(reverse("circuit:notifications"), {"notification": notification.pk, "statut": "EN_COURS",
+                                                              "message": "Je le reçois dans 10 min"})
+        self.assertContains(self.client.get(reverse("circuit:notifications")), "Je le reçois dans 10 min")
+        self.connecter(self.accueil, self.d.centre)
+        self.assertContains(self.client.get(reverse("circuit:demandes")), "Je le reçois dans 10 min")
+
+    def test_motifs_d_annulation_derogation_et_liberation_dans_le_ticket(self):
+        responsable = self.d.agent("resp", "Responsable")
+        annule = self.d.ticket("M")
+        services.annuler_ticket(annule, self.accueil, "Patient reparti")
+        self.connecter(self.accueil, self.d.centre)
+        self.assertContains(self.client.get(reverse("circuit:ticket", args=[annule.pk])), "Patient reparti")
+        dentiste = self.d.ticket("D")
+        services.autoriser_derogation(dentiste, responsable, "Urgence dentaire")
+        self.assertContains(self.client.get(reverse("circuit:ticket", args=[dentiste.pk])), "Urgence dentaire")

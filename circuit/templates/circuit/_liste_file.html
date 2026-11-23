@@ -22,7 +22,8 @@
         <tr data-id="{{ entree.pk }}">
             <td><span class="rang">{{ forloop.counter }}</span><span class="numero">{{ entree.passage.ticket.numero }}</span>
                 {% if entree.reintegration %}<span class="etiquette attention">réintégré</span>{% endif %}
-                {% if entree.passage.origine == "TRANSFERT" %}<span class="etiquette info">transfert</span>{% endif %}</td>
+                {% if entree.passage.origine == "TRANSFERT" %}<span class="etiquette info">transfert</span>
+                {% if entree.passage.transfert_recu.motif %}<div class="discret" style="white-space:normal">{% icone "message" %} {{ entree.passage.transfert_recu.motif }}</div>{% endif %}{% endif %}</td>
             <td class="discret">{{ entree.passage.ticket.parcours.libelle_borne|default:"Autre" }}</td>
             <td class="discret">{{ entree.date_entree|time:"H:i" }}</td>
             <td class="attente"><span data-depuis="{{ entree.date_entree|date:'c' }}" data-alerte-minutes="30">—</span></td>

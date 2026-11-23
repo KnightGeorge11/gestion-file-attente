@@ -33,6 +33,7 @@ from .models import (
     ReponseNotification,
     ReservationQuota,
     Ticket,
+    Transfert,
 )
 from core.requetes import entier
 
@@ -427,6 +428,10 @@ def _contexte_guichet(request, service, file):
         contexte.update(
             {
                 "ticket": ticket,
+                "transfert_recu": (
+                    Transfert.objects.filter(passage_destination=passage)
+                    .select_related("decide_par", "passage_origine").first()
+                ),
                 "suivante": services.etape_suivante(ticket, passage),
                 # Durée de chaque passage déjà fait (décision du 21/11/2026).
                 "passages_precedents": list(

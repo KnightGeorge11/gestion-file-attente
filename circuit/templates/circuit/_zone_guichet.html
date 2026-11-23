@@ -30,6 +30,10 @@
                 </div>
             </div>
 
+            {% if transfert_recu %}
+            {# Motif du transfert lu par le service qui reçoit (vérification du 23/11/2026). #}
+            <div class="encart" style="margin-top:12px">{% icone "message" %}<span>Envoyé par {{ transfert_recu.decide_par }} ({{ transfert_recu.passage_origine.nom_service }}){% if transfert_recu.motif %} : <strong>{{ transfert_recu.motif }}</strong>{% endif %}</span></div>
+            {% endif %}
             <div class="mesures">
                 <div class="mesure"><div class="libelle">Arrivée</div><div class="valeur">{{ tenue.passage.date_arrivee|time:"H:i" }}</div></div>
                 <div class="mesure"><div class="libelle">Attente</div><div class="valeur">{% if tenue.date_premier_appel %}{{ tenue.passage.date_arrivee|timesince:tenue.date_premier_appel }}{% else %}—{% endif %}</div></div>

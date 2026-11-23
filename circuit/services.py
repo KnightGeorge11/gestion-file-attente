@@ -346,7 +346,8 @@ def _verifier_capacite(file):
 def file_en_attente(file):
     return (
         EntreeFile.objects.filter(file=file, statut=EntreeFile.Statut.EN_ATTENTE)
-        .select_related("passage", "passage__ticket", "passage__ticket__parcours")
+        .select_related("passage", "passage__ticket", "passage__ticket__parcours",
+                        "passage__transfert_recu", "passage__transfert_recu__decide_par")
         .order_by("rang")
     )
 
@@ -707,7 +708,7 @@ def _envoyer_au_medecin_chef(ticket, passage, agent, motif):
     maintenant = timezone.now()
     demande = DemandeAutre.objects.create(
         centre_id=ticket.centre_id, ticket=ticket, motif=motif_demande,
-        precision=motif[:500], statut=DemandeAutre.Statut.TRANSMISE,
+        statut=DemandeAutre.Statut.TRANSMISE,
         vue_par=agent, date_vue=maintenant,
     )
     notification = Notification.objects.create(
