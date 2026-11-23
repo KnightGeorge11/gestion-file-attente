@@ -53,6 +53,12 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 GRANT CONNECT ON DATABASE gestion_file_attente TO gestion_app;
 GRANT USAGE ON SCHEMA public TO gestion_app;
+-- Tables et séquences créées plus tard par les migrations (rôle propriétaire) :
+-- l'application y a accès tout de suite, sans attendre les GRANT de l'étape 5.
+ALTER DEFAULT PRIVILEGES FOR ROLE gfa_proprietaire IN SCHEMA public
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO gestion_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE gfa_proprietaire IN SCHEMA public
+    GRANT USAGE, SELECT ON SEQUENCES TO gestion_app;
 SQL
 ```
 
@@ -90,7 +96,10 @@ Les migrations créent les tables : elles s'exécutent avec le rôle propriétai
 
 ```bash
 cd /opt/gestion_file_attente
-sudo -u gfa env DB_USER=gfa_proprietaire DB_PASSWORD='mot-de-passe-long-1' .venv/bin/python manage.py migrate
+# Le mot de passe est demandé, jamais écrit dans la commande (historique du shell).
+read -rsp "Mot de passe de gfa_proprietaire : " MDP_PROPRIETAIRE; echo
+sudo -u gfa env DB_USER=gfa_proprietaire DB_PASSWORD="$MDP_PROPRIETAIRE" .venv/bin/python manage.py migrate
+unset MDP_PROPRIETAIRE
 sudo -u gfa .venv/bin/python manage.py collectstatic --noinput
 ```
 
@@ -104,7 +113,7 @@ REVOKE UPDATE, DELETE ON circuit_evenement, audit_journalaudit FROM gestion_app;
 SQL
 ```
 
-À refaire après chaque mise à jour qui ajoute des tables : `migrate` avec le rôle propriétaire, puis les trois lignes ci-dessus.
+Les nouvelles tables reçoivent ces droits automatiquement (droits par défaut de l'étape 3). Le bloc ci-dessus est sans risque à relancer : la mise à jour (étape 10) le refait par sécurité, **avant** de redémarrer l'application.
 
 Ensuite :
 
@@ -133,7 +142,7 @@ sudo chmod 600 serveur.key ca.key
 
 Installer `ca.crt` sur chaque appareil :
 - **postes Windows** : double-clic → Installer → « Autorités de certification racines de confiance » ;
-- **tablettes Android** : Paramètres → Sécurité → Chiffrement → Installer un certificat → Certificat CA ;
+- **tablettes Android** : Paramètres → Sécurité → Chiffrement → Installer un certificat → Certificat CA. L'application de la borne accepte cette autorité (fichier `borne_android/app/src/main/res/xml/network_security_config.xml`) ; une APK compilée avant le 23/11/2026 ne l'accepte pas et doit être remplacée ;
 - **Smart TV** : selon le modèle. Si la TV ne permet pas d'ajouter une autorité, voir « Limites » plus bas.
 
 ## 7. Gunicorn (systemd) et Nginx
@@ -161,7 +170,7 @@ sudo ufw allow OpenSSH
 sudo ufw enable
 ```
 
-Recherche des écrans du Wi-Fi (page Écran) : le serveur envoie une question UPnP (UDP 1900, multidiffusion) et reçoit les réponses des TV. Si la liste reste vide alors que la TV est allumée sur le même réseau, autoriser ces réponses : `sudo ufw allow from 192.168.1.0/24 proto udp to any`.
+Recherche des écrans du Wi-Fi (page Écran) : le serveur envoie une question UPnP (UDP 1900, multidiffusion) et reçoit les réponses des TV. Si la liste reste vide alors que la TV est allumée sur le même réseau, autoriser ces réponses, et seulement elles (port source 1900) : `sudo ufw allow from 192.168.1.0/24 port 1900 proto udp`.
 
 PostgreSQL n'écoute que sur `127.0.0.1` (valeur par défaut d'Ubuntu) : ne pas l'ouvrir au réseau.
 
@@ -174,8 +183,21 @@ sudo crontab -u gfa deploiement/crontab
 ```
 
 - Clôture des tickets à 23 h 59 (les numéros repartent à 001 le lendemain), puis une seconde fois la nuit.
-- Sauvegarde chaque soir à 22 h, vers `/var/backups/gfa`, avec copie sur un second support (adapter `/media/sauvegarde_usb`).
+- Sauvegarde chaque soir à 22 h, vers `/var/backups/gfa`, avec copie sur un second support monté sur `/media/sauvegarde_usb` (voir ci-dessous).
 - Test de restauration le 1er de chaque mois dans une base distincte.
+
+**Second support (clé ou disque USB)** : il doit être monté sur `/media/sauvegarde_usb` et accessible en écriture à `gfa`. Sinon la copie n'est pas faite, le script s'arrête en erreur (journal `/var/log/gfa/sauvegarde.log`) et la sauvegarde reste seulement sur le serveur ; il n'écrit jamais sur le disque du serveur à la place de la clé.
+
+```bash
+sudo mkdir -p /media/sauvegarde_usb
+sudo blkid                      # repérer l'UUID et le type de la clé (ex. exfat, ext4)
+# Montage automatique au démarrage, ligne à ajouter dans /etc/fstab :
+#   clé exFAT ou FAT :  UUID=<uuid>  /media/sauvegarde_usb  exfat  uid=gfa,gid=gfa,umask=077,nofail  0  0
+#   disque ext4      :  UUID=<uuid>  /media/sauvegarde_usb  ext4   defaults,nofail                    0  2
+sudo mount -a
+sudo chown gfa:gfa /media/sauvegarde_usb   # ext4 seulement (exFAT/FAT : uid=gfa ci-dessus)
+mountpoint /media/sauvegarde_usb           # doit répondre « is a mountpoint »
+```
 
 Lancez une première fois à la main et gardez la sortie comme preuve datée :
 
@@ -195,9 +217,10 @@ Le compte `gestion_app` doit pouvoir créer la base de test : `sudo -u postgres 
    ```bash
    sudo -u postgres dropdb gestion_file_attente
    sudo -u postgres createdb -O gfa_proprietaire gestion_file_attente
-   sudo -u postgres pg_restore -d gestion_file_attente --role=gfa_proprietaire --no-owner /var/backups/gfa/<fichier>.dump
+   # Le fichier appartient à gfa (droits 600) : il est lu par root et transmis à pg_restore.
+   sudo cat /var/backups/gfa/<fichier>.dump | sudo -u postgres pg_restore -d gestion_file_attente --role=gfa_proprietaire --no-owner
    ```
-3. Refaire les `GRANT` et le `REVOKE` de l'étape 5.
+3. Refaire les droits par défaut de l'étape 3 (lignes `ALTER DEFAULT PRIVILEGES`, avec `\c gestion_file_attente`), puis les `GRANT` et le `REVOKE` de l'étape 5.
 4. Redémarrer : `sudo systemctl start gestion-file-attente`.
 
 ## 10. Mise à jour de l'application
@@ -207,13 +230,20 @@ cd /opt/gestion_file_attente
 sudo -u gfa /opt/gestion_file_attente/scripts/sauvegarde.sh /var/backups/gfa
 sudo -u gfa git pull --ff-only
 sudo -u gfa .venv/bin/pip install -r requirements.txt
-sudo -u gfa env DB_USER=gfa_proprietaire DB_PASSWORD='…' .venv/bin/python manage.py migrate
+read -rsp "Mot de passe de gfa_proprietaire : " MDP_PROPRIETAIRE; echo
+sudo -u gfa env DB_USER=gfa_proprietaire DB_PASSWORD="$MDP_PROPRIETAIRE" .venv/bin/python manage.py migrate
+unset MDP_PROPRIETAIRE
 sudo -u gfa .venv/bin/python manage.py collectstatic --noinput
 sudo -u gfa .venv/bin/python manage.py initialiser_roles
+# Droits de l'application (étape 5) AVANT le redémarrage : sans eux, une
+# nouvelle table donnerait des erreurs et bloquerait la sauvegarde.
+sudo -u postgres psql -d gestion_file_attente <<'SQL'
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO gestion_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO gestion_app;
+REVOKE UPDATE, DELETE ON circuit_evenement, audit_journalaudit FROM gestion_app;
+SQL
 sudo systemctl restart gestion-file-attente
 ```
-
-Puis refaire les droits de l'étape 5 si de nouvelles tables sont apparues.
 
 ## 11. Postes
 

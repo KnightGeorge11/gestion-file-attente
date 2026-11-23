@@ -37,18 +37,23 @@ Avec Android Studio, on peut aussi ouvrir le dossier `borne_android/`, puis lanc
 ## Installer sur la tablette
 
 1. Copier `app-debug.apk` sur la tablette (câble USB, clé USB ou Bluetooth).
+   **Serveur en HTTPS (production)** : installer d'abord le certificat de l'autorité locale
+   du centre (`ca.crt`, docs/DEPLOIEMENT_UBUNTU.md, étape 6) : Paramètres → Sécurité →
+   Chiffrement → Installer un certificat → **Certificat CA**. L'application l'accepte
+   (`res/xml/network_security_config.xml`) ; sans lui, la borne reste « momentanément indisponible ».
 2. L'ouvrir et accepter « Installer des applications de sources inconnues ».
 3. **Appairer l'imprimante** : Paramètres Android → Bluetooth → choisir l'imprimante
    (code habituel : `0000` ou `1234`).
 4. Ouvrir **Borne FUNTOA**. L'écran des réglages s'affiche au premier lancement :
-   - **Adresse du serveur** : par exemple `http://192.168.1.10:8000/circuit/borne/` ;
+   - **Adresse du serveur** : en production `https://192.168.1.10/circuit/borne/`
+     (HTTPS, sans port) ; en développement `http://192.168.1.10:8000/circuit/borne/` ;
    - **Imprimante** : la choisir dans la liste, régler le papier (80 ou 58 mm),
      puis toucher **Imprimer un test** ;
    - **Accents** : si les accents du test sortent mal, choisir « Sans accents » ;
    - **Code des réglages** : 4 chiffres ou plus, à garder pour le personnel ;
    - **Épingler l'écran** : conseillé en service.
-5. **Enregistrer et ouvrir la borne**, puis activer la borne comme d'habitude
-   (centre, code du poste, clé). Elle reste activée.
+5. **Enregistrer et ouvrir la borne**, puis l'activer : un administrateur se connecte
+   sur la tablette, choisit la borne et l'active (sans clé). Elle reste activée.
 
 **Côté serveur** : ne rattacher **aucune imprimante réseau** à cette borne
 (Administration → Bornes). Sinon c'est le serveur qui imprime, et l'application ne fait rien.

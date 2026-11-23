@@ -16,7 +16,12 @@ DOSSIER="${DOSSIER:-/var/backups/gfa}"
 BASE_TEST="${BASE_TEST:-gfa_restauration_test}"
 
 lire_env() {
-    grep -E "^$1=" "$RACINE/.env" | tail -n 1 | cut -d= -f2- | tr -d '\r'
+    # Même lecture que sauvegarde.sh : clé absente = vide, guillemets retirés.
+    local valeur
+    valeur="$( { grep -E "^$1=" "$RACINE/.env" || true; } | tail -n 1 | cut -d= -f2- | tr -d '\r')"
+    valeur="${valeur%\"}"; valeur="${valeur#\"}"
+    valeur="${valeur%\'}"; valeur="${valeur#\'}"
+    printf '%s' "$valeur"
 }
 
 DB_NAME="$(lire_env DB_NAME)"
@@ -59,4 +64,14 @@ fi
 if [ "${CONSERVER:-0}" != "1" ]; then
     dropdb "${CONNEXION[@]}" "$BASE_TEST"
     echo "Base $BASE_TEST supprimée."
+fi
+
+# Une table absente de la sauvegarde est une vraie erreur (les écarts de
+# nombre de lignes, eux, sont normaux si la base a changé depuis) : code de
+# sortie non nul, visible dans le journal de cron.
+TABLES_SOURCE="$(tr ' ' '\n' <<< "$SOURCE" | cut -d= -f1)"
+TABLES_RESTAUREES="$(tr ' ' '\n' <<< "$RESTAUREE" | cut -d= -f1)"
+if [ "$TABLES_SOURCE" != "$TABLES_RESTAUREES" ]; then
+    echo "ERREUR : la sauvegarde ne contient pas les mêmes tables que la production." >&2
+    exit 4
 fi

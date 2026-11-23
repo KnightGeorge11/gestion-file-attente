@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Connexion au serveur du centre.
+  - HTTPS avec l'autorité de certification locale du centre
+    (docs/DEPLOIEMENT_UBUNTU.md, étape 6) : depuis Android 7, une application
+    n'accepte une autorité installée par l'utilisateur que si elle le déclare
+    ici (source « user »). Sans cela, la borne affiche « Borne momentanément
+    indisponible » en production (relecture du 23/11/2026).
+  - HTTP en clair reste permis pour le serveur de développement ; en
+    production, l'adresse du serveur dans les réglages doit commencer par https://.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

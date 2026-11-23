@@ -7,7 +7,12 @@ Sauvegarde PostgreSQL de la base des files d'attente.
 - Paramètres de connexion lus dans le fichier .env du projet.
 
 Planification (Planificateur de tâches Windows), chaque jour à 22 h 00 :
-  powershell -ExecutionPolicy Bypass -File D:\gestion_file_attente\scripts\sauvegarde.ps1 -Dossier D:\sauvegardes -CopieVers E:\sauvegardes
+  powershell -ExecutionPolicy Bypass -File D:\gestion_file_attente\scripts\sauvegarde.ps1 -CopieVers E:\sauvegardes
+  (dossier par défaut D:\sauvegardes\gestion_file_attente, celui que lit test_restauration.ps1)
+
+Si la copie sur le second support échoue (clé absente…), la rotation locale
+est faite quand même et le script se termine en erreur (code 2), visible
+dans l'historique du Planificateur de tâches.
 #>
 param(
     [string]$Dossier = "D:\sauvegardes\gestion_file_attente",
@@ -25,7 +30,8 @@ function Lire-Env([string]$chemin) {
         $ligne = $_.Trim().TrimStart([char]0xFEFF)
         if ($ligne -and -not $ligne.StartsWith("#") -and $ligne.Contains("=")) {
             $cle, $valeur = $ligne.Split("=", 2)
-            $valeurs[$cle.Trim()] = $valeur.Trim()
+            # Guillemets retirés, comme le fait python-dotenv.
+            $valeurs[$cle.Trim()] = $valeur.Trim().Trim('"').Trim("'")
         }
     }
     return $valeurs
@@ -50,16 +56,27 @@ if ($LASTEXITCODE -ne 0) { throw "Archive illisible : $fichier" }
 $taille = [math]::Round((Get-Item $fichier).Length / 1KB, 1)
 Write-Output "Sauvegarde créée : $fichier ($taille Ko)"
 
-if ($CopieVers) {
-    New-Item -ItemType Directory -Force -Path $CopieVers | Out-Null
-    Copy-Item $fichier $CopieVers
-    Write-Output "Copie sur le second support : $CopieVers"
-    # Même rotation sur le second support (sinon il finit par se remplir).
-    Get-ChildItem $CopieVers -Filter "*.dump" | Sort-Object LastWriteTime -Descending |
-        Select-Object -Skip $Conserver | Remove-Item -Force
-}
+Remove-Item Env:\PGPASSWORD
 
-# Rotation : on garde les $Conserver plus récentes.
+# Rotation : on garde les $Conserver plus récentes (avant la copie, pour qu'un
+# problème de second support n'empêche jamais de libérer de la place).
 Get-ChildItem $Dossier -Filter "*.dump" | Sort-Object LastWriteTime -Descending |
     Select-Object -Skip $Conserver | Remove-Item -Force
-Remove-Item Env:\PGPASSWORD
+
+if ($CopieVers) {
+    try {
+        # Le lecteur doit exister (clé ou disque branché) : jamais de copie
+        # dans un dossier créé ailleurs à la place du second support.
+        $lecteur = Split-Path -Qualifier $CopieVers -ErrorAction SilentlyContinue
+        if ($lecteur -and -not (Test-Path "$lecteur\")) { throw "le lecteur $lecteur n'est pas branché" }
+        New-Item -ItemType Directory -Force -Path $CopieVers | Out-Null
+        Copy-Item $fichier $CopieVers
+        Write-Output "Copie sur le second support : $CopieVers"
+        # Même rotation sur le second support (sinon il finit par se remplir).
+        Get-ChildItem $CopieVers -Filter "*.dump" | Sort-Object LastWriteTime -Descending |
+            Select-Object -Skip $Conserver | Remove-Item -Force
+    } catch {
+        Write-Error "ERREUR : copie sur le second support $CopieVers NON faite : $($_.Exception.Message)" -ErrorAction Continue
+        exit 2
+    }
+}

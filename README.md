@@ -237,7 +237,7 @@ La borne et l'écran n'acceptent que les adresses du réseau local (`RESEAU_LOCA
 
 ## Sauvegarde et restauration
 
-- `scripts\sauvegarde.ps1 -Dossier D:\sauvegardes -CopieVers E:\sauvegardes` : `pg_dump` compressé, archive vérifiée, copie sur un second support, conservation des 30 dernières. À planifier chaque jour (Planificateur de tâches Windows).
+- `scripts\sauvegarde.ps1 -CopieVers E:\sauvegardes` (dossier par défaut `D:\sauvegardes\gestion_file_attente`, celui que lit `test_restauration.ps1`) : `pg_dump` compressé, archive vérifiée, copie sur un second support, conservation des 30 dernières. À planifier chaque jour (Planificateur de tâches Windows).
 - `scripts\test_restauration.ps1` : restaure la dernière sauvegarde dans une **base distincte** (`gfa_restauration_test`), compare le nombre de lignes de chaque table avec la production, puis supprime la base de test. La production n'est jamais modifiée.
 - Sous Ubuntu : `scripts/sauvegarde.sh` et `scripts/test_restauration.sh` (mêmes fonctions), planifiés par `deploiement/crontab`. Restauration réelle : avec le rôle propriétaire, puis refaire le `REVOKE` (voir docs/DEPLOIEMENT_UBUNTU.md).
 

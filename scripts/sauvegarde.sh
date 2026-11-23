@@ -3,7 +3,10 @@
 #
 # - Format personnalisé pg_dump (-Fc), compressé, restaurable avec pg_restore.
 # - Archive vérifiée (pg_restore --list).
-# - Copie sur un second support si un second dossier est indiqué.
+# - Copie sur un second support si un second dossier est indiqué : seulement
+#   s'il est monté (jamais sur le disque du serveur à la place de la clé).
+#   En cas d'échec de la copie, la rotation locale est faite quand même et le
+#   script se termine en erreur (visible dans le journal de cron).
 # - Conserve les N dernières sauvegardes (CONSERVER, 30 par défaut).
 # - Paramètres de connexion lus dans le fichier .env du projet.
 #
@@ -17,8 +20,14 @@ COPIE_VERS="${2:-}"
 CONSERVER="${CONSERVER:-30}"
 
 lire_env() {
-    # Valeur d'une variable du .env (sans exécuter le fichier).
-    grep -E "^$1=" "$RACINE/.env" | tail -n 1 | cut -d= -f2- | tr -d '\r'
+    # Valeur d'une variable du .env (sans exécuter le fichier). Clé absente :
+    # valeur vide (la valeur par défaut s'applique). Guillemets retirés, comme
+    # le fait python-dotenv.
+    local valeur
+    valeur="$( { grep -E "^$1=" "$RACINE/.env" || true; } | tail -n 1 | cut -d= -f2- | tr -d '\r')"
+    valeur="${valeur%\"}"; valeur="${valeur#\"}"
+    valeur="${valeur%\'}"; valeur="${valeur#\'}"
+    printf '%s' "$valeur"
 }
 
 DB_NAME="$(lire_env DB_NAME)"
@@ -38,13 +47,20 @@ pg_restore --list "$FICHIER" > /dev/null
 chmod 600 "$FICHIER"
 echo "$(date '+%F %T') Sauvegarde créée : $FICHIER ($(du -h "$FICHIER" | cut -f1))"
 
+# Rotation : on garde les $CONSERVER plus récentes (avant la copie, pour
+# qu'un problème de second support ne remplisse jamais le disque du serveur).
+ls -1t "$DOSSIER"/*.dump 2>/dev/null | tail -n +"$((CONSERVER + 1))" | xargs -r rm -f
+
 if [ -n "$COPIE_VERS" ]; then
-    mkdir -p "$COPIE_VERS"
-    cp "$FICHIER" "$COPIE_VERS/"
+    if ! mountpoint -q "$COPIE_VERS"; then
+        echo "$(date '+%F %T') ERREUR : le second support n'est pas monté sur $COPIE_VERS : copie NON faite." >&2
+        exit 2
+    fi
+    if ! cp "$FICHIER" "$COPIE_VERS/"; then
+        echo "$(date '+%F %T') ERREUR : copie impossible sur $COPIE_VERS (droits d'écriture de gfa ?)." >&2
+        exit 3
+    fi
     echo "$(date '+%F %T') Copie sur le second support : $COPIE_VERS"
     # Même rotation sur le second support (sinon il finit par se remplir).
     ls -1t "$COPIE_VERS"/*.dump 2>/dev/null | tail -n +"$((CONSERVER + 1))" | xargs -r rm -f
 fi
-
-# Rotation : on garde les $CONSERVER plus récentes.
-ls -1t "$DOSSIER"/*.dump 2>/dev/null | tail -n +"$((CONSERVER + 1))" | xargs -r rm -f
