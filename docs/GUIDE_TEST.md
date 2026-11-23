@@ -54,12 +54,12 @@ Utiliser le **centre 002** (le plus propre pour une démonstration).
 
 **Activer la borne (une seule fois)** : sur la tablette de la borne, se connecter en administrateur (`admin1`) → onglet **Borne** → **Activer sur cet appareil** sur la bonne borne. Autre méthode : sur l'appareil de la borne, ouvrir http://localhost:8000/circuit/borne/ → **Connexion administrateur** (`tedy` ou `admin1`) → choisir « Tablette entrée » → **Activer cette borne**. Vous êtes déconnecté ; la borne reste activée, sans clé, et ne se déconnecte plus.
 
-**Activer / désactiver la borne** : Administration → *Bornes* → bouton **Désactiver** (ou **Activer**) sur la ligne, en un clic. Une borne désactivée affiche « Borne momentanément fermée » et reprend toute seule, en 20 secondes au plus, dès qu'on la réactive.
+**Mettre la borne hors service** : onglet **Borne** → **Mettre hors service** (ou **Remettre en service**), en un clic. Une borne désactivée affiche « Borne momentanément fermée » et reprend toute seule, en 20 secondes au plus, dès qu'on la réactive.
 
 **Important** : une fenêtre de navigation privée perd la borne quand on la ferme. Utilisez une fenêtre normale (ou la tablette).
 
 Tous les comptes de test ont le mot de passe **1234** :
-`accueil1/2`, `infirmier1/2`, `medecin1/2`, `chef1` (le médecin en chef, un seul), `dentiste1/2`, `echographie1/2`, `pharmacie1/2`, `direction1/2` (statistiques), `responsable1/2` (dérogations). `admin1/2` (administration du centre). **Tout passe d'abord par l'accueil** : seul l'accueil appelle et oriente les tickets (y compris les « Autre ») ; responsables, direction et administrateurs n'appellent aucun ticket.
+`accueil1/2`, `infirmier1/2`, `medecin1/2`, `chef1` (le médecin en chef, un seul), `dentiste1/2`, `echographie1/2`, `pharmacie1/2`, `direction1/2` (statistiques), `responsable1/2` (dérogations). `admin1/2` (administration du centre). L'accueil délivre les tickets et oriente les « Autre » ; les patients vont directement au premier service de leur parcours. Responsables, direction et administrateurs n'appellent aucun ticket.
 
 ---
 
@@ -98,7 +98,8 @@ Tous les comptes de test ont le mot de passe **1234** :
 | On ne peut appeler que le premier | Ordre strict de la file | Normal : appeler dans l'ordre d'arrivée |
 | « Veuillez patienter … s avant de rappeler » | 10 s minimum entre deux appels | Attendre quelques secondes |
 | « Marquer absent » n'apparaît pas | Il faut 3 appels sans réponse | Rappeler 2 fois (10 s d'écart) |
-| Validation refusée pour un ticket dentiste | Quota atteint ou service fermé (samedi après-midi, dimanche) | Dérogation avec motif (accueil ou responsable), ou annuler le ticket |
+| Borne : « Quota atteint » pour le dentiste | Quota atteint ou service fermé (samedi après-midi, dimanche) | Normal : pas de ticket D. Patient dont la place a été libérée et qui revient : dérogation avec motif (accueil ou responsable, page du ticket), une seule fois |
+| « Ce service est suspendu » après « Terminer » | Service suivant suspendu | Normal : le patient attend dans la file de ce service et sera appelé à la reprise |
 | « Orientez d'abord la demande » | Ticket « Autre » pas encore orienté | Cliquer **Orienter la demande** |
 | Borne : « Activer la borne » | Borne pas encore activée sur cet appareil (ou navigation privée) | Activer la borne avec un compte administrateur (section 3) |
 | Borne : « Accès refusé » | Adresse hors réseau local | Utiliser localhost ou l'IP locale du PC |

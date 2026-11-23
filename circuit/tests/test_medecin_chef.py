@@ -37,7 +37,9 @@ class MedecinChefBorneTests(BaseVues):
         self.assertEqual(self.d.entree(ticket).file_id, self.d.file("MEC").pk)
 
 
-class MedecinChefTransfertTests(BaseVues):
+class BaseMedecinChef(BaseVues):
+    """Données communes (sans test) : un infirmier, le médecin en chef, un patient jusqu'au médecin."""
+
     def setUp(self):
         super().setUp()
         self.infirmier = self.d.agent("inf1", "Infirmerie", ["INF"])
@@ -58,6 +60,8 @@ class MedecinChefTransfertTests(BaseVues):
         services.prendre_en_charge(entree, self.medecin)
         return ticket, entree
 
+
+class MedecinChefTransfertTests(BaseMedecinChef):
     def test_le_medecin_envoie_puis_le_chef_transfere_a_la_pharmacie(self):
         ticket, entree = self._jusqu_au_medecin()
         passage = services.terminer(entree, self.medecin, transferer_medecin_chef=True, motif="Avis")
@@ -115,7 +119,7 @@ class MedecinChefTransfertTests(BaseVues):
         self.assertNotContains(page, "médecin en chef")
 
 
-class MedecinChefSansAppelTests(MedecinChefTransfertTests):
+class MedecinChefSansAppelTests(BaseMedecinChef):
     """Décision du 22/11/2026 : un seul chef, salle fixe jamais annoncée, aucun appel à l'écran."""
 
     def _envoyer(self):
@@ -133,7 +137,8 @@ class MedecinChefSansAppelTests(MedecinChefTransfertTests):
     def test_patient_envoye_dans_les_notifications_du_chef(self):
         ticket = self._envoyer()
         self.connecter(self.chef, self.d.centre, salle_indiquee=False)
-        self.assertEqual(self.client.get(reverse("circuit:badge_notifications")).content.count(b"1"), 1)
+        self.assertEqual(self.client.get(reverse("circuit:badge_notifications")).content,
+                         b'<span class="pastille">1</span>')
         page = self.client.get(reverse("circuit:notifications"))
         self.assertContains(page, ticket.numero)
         self.assertContains(page, "Avis du chef")
@@ -148,7 +153,7 @@ class MedecinChefSansAppelTests(MedecinChefTransfertTests):
     def test_le_chef_n_indique_pas_de_salle(self):
         self.connecter(self.chef, self.d.centre, salle_indiquee=False)
         reponse = self.client.get(reverse("circuit:guichets"))
-        self.assertNotEqual(reponse.get("Location", ""), reverse("circuit:ma_salle"))
+        self.assertFalse(reponse.get("Location", "").startswith(reverse("circuit:ma_salle")))
         page = self.client.get(reverse("circuit:guichet", args=[self.d.svc["MEC"].pk]))
         self.assertEqual(page.status_code, 200)
         self.assertNotContains(page, "Appeler le suivant")

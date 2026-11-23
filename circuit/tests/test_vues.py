@@ -1250,3 +1250,10 @@ class OngletBorneTests(BaseVues):
         self.assertTrue(self.borne.actif)
         autre = reverse("circuit:borne_basculer", args=[self.borne_b.pk])
         self.assertEqual(self.client.post(autre).status_code, 404)
+
+    def test_un_agent_ne_met_pas_une_borne_hors_service(self):
+        self.connecter(self.accueil, self.d.centre)
+        reponse = self.client.post(reverse("circuit:borne_basculer", args=[self.borne.pk]))
+        self.assertEqual(reponse.status_code, 403)
+        self.borne.refresh_from_db()
+        self.assertTrue(self.borne.actif)
