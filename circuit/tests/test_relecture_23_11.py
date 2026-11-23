@@ -400,3 +400,20 @@ class DecouverteSansRedirectionTests(BaseVues):
         self.assertTrue(any(isinstance(h, _SansRedirection) for h in _OUVREUR.handlers))
         requete = urllib.request.Request("http://192.168.3.226/fiche.xml")
         self.assertIsNone(_SansRedirection().redirect_request(requete, None, 302, "Found", {}, "http://127.0.0.1/"))
+
+
+class BorneDansUnNouvelOngletTests(BaseVues):
+    """Décision du 23/11/2026 : la borne s'ouvre dans un autre onglet du navigateur."""
+
+    def test_activation_et_ouverture_dans_un_nouvel_onglet(self):
+        admin = self.d.agent("admin_centre", "Administrateur de centre")
+        admin.is_staff = True
+        admin.save(update_fields=["is_staff"])
+        borne = Borne.objects.create(centre=self.d.centre, code="B1", libelle="Tablette")
+        self.connecter(admin, self.d.centre)
+        page = self.client.get(reverse("circuit:bornes")).content.decode()
+        formulaire = page[page.rindex("<form", 0, page.index("Activer sur cet appareil</button>")):]
+        self.assertIn('target="_blank"', formulaire[:formulaire.index(">")])
+        activer_borne(self.client, borne)
+        page = self.client.get(reverse("circuit:bornes"))
+        self.assertContains(page, 'target="_blank" rel="noopener">Ouvrir la borne')

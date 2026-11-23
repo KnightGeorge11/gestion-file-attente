@@ -10,9 +10,9 @@
 </div>
 
 {% if borne_de_l_appareil %}
-<div class="encart">{% icone "info" %}<span>Cet appareil est déjà la borne <strong>{{ borne_de_l_appareil.libelle }}</strong>. <a href="{% url 'circuit:borne' %}">Ouvrir la borne</a></span></div>
+<div class="encart">{% icone "info" %}<span>Cet appareil est déjà la borne <strong>{{ borne_de_l_appareil.libelle }}</strong>. <a href="{% url 'circuit:borne' %}" target="_blank" rel="noopener">Ouvrir la borne (nouvel onglet)</a></span></div>
 {% endif %}
-<div class="encart attention">{% icone "alerte" %}<span>« Activer sur cet appareil » transforme <strong>cet appareil</strong> en borne : vous êtes ensuite déconnecté, et la borne reste activée, sans clé, même après un redémarrage. Faites-le sur la tablette de la borne, pas sur votre poste de travail.</span></div>
+<div class="encart attention">{% icone "alerte" %}<span>« Activer sur cet appareil » ouvre la borne dans un <strong>nouvel onglet</strong> et transforme <strong>cet appareil</strong> en borne : vous êtes ensuite déconnecté (aussi dans cet onglet), et la borne reste activée, sans clé, même après un redémarrage. Faites-le sur la tablette de la borne, pas sur votre poste de travail.</span></div>
 
 <section class="carte">
     <div class="carte-entete"><h2><span class="titre-icone">{% icone "imprimante" %}</span>Bornes du centre</h2><span class="etiquette">{{ bornes|length }} borne{% if bornes|length > 1 %}s{% endif %}</span></div>
@@ -32,7 +32,8 @@
             <p class="discret">{% icone "services" %} {{ b.services|join:", "|default:"Aucun service proposé" }}</p>
             <p class="discret">{% icone "imprimante" %} {% if b.imprimante %}{{ b.imprimante }}{% else %}Impression par le navigateur{% endif %}</p>
             <div class="ligne">
-                <form method="post" action="{% url 'circuit:borne' %}" hx-boost="false" style="flex:1 1 100%">
+                {# Borne ouverte dans un nouvel onglet (décision du 23/11/2026). #}
+                <form method="post" action="{% url 'circuit:borne' %}" hx-boost="false" target="_blank" style="flex:1 1 100%">
                     {% csrf_token %}<input type="hidden" name="borne" value="{{ b.pk }}">
                     <button class="principal large" {% if not b.actif or b == borne_de_l_appareil %}disabled{% endif %}>{% icone "check" %}Activer sur cet appareil</button>
                 </form>
