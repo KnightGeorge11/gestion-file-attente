@@ -584,6 +584,11 @@ def guichet_action(request, service_id, action):
             )
             if suite is None:
                 messages.success(request, "Prise en charge terminée : fin du parcours.")
+            elif suite.service.suspendu:
+                messages.warning(request, (
+                    f"Ticket orienté vers : {suite.nom_service}. Ce service est suspendu : "
+                    "le patient attend dans sa file et sera appelé à la reprise."
+                ))
             else:
                 messages.success(request, f"Ticket orienté vers : {suite.nom_service}.")
         elif action == "reintegrer":

@@ -247,10 +247,16 @@ def _ajouter_en_file(passage, file, reintegration=False, agent=None):
     return entree
 
 
-def _creer_passage(ticket, service, file, origine, ordre_etape=None):
+def _creer_passage(ticket, service, file, origine, ordre_etape=None, attente_si_suspendu=False):
+    """
+    `attente_si_suspendu` : étape suivante du parcours d'un service suspendu.
+    Le patient est mis en attente dans sa file et sera appelé à la reprise ;
+    l'agent précédent n'est pas bloqué (décision du 23/11/2026). Un service
+    ou une file désactivés restent refusés.
+    """
     if service.centre_id != ticket.centre_id or file.service_id != service.pk:
         raise ErreurCircuit("Service ou file incohérent avec le centre du ticket.")
-    if not service.disponible or not file.actif:
+    if not service.actif or not file.actif or (service.suspendu and not attente_si_suspendu):
         raise ErreurCircuit(f"Le service {service.nom} n'est pas disponible.")
 
     passage = Passage.objects.create(
@@ -782,7 +788,8 @@ def terminer(entree, agent, transferer_pharmacie=False, motif="", derogation=Fal
 
     if suivante is not None and passage.origine == Passage.Origine.PARCOURS:
         return _creer_passage(ticket, suivante.service, suivante.file,
-                              origine=Passage.Origine.PARCOURS, ordre_etape=suivante.ordre)
+                              origine=Passage.Origine.PARCOURS, ordre_etape=suivante.ordre,
+                              attente_si_suspendu=True)
 
     _terminer_ticket(ticket, agent)
     return None

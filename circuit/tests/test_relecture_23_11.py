@@ -223,3 +223,45 @@ class IdentifiantsNonNumeriquesTests(BaseVues):
         activer_borne(self.client, borne)
         reponse = self.client.post(reverse("circuit:borne_emettre"), {"mode": "EXTERNE", "parcours": "abc"})
         self.assertLess(reponse.status_code, 500)
+
+
+class ServiceSuivantSuspenduTests(BaseVues):
+    """Décision du 23/11/2026 : le patient attend dans la file du service suspendu."""
+
+    def setUp(self):
+        super().setUp()
+        self.infirmier = self.d.agent("inf1", "Infirmerie", ["INF"])
+        med = self.d.svc["MED"]
+        med.suspendu = True
+        med.motif_suspension = "Réunion"
+        med.save(update_fields=["suspendu", "motif_suspension"])
+
+    def test_l_infirmier_termine_et_le_patient_attend_les_medecins(self):
+        ticket = self.d.ticket("M")
+        self.d.accueillir(ticket, self.accueil)
+        entree = self.d.entree(ticket)
+        services.appeler(self.d.file("INF"), self.infirmier, entree=entree)
+        services.prendre_en_charge(entree, self.infirmier)
+        self.connecter(self.infirmier, self.d.centre)
+        reponse = self.client.post(
+            reverse("circuit:guichet_action", args=[self.d.svc["INF"].pk, "terminer"]),
+            {"entree": entree.pk, "file": entree.file_id}, follow=True,
+        )
+        self.assertContains(reponse, "sera appelé à la reprise")
+        attente = self.d.entree(ticket)
+        self.assertEqual((attente.file_id, attente.statut), (self.d.file("MED").pk, "EN_ATTENTE"))
+        self.assertIsNone(services.entree_tenue_par(self.infirmier))     # l'infirmier est libre
+        with self.assertRaises(services.ErreurCircuit):
+            services.appeler(self.d.file("MED"), self.medecin)            # appel à la reprise seulement
+
+    def test_service_desactive_toujours_refuse(self):
+        med = self.d.svc["MED"]
+        med.suspendu, med.actif = False, False
+        med.save(update_fields=["suspendu", "actif"])
+        ticket = self.d.ticket("M")
+        self.d.accueillir(ticket, self.accueil)
+        entree = self.d.entree(ticket)
+        services.appeler(self.d.file("INF"), self.infirmier, entree=entree)
+        services.prendre_en_charge(entree, self.infirmier)
+        with self.assertRaises(services.ErreurCircuit):
+            services.terminer(entree, self.infirmier)
