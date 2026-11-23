@@ -348,3 +348,76 @@ class AdministrateurDeCentreSecuriteTests(BaseComptes):
         for admin_classe, action in ((EcranAffichageAdmin, "regenerer_cle"), (ImprimanteTicketAdmin, "imprimer_test"),
                                      (ParcoursAdmin, "creer_brouillon"), (ParcoursVersionAdmin, "publier")):
             self.assertEqual(list(getattr(admin_classe, action).allowed_permissions), ["change"], action)
+
+
+def formulaire_comme_le_navigateur(reponse):
+    """
+    Données qu'un navigateur renverrait pour la page de modification : valeurs
+    affichées, et option vide pour une liste dont la valeur actuelle n'est pas
+    proposée (comme le fait un vrai navigateur).
+    """
+    from django.forms import ModelChoiceField, MultiWidget
+
+    donnees = {}
+
+    def ajouter(formulaire):
+        for champ in formulaire:
+            nom, valeur, widget = champ.html_name, champ.value(), champ.field.widget
+            if isinstance(widget, MultiWidget):
+                for i, partie in enumerate(widget.decompress(valeur)):
+                    donnees[f"{nom}_{i}"] = "" if partie is None else partie
+            elif isinstance(champ.field, ModelChoiceField) and not isinstance(valeur, list):
+                proposees = {str(pk) for pk in champ.field.queryset.values_list("pk", flat=True)}
+                donnees[nom] = str(valeur) if str(valeur) in proposees else ""
+            elif isinstance(valeur, bool):
+                if valeur:
+                    donnees[nom] = "on"
+            elif valeur is not None:
+                donnees[nom] = valeur
+
+    ajouter(reponse.context["adminform"].form)
+    for inline in reponse.context["inline_admin_formsets"]:
+        formset = inline.formset
+        ajouter(formset.management_form)
+        for formulaire in formset.forms:
+            ajouter(formulaire)
+    return donnees
+
+
+class AdministrateursDeCentreEntreEuxTests(BaseComptes):
+    """
+    Relecture du 23/11/2026 : enregistrer une fiche ne doit pas effacer le rôle
+    « Administrateur de centre », et un administrateur de centre ne prend pas
+    la main sur un autre administrateur de son centre.
+    """
+
+    def setUp(self):
+        self.admin_a = self.utilisateur("admin_a", type_compte=Utilisateur.TypeCompte.ADMIN_CENTRE)
+        self.aff_admin = self.affecter(self.admin_a, self.a, "Administrateur de centre")
+        self.collegue = self.utilisateur("admin_a2", type_compte=Utilisateur.TypeCompte.ADMIN_CENTRE)
+        self.aff_collegue = self.affecter(self.collegue, self.a, "Administrateur de centre")
+        self.client.force_login(self.admin_a)
+
+    def test_enregistrer_sa_fiche_garde_son_role(self):
+        url = reverse("admin:comptes_utilisateur_change", args=[self.admin_a.pk])
+        donnees = formulaire_comme_le_navigateur(self.client.get(url))
+        donnees["email"] = "nouvelle-adresse@example.org"
+        reponse = self.client.post(url, donnees)
+        self.assertEqual(reponse.status_code, 302)
+        self.admin_a.refresh_from_db()
+        self.assertEqual(self.admin_a.email, "nouvelle-adresse@example.org")
+        self.aff_admin.refresh_from_db()
+        self.assertEqual(self.aff_admin.groupe.name, "Administrateur de centre")
+
+    def test_ne_prend_pas_la_main_sur_un_autre_administrateur(self):
+        self.assertNotContains(self.client.get(reverse("admin:comptes_utilisateur_changelist")), "admin_a2")
+        url_mdp = reverse("admin:auth_user_password_change", args=[self.collegue.pk])
+        reponse = self.client.post(url_mdp, {"password1": "Nouveau-mdp-2026", "password2": "Nouveau-mdp-2026"})
+        self.assertNotEqual(reponse.status_code, 302)
+        self.collegue.refresh_from_db()
+        self.assertTrue(self.collegue.check_password(MDP))
+        self.client.post(reverse("admin:comptes_utilisateur_changelist"), {
+            "action": "desactiver", "_selected_action": [self.collegue.pk],
+        })
+        self.collegue.refresh_from_db()
+        self.assertTrue(self.collegue.is_active)

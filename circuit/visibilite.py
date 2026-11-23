@@ -72,6 +72,12 @@ def tickets_visibles(utilisateur, centre):
     if voit_autres_seulement(utilisateur, centre):
         # Direction : seulement les tickets « Autre », jamais les patients.
         return Ticket.objects.filter(centre=centre, mode=Ticket.Mode.AUTRE)
+    if any(service.est_accueil for service in services):
+        # L'accueil voit tous les tickets du centre, même quand il délivre
+        # lui-même les tickets et que le patient part directement vers le
+        # premier service (accueil_delivre_tickets) : il doit pouvoir annuler
+        # un ticket pris par erreur et libérer une place de quota.
+        return Ticket.objects.filter(centre=centre)
     ordre_courant, etape_suivante = _a_venir(services)
     passe_par_service = Passage.objects.filter(ticket=OuterRef("pk"), service__in=services)
     return (

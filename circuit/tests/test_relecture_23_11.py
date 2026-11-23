@@ -1,0 +1,112 @@
+"""
+Relecture du code du 23/11/2026, lot 1 : défauts trouvés à la relecture et
+non couverts par les tests existants.
+"""
+
+from django.test import RequestFactory
+from django.urls import reverse
+
+from centres.models import Borne
+from circuit import services
+from circuit.views_postes import COOKIE_BORNE, _borne_de_l_appareil
+
+from .base import activer_borne
+from .test_vues import BaseVues
+
+
+class AccueilVoitTousLesTicketsTests(BaseVues):
+    """Avec « L'accueil délivre les tickets », le ticket part directement au premier service."""
+
+    def setUp(self):
+        super().setUp()
+        self.d.centre.accueil_delivre_tickets = True
+        self.d.centre.save(update_fields=["accueil_delivre_tickets"])
+
+    def test_l_accueil_voit_et_annule_un_ticket_parti_au_premier_service(self):
+        ticket = self.d.ticket("D")
+        self.assertFalse(ticket.passages.filter(service__est_accueil=True).exists())
+        self.connecter(self.accueil, self.d.centre)
+        self.assertContains(self.client.get(reverse("circuit:tickets")), ticket.numero)
+        page = self.client.get(reverse("circuit:ticket", args=[ticket.pk]))
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, "Annuler")
+        self.client.post(reverse("circuit:ticket_action", args=[ticket.pk, "annuler"]), {"motif": "Erreur"})
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.statut, "ANNULE")
+
+    def test_les_autres_services_restent_limites_a_leurs_patients(self):
+        ticket = self.d.ticket("D")
+        self.connecter(self.medecin, self.d.centre)
+        self.assertEqual(self.client.get(reverse("circuit:ticket", args=[ticket.pk])).status_code, 404)
+        self.connecter(self.agent_b, self.b.centre)
+        self.assertEqual(self.client.get(reverse("circuit:ticket", args=[ticket.pk])).status_code, 404)
+
+
+class RecevoirLePatientTests(BaseVues):
+    """« Recevoir le patient » (Notifications) est un formulaire boosté : il attend une page complète."""
+
+    def test_formulaire_booste_redirige_vers_le_guichet(self):
+        ticket = self.d.ticket("M")
+        entree = self.d.entree(ticket)
+        self.connecter(self.accueil, self.d.centre)
+        acc = self.d.svc["ACC"].pk
+        reponse = self.client.post(
+            reverse("circuit:guichet_action", args=[acc, "prendre"]),
+            {"entree": entree.pk, "file": entree.file_id, "oral": "1"},
+            headers={"HX-Request": "true", "HX-Boosted": "true"},
+        )
+        self.assertRedirects(reponse, f"{reverse('circuit:guichet', args=[acc])}?file={entree.file_id}",
+                             fetch_redirect_response=False)
+
+    def test_requete_htmx_du_guichet_recoit_toujours_le_fragment(self):
+        ticket = self.d.ticket("M")
+        entree = self.d.entree(ticket)
+        services.appeler(entree.file, self.accueil, entree=entree)
+        self.connecter(self.accueil, self.d.centre)
+        reponse = self.client.post(
+            reverse("circuit:guichet_action", args=[self.d.svc["ACC"].pk, "prendre"]),
+            {"entree": entree.pk, "file": entree.file_id},
+            headers={"HX-Request": "true"},
+        )
+        self.assertEqual(reponse.status_code, 200)
+        self.assertNotContains(reponse, "<header")
+
+
+class LienChangerMaSalleTests(BaseVues):
+    def test_le_lien_ramene_au_guichet_meme_dans_le_fragment(self):
+        self.connecter(self.medecin, self.d.centre)
+        med = self.d.svc["MED"].pk
+        fragment = self.client.get(reverse("circuit:guichet_zone", args=[med]), headers={"HX-Request": "true"})
+        self.assertNotContains(fragment, f"/services/{med}/patient")
+        lien = reverse("circuit:guichet", args=[med])
+        self.assertContains(fragment, f"?next={lien}%3Ffile%3D{self.d.file('MED').pk}")
+
+
+class ActiverUneAutreBorneTests(BaseVues):
+    """« Activer sur cet appareil » sur un appareil qui est déjà une autre borne."""
+
+    def _borne_memorisee(self):
+        requete = RequestFactory().get("/")
+        requete.COOKIES[COOKIE_BORNE] = self.client.cookies[COOKIE_BORNE].value
+        return int(_borne_de_l_appareil(requete))
+
+    def test_remplace_la_borne_memorisee(self):
+        admin = self.d.agent("admin_centre", "Administrateur de centre")
+        admin.is_staff = True
+        admin.save(update_fields=["is_staff"])
+        ancienne = Borne.objects.create(centre=self.d.centre, code="B1", libelle="Ancienne")
+        nouvelle = Borne.objects.create(centre=self.d.centre, code="B2", libelle="Nouvelle")
+        activer_borne(self.client, ancienne)
+        self.connecter(admin, self.d.centre)
+        reponse = self.client.post(reverse("circuit:borne"), {"borne": nouvelle.pk})
+        self.assertRedirects(reponse, reverse("circuit:borne"), fetch_redirect_response=False)
+        self.assertNotIn("_auth_user_id", self.client.session)
+        self.assertEqual(self._borne_memorisee(), nouvelle.pk)
+
+    def test_un_agent_ne_change_pas_la_borne(self):
+        ancienne = Borne.objects.create(centre=self.d.centre, code="B1", libelle="Ancienne")
+        nouvelle = Borne.objects.create(centre=self.d.centre, code="B2", libelle="Nouvelle")
+        activer_borne(self.client, ancienne)
+        self.connecter(self.accueil, self.d.centre)
+        self.client.post(reverse("circuit:borne"), {"borne": nouvelle.pk})
+        self.assertEqual(self._borne_memorisee(), ancienne.pk)

@@ -185,6 +185,10 @@ def _activation_borne(request):
 
 
 def borne(request):
+    if request.method == "POST" and request.user.is_authenticated and "borne" in request.POST:
+        # Activation demandée par un administrateur (page « Borne ») : elle
+        # passe avant la borne déjà mémorisée sur l'appareil, qu'elle remplace.
+        return _activation_borne(request)
     poste = _poste_connecte(request, Borne, SESSION_BORNE)
     if poste is None and request.method == "GET":
         fermee = _borne_desactivee(request)

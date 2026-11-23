@@ -135,7 +135,7 @@
                 <input name="poste" maxlength="50" value="{{ salle_agent }}" placeholder="Guichet / salle (facultatif)" aria-label="Guichet ou salle">
                 <button class="principal grand">{% icone "appel" %}Appeler le suivant</button>
             </form>
-            <p class="discret ligne">{% icone "centre" %}{% if salle_agent %}Votre salle : <strong>{{ salle_agent }}</strong>, annoncée à vos appels ·{% else %}Aucune salle annoncée ·{% endif %} <a href="{% url 'circuit:ma_salle' %}?next={{ request.get_full_path|urlencode }}">{% if salle_agent %}changer{% else %}indiquer ma salle{% endif %}</a></p>
+            <p class="discret ligne">{% icone "centre" %}{% if salle_agent %}Votre salle : <strong>{{ salle_agent }}</strong>, annoncée à vos appels ·{% else %}Aucune salle annoncée ·{% endif %} <a href="{% url 'circuit:ma_salle' %}?next={% filter urlencode %}{% url 'circuit:guichet' service.pk %}?file={{ file.pk }}{% endfilter %}">{% if salle_agent %}changer{% else %}indiquer ma salle{% endif %}</a></p>
             {% endif %}
         {% endif %}
 

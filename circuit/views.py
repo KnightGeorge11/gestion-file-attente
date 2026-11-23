@@ -39,7 +39,10 @@ from .visibilite import services_operationnels, tickets_a_venir, tickets_visible
 
 
 def _est_htmx(request):
-    return request.headers.get("HX-Request") == "true"
+    """Requête HTMX qui attend un fragment. Un lien ou formulaire « boosté »
+    (hx-boost) est une navigation : il attend une page complète."""
+    return (request.headers.get("HX-Request") == "true"
+            and request.headers.get("HX-Boosted") != "true")
 
 
 def _service_autorise(request, service_id):

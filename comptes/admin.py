@@ -32,6 +32,9 @@ def permissions_metier():
     return Permission.objects.filter(filtre)
 
 
+ROLE_ADMIN_CENTRE = "Administrateur de centre"
+
+
 def roles_metier():
     """
     Rôles (groupes) qu'un administrateur de centre peut attribuer : tous les
@@ -40,7 +43,7 @@ def roles_metier():
     """
     from .management.commands.initialiser_roles import ROLES
 
-    return Group.objects.filter(name__in=ROLES).exclude(name="Administrateur de centre")
+    return Group.objects.filter(name__in=ROLES).exclude(name=ROLE_ADMIN_CENTRE)
 
 
 def comptes_geres(utilisateur):
@@ -55,10 +58,22 @@ def comptes_geres(utilisateur):
         return comptes
     centres = centres_administres(utilisateur, Utilisateur)
     hors_perimetre = AffectationUtilisateur.objects.exclude(centre__in=centres).values("utilisateur")
+    # Les autres administrateurs de centre relèvent de la plateforme seule
+    # (relecture du 23/11/2026) : pas de changement de mot de passe, de
+    # désactivation ni de rétrogradation entre administrateurs d'un centre.
+    autres_administrateurs = (
+        comptes.filter(
+            Q(type_compte=Utilisateur.TypeCompte.ADMIN_CENTRE)
+            | Q(affectations__groupe__name=ROLE_ADMIN_CENTRE)
+        )
+        .exclude(pk=utilisateur.pk)
+        .values("pk")
+    )
     return (
         comptes.exclude(is_superuser=True)
         .exclude(type_compte=Utilisateur.TypeCompte.ADMINISTRATEUR)
         .exclude(pk__in=hors_perimetre)
+        .exclude(pk__in=autres_administrateurs)
     )
 
 
@@ -84,7 +99,28 @@ class AffectationUtilisateurInline(admin.TabularInline):
         queryset = super().get_queryset(request)
         if est_administrateur_central(request.user):
             return queryset
-        return queryset.filter(centre__in=centres_administres(request.user, AffectationUtilisateur))
+        # Une affectation « Administrateur de centre » n'est jamais dans le
+        # formulaire : son rôle n'est pas dans la liste proposée, le navigateur
+        # enverrait un rôle vide et l'administrateur perdrait ses droits sans
+        # le voir (relecture du 23/11/2026).
+        return queryset.filter(
+            centre__in=centres_administres(request.user, AffectationUtilisateur)
+        ).exclude(groupe__name=ROLE_ADMIN_CENTRE)
+
+    def _sa_propre_fiche(self, request, obj):
+        return (obj is not None and obj.pk == request.user.pk
+                and not est_administrateur_central(request.user))
+
+    # Sur sa propre fiche, l'administrateur de centre ne touche pas à ses
+    # affectations (même règle que la page Affectation).
+    def has_add_permission(self, request, obj=None):
+        return not self._sa_propre_fiche(request, obj) and super().has_add_permission(request, obj)
+
+    def has_change_permission(self, request, obj=None):
+        return not self._sa_propre_fiche(request, obj) and super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        return not self._sa_propre_fiche(request, obj) and super().has_delete_permission(request, obj)
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if not est_administrateur_central(request.user):
