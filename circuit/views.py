@@ -433,6 +433,13 @@ def _contexte_guichet(request, service, file):
                     ticket.passages.filter(date_fin__isnull=False).exclude(pk=passage.pk).order_by("date_arrivee")
                 ),
                 "transfert_possible": services.peut_transferer_pharmacie(passage),
+                # Dernière étape : « Transférer à la pharmacie » en action principale
+                # (décision du 23/11/2026) ; la fin du parcours devient secondaire.
+                "pharmacie_principale": (
+                    services.peut_transferer_pharmacie(passage)
+                    and a_droit(agent, "circuit.transferer", request.centre_actif, service)
+                    and services.etape_suivante(ticket, passage) is None
+                ),
                 "prochain_appel": tenue.prochain_appel_possible(),
                 "appels_max": tenue.nb_appels >= file.nb_appels_avant_absence,
                 "reservation": ticket.reservation_active(),

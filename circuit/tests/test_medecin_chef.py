@@ -86,4 +86,4 @@ class PlusDEnvoiParLesMedecinsTests(BaseMedecinChef):
         self.connecter(self.medecin, self.d.centre)
         page = self.client.get(reverse("circuit:guichet", args=[self.d.svc["MED"].pk]))
         self.assertNotContains(page, "médecin en chef")
-        self.assertContains(page, "Transférer à la pharmacie")
+        self.assertContains(page, "Terminer et transférer à la pharmacie")

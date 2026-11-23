@@ -417,3 +417,39 @@ class BorneDansUnNouvelOngletTests(BaseVues):
         activer_borne(self.client, borne)
         page = self.client.get(reverse("circuit:bornes"))
         self.assertContains(page, 'target="_blank" rel="noopener">Ouvrir la borne')
+
+
+class PharmacieActionPrincipaleTests(BaseVues):
+    """Décision du 23/11/2026 : en fin de parcours, la pharmacie est l'action principale."""
+
+    def _medecin_avec_patient(self):
+        infirmier = self.d.agent("inf1", "Infirmerie", ["INF"])
+        ticket = self.d.ticket("M")
+        self.d.accueillir(ticket, self.accueil)
+        self.d.traiter(ticket, "INF", infirmier)
+        entree = self.d.entree(ticket)
+        services.appeler(self.d.file("MED"), self.medecin, entree=entree)
+        services.prendre_en_charge(entree, self.medecin)
+        return infirmier
+
+    def test_derniere_etape_pharmacie_en_principal(self):
+        self._medecin_avec_patient()
+        self.connecter(self.medecin, self.d.centre)
+        page = self.client.get(reverse("circuit:guichet", args=[self.d.svc["MED"].pk])).content.decode()
+        principal = page.index('class="principal grand large">')
+        self.assertIn("Terminer et transférer à la pharmacie", page[principal:principal + 300])
+        self.assertIn("Terminer sans pharmacie (fin du parcours)", page)
+        self.assertNotIn("<summary>", page[page.index("Terminer sans pharmacie"):page.index("Terminer sans pharmacie") + 2000])
+
+    def test_etape_intermediaire_inchangee(self):
+        infirmier = self.d.agent("inf1", "Infirmerie", ["INF"])
+        ticket = self.d.ticket("M")
+        self.d.accueillir(ticket, self.accueil)
+        entree = self.d.entree(ticket)
+        services.appeler(self.d.file("INF"), infirmier, entree=entree)
+        services.prendre_en_charge(entree, infirmier)
+        self.connecter(infirmier, self.d.centre)
+        page = self.client.get(reverse("circuit:guichet", args=[self.d.svc["INF"].pk]))
+        self.assertContains(page, "Terminer et orienter vers Médecin")
+        self.assertContains(page, "<summary>")                      # pharmacie : option repliée
+        self.assertNotContains(page, "Terminer sans pharmacie")
