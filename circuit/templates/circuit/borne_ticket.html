@@ -62,8 +62,13 @@ window.addEventListener("load", function () {
         retour = 30000;
         imprimerViaAndroid();
     } else {
-        // Pas d'imprimante réseau configurée : impression par le navigateur.
-        window.print();
+        // Pas d'imprimante réseau configurée : impression par le navigateur,
+        // une fois la page réellement affichée (deux images), et non pendant
+        // son chargement : sinon Firefox montrait parfois une page blanche
+        // (correction du 23/11/2026).
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () { setTimeout(function () { window.print(); }, 300); });
+        });
     }
     {% endif %}
     // Retour à l'écran d'accueil de la borne (plus long si le patient doit noter son numéro).
