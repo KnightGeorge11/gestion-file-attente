@@ -787,25 +787,52 @@ def notifications(request):
         try:
             services.repondre_notification(notification, request.user, request.POST.get("statut", ""),
                                            request.POST.get("message", ""))
-            messages.success(request, "Réponse envoyée à l'accueil.")
+            if notification.demande.ticket.mode == Ticket.Mode.AUTRE:
+                messages.success(request, "Réponse envoyée à l'accueil.")
+            else:
+                messages.success(request, f"Réponse envoyée à {notification.transmise_par}.")
         except ErreurCircuit as erreur:
             messages.error(request, " ".join(erreur.messages))
         return redirect("circuit:notifications")
 
-    mes_notifications = (
+    mes_notifications = list(
         Notification.objects.filter(centre=centre, destinataire=request.user)
         .select_related("demande", "demande__ticket", "demande__motif", "transmise_par", "service")
         .prefetch_related("reponses")
         .order_by("-date")[:100]
     )
+    # Dernier appel fait par CETTE personne (pas l'appel du médecin avant l'envoi).
+    derniers = {}
+    for appel in Appel.objects.filter(
+        agent=request.user, ticket__in=[n.demande.ticket_id for n in mes_notifications]
+    ).order_by("date"):
+        derniers[appel.ticket_id] = appel
+    for n in mes_notifications:
+        n.du_medecin = n.demande.ticket.mode != Ticket.Mode.AUTRE
+        n.dernier_appel = derniers.get(n.demande.ticket_id)
     Notification.objects.filter(
         centre=centre, destinataire=request.user, date_lecture__isnull=True
     ).update(date_lecture=timezone.now())
+    # Patients que ce médecin a envoyés au médecin en chef, avec ses réponses
+    # (décision du 23/11/2026) ; les réponses sont alors marquées lues.
+    envoyes = list(
+        Notification.objects.filter(centre=centre, transmise_par=request.user)
+        .exclude(demande__ticket__mode=Ticket.Mode.AUTRE)
+        .select_related("demande__ticket", "destinataire")
+        .prefetch_related("reponses")
+        .order_by("-date")[:50]
+    )
+    for n in envoyes:
+        n.reponses_nouvelles = [r.pk for r in n.reponses.all() if not r.lue_par_accueil]
+    ReponseNotification.objects.filter(
+        notification__in=[n.pk for n in envoyes], lue_par_accueil=False
+    ).update(lue_par_accueil=True)
     return render(
         request,
         "circuit/notifications.html",
         {
             "notifications": mes_notifications,
+            "envoyes": envoyes,
             "statuts": ReponseNotification.Statut.choices,
             "aujourd_hui": maintenant_centre(centre).date(),
         },
@@ -829,9 +856,7 @@ def notification_appeler(request, notification_id):
 
 @centre_actif_requis
 def badge_notifications(request):
-    nombre = Notification.objects.filter(
-        centre=request.centre_actif, destinataire=request.user, date_lecture__isnull=True
-    ).count()
+    nombre = services.nombre_notifications(request.user, request.centre_actif)
     if not nombre:
         return HttpResponse("")
     return HttpResponse(f'<span class="pastille">{nombre}</span>')

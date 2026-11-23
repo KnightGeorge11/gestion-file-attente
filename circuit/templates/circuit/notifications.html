@@ -5,10 +5,30 @@
 <div class="entete-page">
     <div>
         <h1>Mes notifications</h1>
-        <p class="sous-titre">Demandes « Autre » qui vous ont été transmises par l'accueil.</p>
+        <p class="sous-titre">Demandes qui vous ont été transmises{% if envoyes %}, et réponses du médecin en chef aux patients que vous lui avez envoyés{% endif %}.</p>
     </div>
 </div>
 <div id="zone-notifications" hx-get="{{ request.get_full_path }}" hx-trigger="every 10s [pasDeSaisie()]" hx-select="#zone-notifications" hx-swap="outerHTML" hx-disinherit="hx-select hx-swap hx-target">
+{% if envoyes %}
+{# Médecin : réponses du médecin en chef aux patients qu'il lui a envoyés (décision du 23/11/2026). #}
+<div class="section-titre">{% icone "medecin" %}Patients envoyés au médecin en chef</div>
+<div class="cartes-demandes" data-suivi="envoyes">
+{% for n in envoyes %}
+<section class="carte {% if n.reponses_nouvelles %}accent{% endif %}" data-id="envoi-{{ n.pk }}">
+    <div class="carte-entete">
+        <h2><span class="jeton">{{ n.demande.ticket.numero }}</span>Envoyé à {{ n.destinataire }}</h2>
+        {% if n.reponses_nouvelles %}<span class="etiquette alerte">Nouvelle réponse</span>{% elif not n.reponses.all %}<span class="etiquette">En attente de réponse</span>{% endif %}
+    </div>
+    <p class="discret">{% icone "envoyer" %} Envoyé à {{ n.date|time:"H:i" }} le {{ n.date|date:"d/m" }}{% if n.date_lecture %} · lu à {{ n.date_lecture|time:"H:i" }}{% endif %}</p>
+    {% if n.message %}<div class="encart">{% icone "message" %}<span>Votre motif : <strong>{{ n.message }}</strong></span></div>{% endif %}
+    {% for r in n.reponses.all %}
+        <div class="reponse"><span class="etiquette info">{{ r.get_statut_display }}</span> {{ r.message }} <span class="discret pousse">{{ r.date|time:"H:i" }}</span></div>
+    {% endfor %}
+</section>
+{% endfor %}
+</div>
+{% if notifications %}<div class="section-titre">{% icone "cloche" %}Demandes reçues</div>{% endif %}
+{% endif %}
 <div class="cartes-demandes" data-suivi="notifications">
 {% for n in notifications %}
 <section class="carte {% if not n.date_lecture %}accent{% endif %}" data-id="{{ n.pk }}">
@@ -17,17 +37,17 @@
         {% if not n.date_lecture %}<span class="etiquette alerte">Nouvelle</span>{% endif %}
     </div>
     <p class="discret">{% icone "envoyer" %} Transmise par {{ n.transmise_par }} à {{ n.date|time:"H:i" }} le {{ n.date|date:"d/m" }}{% if n.service %} (service {{ n.service.nom }}){% endif %}</p>
-    {% if n.message %}<div class="encart">{% icone "message" %}<span>{{ n.message }}</span></div>{% endif %}
-    {% if n.demande.precision %}<p>{{ n.demande.precision }}</p>{% endif %}
+    {% if n.message %}<div class="encart">{% icone "message" %}<span>{% if n.du_medecin %}Motif du médecin : <strong>{{ n.message }}</strong>{% else %}{{ n.message }}{% endif %}</span></div>{% endif %}
+    {% if n.demande.precision and n.demande.precision != n.message %}<p>{{ n.demande.precision }}</p>{% endif %}
     {% for r in n.reponses.all %}
         <div class="reponse"><span class="etiquette info">{{ r.get_statut_display }}</span> {{ r.message }} <span class="discret pousse">{{ r.date|time:"H:i" }}</span></div>
     {% endfor %}
     {% if n.demande.statut != 'CLOTUREE' and n.demande.ticket.jour == aujourd_hui %}
-    {% with dernier=n.demande.ticket.appels.all.0 %}
+    {% with dernier=n.dernier_appel %}
     <form method="post" action="{% url 'circuit:notification_appeler' n.pk %}" class="appel-suivant" style="margin:10px 0 4px">
         {% csrf_token %}
         <input name="poste" maxlength="50" placeholder="Bureau / salle (facultatif)" aria-label="Bureau ou salle">
-        <button class="accent">{% icone "appel" %}Appeler le visiteur à l'écran</button>
+        <button class="accent">{% icone "appel" %}Appeler {% if n.du_medecin %}le patient{% else %}le visiteur{% endif %} à l'écran</button>
     </form>
     {% if dernier %}<p class="discret">{% icone "historique" %} Dernier appel à {{ dernier.date|time:"H:i:s" }} · « {{ dernier.nom_service }}{% if dernier.poste %} · {{ dernier.poste }}{% endif %} »</p>{% endif %}
     {% endwith %}
@@ -44,7 +64,7 @@
     {% endif %}
 </section>
 {% empty %}
-<div class="carte vide">{% icone "cloche" %} Aucune notification.</div>
+{% if not envoyes %}<div class="carte vide">{% icone "cloche" %} Aucune notification.</div>{% endif %}
 {% endfor %}
 </div>
 </div>

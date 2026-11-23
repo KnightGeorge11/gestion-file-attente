@@ -663,6 +663,20 @@ def peut_transferer_pharmacie(passage):
     return service_pharmacie(passage.centre) is not None
 
 
+def nombre_notifications(utilisateur, centre):
+    """
+    Pastille « Notifications » : demandes reçues non lues, plus les réponses
+    du médecin en chef pas encore lues par le médecin qui lui a envoyé le
+    patient (« lue_par_accueil » sert de « lue par l'expéditeur » pour ces
+    envois, qui ne concernent pas l'accueil).
+    """
+    recues = Notification.objects.filter(centre=centre, destinataire=utilisateur, date_lecture__isnull=True).count()
+    reponses = ReponseNotification.objects.filter(
+        centre=centre, notification__transmise_par=utilisateur, lue_par_accueil=False,
+    ).exclude(notification__demande__ticket__mode=Ticket.Mode.AUTRE).count()
+    return recues + reponses
+
+
 ROLE_MEDECIN_CHEF = "Médecin en chef"
 MOTIF_MEDECIN_CHEF = "Rencontrer le médecin en chef"
 

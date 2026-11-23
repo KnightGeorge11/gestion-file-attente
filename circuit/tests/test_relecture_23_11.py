@@ -543,3 +543,37 @@ class MessagesDeLaPlateformeTests(BaseVues):
         dentiste = self.d.ticket("D")
         services.autoriser_derogation(dentiste, responsable, "Urgence dentaire")
         self.assertContains(self.client.get(reverse("circuit:ticket", args=[dentiste.pk])), "Urgence dentaire")
+
+
+class ReponseDuMedecinEnChefTests(BaseVues):
+    """Décision du 23/11/2026 : motif du médecin bien visible chez le chef ; réponse du chef chez le médecin."""
+
+    def test_aller_retour_medecin_et_medecin_en_chef(self):
+        chef = self.d.agent("chef1", "Médecin en chef")
+        infirmier = self.d.agent("inf1", "Infirmerie", ["INF"])
+        ticket = self.d.ticket("M")
+        self.d.accueillir(ticket, self.accueil)
+        self.d.traiter(ticket, "INF", infirmier)
+        entree = self.d.entree(ticket)
+        services.appeler(self.d.file("MED"), self.medecin, entree=entree)
+        services.prendre_en_charge(entree, self.medecin)
+        services.terminer(entree, self.medecin, envoyer_medecin_chef=True, motif="Il veut tester")
+        # Chez le chef : « Motif du médecin », et pas l'appel du médecin comme « dernier appel ».
+        self.connecter(chef, self.d.centre)
+        page = self.client.get(reverse("circuit:notifications"))
+        self.assertContains(page, "Motif du médecin : <strong>Il veut tester</strong>", html=False)
+        self.assertNotContains(page, "Dernier appel")
+        notification = ticket.demande.notifications.get()
+        reponse = self.client.post(reverse("circuit:notifications"), {
+            "notification": notification.pk, "statut": "PATIENT_ATTENDU", "message": "Envoyez-le maintenant"}, follow=True)
+        self.assertContains(reponse, f"Réponse envoyée à {self.medecin}")
+        # Chez le médecin : pastille, puis la réponse dans ses Notifications.
+        self.connecter(self.medecin, self.d.centre)
+        self.assertEqual(self.client.get(reverse("circuit:badge_notifications")).content,
+                         b'<span class="pastille">1</span>')
+        page = self.client.get(reverse("circuit:notifications"))
+        self.assertContains(page, "Patients envoyés au médecin en chef")
+        self.assertContains(page, "Il veut tester")
+        self.assertContains(page, "Envoyez-le maintenant")
+        self.assertContains(page, "Patient attendu")
+        self.assertEqual(self.client.get(reverse("circuit:badge_notifications")).content, b"")

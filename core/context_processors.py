@@ -12,7 +12,7 @@ def navigation(request):
         return contexte
 
     from comptes.permissions import a_droit
-    from circuit.models import Notification
+    from circuit.services import nombre_notifications
     from circuit.visibilite import services_operationnels
 
     contexte.update(
@@ -22,9 +22,7 @@ def navigation(request):
             # Onglet « Borne » : bornes du centre ACTIF administrées (les droits
             # d'administration sont l'union de toutes les affectations).
             "administre_bornes": utilisateur.is_staff and _administre_bornes(utilisateur, centre),
-            "nb_notifications": Notification.objects.filter(
-                centre=centre, destinataire=utilisateur, date_lecture__isnull=True
-            ).count(),
+            "nb_notifications": nombre_notifications(utilisateur, centre),
         }
     )
     return contexte
