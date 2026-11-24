@@ -14,14 +14,22 @@ def navigation(request):
     from comptes.permissions import a_droit
     from circuit.services import nombre_notifications
     from circuit.visibilite import services_operationnels
+    from core.memo import memo
 
-    contexte.update(
+    # Les mêmes droits sont vérifiés plusieurs fois : calculés une seule fois ici.
+    with memo():
+        contexte.update(_menus(utilisateur, centre, a_droit, nombre_notifications, services_operationnels))
+    return contexte
+
+
+def _menus(utilisateur, centre, a_droit, nombre_notifications, services_operationnels):
+    return (
         {
             "peut_statistiques": a_droit(utilisateur, "circuit.voir_statistiques", centre),
             "voit_tickets": bool(services_operationnels(utilisateur, centre)),
             # Onglet « Borne » : bornes du centre ACTIF administrées (les droits
             # d'administration sont l'union de toutes les affectations).
-            "administre_bornes": utilisateur.is_staff and _administre_bornes(utilisateur, centre),
+            "administre_bornes": _administre_bornes(utilisateur, centre),
             "nb_notifications": nombre_notifications(utilisateur, centre),
             # Onglet « Demandes » : agents qui orientent les demandes « Autre » (24/11/2026).
             "peut_orienter": _peut_orienter(utilisateur, centre),
@@ -30,7 +38,6 @@ def navigation(request):
             "est_admin_plateforme": _est_admin_plateforme(utilisateur),
         }
     )
-    return contexte
 
 
 def _relais_accueil(utilisateur, centre):

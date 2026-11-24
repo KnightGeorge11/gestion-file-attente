@@ -55,6 +55,42 @@ def _filtrer_par_centre(queryset, centres):
     return queryset
 
 
+def erreurs_autre_centre(donnees, centre):
+    """
+    {champ: message} des choix qui n'appartiennent pas à `centre` (audit du
+    24/11/2026) : borne qui ne proposerait que les services d'un autre
+    centre, écran qui afficherait ceux d'un autre centre, agent d'un autre
+    centre désigné comme destinataire des demandes…
+    """
+    from django.db import models
+
+    from comptes.models import Utilisateur
+
+    erreurs = {}
+    for nom, valeur in donnees.items():
+        if nom == "centre" or valeur is None:
+            continue
+        if isinstance(valeur, models.Model):
+            objets = [valeur]
+        elif isinstance(valeur, (models.QuerySet, list, tuple)):
+            objets = [o for o in valeur if isinstance(o, models.Model)]
+        else:
+            continue
+        for objet in objets:
+            if isinstance(objet, Centre):
+                hors_centre = objet.pk != centre.pk
+            elif isinstance(objet, Utilisateur):
+                hors_centre = not (est_administrateur_central(objet) or objet.affectations.filter(
+                    centre=centre, actif=True).exists())
+            else:
+                centre_id = getattr(objet, "centre_id", None)
+                hors_centre = centre_id is not None and centre_id != centre.pk
+            if hors_centre:
+                erreurs[nom] = f"« {objet} » n'appartient pas au centre {centre}."
+                break
+    return erreurs
+
+
 def pastille(texte, genre="neutre"):
     """État lisible dans les listes : « En service » en vert, « Hors service » en rouge…"""
     return format_html('<span class="pastille-etat {}">{}</span>', genre, texte)
@@ -136,6 +172,27 @@ class CentreAdminMixin(ListeLisibleMixin):
         if est_administrateur_central(request.user):
             return queryset
         return queryset.filter(**{f"{self.chemin_centre}__in": self.centres_administres(request)})
+
+    def get_form(self, request, obj=None, **kwargs):
+        """Refuse les choix d'un autre centre que celui de l'objet (audit du 24/11/2026)."""
+        formulaire = super().get_form(request, obj, **kwargs)
+        if self.chemin_centre != "centre":
+            return formulaire
+
+        class FormulaireMemeCentre(formulaire):
+            def clean(self):
+                donnees = super().clean()
+                centre = donnees.get("centre")
+                if centre is None and self.instance.centre_id:
+                    centre = self.instance.centre
+                if isinstance(centre, Centre):
+                    for nom, message in erreurs_autre_centre(donnees, centre).items():
+                        if nom in self.fields:
+                            self.add_error(nom, message)
+                return donnees
+
+        FormulaireMemeCentre.__name__ = formulaire.__name__
+        return FormulaireMemeCentre
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         champ = super().formfield_for_foreignkey(db_field, request, **kwargs)

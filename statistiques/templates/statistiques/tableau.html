@@ -27,7 +27,7 @@
 <div id="stats-contenu" hx-get="{{ request.get_full_path }}" hx-trigger="every 60s" hx-select="#stats-contenu" hx-swap="outerHTML" hx-disinherit="hx-select hx-swap hx-target">
 <div class="indicateurs">
     <div class="indicateur"><span class="pictogramme">{% icone "tickets" %}</span><div><div class="valeur">{{ stats.total_tickets }}</div><div class="libelle">tickets émis</div></div></div>
-    <div class="indicateur accent"><span class="pictogramme">{% icone "sablier" %}</span><div><div class="valeur">{{ stats.duree_totale_moy|default:"—" }}{% if stats.duree_totale_moy %} <small>min</small>{% endif %}</div><div class="libelle">durée totale moyenne par ticket de soins terminé (hors « Autre »)</div></div></div>
+    <div class="indicateur accent"><span class="pictogramme">{% icone "sablier" %}</span><div><div class="valeur">{{ stats.duree_totale_moy|default_if_none:"—" }}{% if stats.duree_totale_moy is not None %} <small>min</small>{% endif %}</div><div class="libelle">durée totale moyenne par ticket de soins terminé (hors « Autre »)</div></div></div>
     <div class="indicateur ok"><span class="pictogramme">{% icone "calendrier" %}</span><div><div class="valeur">{{ stats.quotas.consommees }} <small>/ {{ stats.quotas.reservees }}</small></div><div class="libelle">places dentiste consommées / réservées</div></div></div>
     <div class="indicateur attention"><span class="pictogramme">{% icone "bouclier" %}</span><div><div class="valeur">{{ stats.quotas.derogations }}</div><div class="libelle">dérogation{{ stats.quotas.derogations|pluralize }} au quota</div></div></div>
 </div>
@@ -35,11 +35,11 @@
 {% if evolution %}
 <section class="carte" style="margin-bottom:20px">
     <div class="carte-entete"><h2><span class="titre-icone">{% icone "historique" %}</span>Évolution de l'attente moyenne</h2>
-        <span class="discret pousse">moyenne {{ evolution.moyenne|default:"—" }} min{% if evolution.premiere is not None %} · du premier au dernier jour : {{ evolution.premiere }} → {{ evolution.derniere }} min{% endif %}</span></div>
+        <span class="discret pousse">moyenne {{ evolution.moyenne|default_if_none:"—" }} min{% if evolution.premiere is not None %} · du premier au dernier jour : {{ evolution.premiere }} → {{ evolution.derniere }} min{% endif %}</span></div>
     <div class="legende-graphique"><span><i class="carre primaire"></i>Attente moyenne (min, max {{ evolution.max_attente }})</span><span><i class="carre clair"></i>Tickets émis (max {{ evolution.max_tickets }})</span></div>
     {% localize off %}<svg class="courbe" viewBox="0 0 {{ evolution.largeur }} {{ evolution.hauteur }}" preserveAspectRatio="none" role="img" aria-label="Attente moyenne et tickets émis par jour">
         <line x1="0" x2="{{ evolution.largeur }}" y1="{{ evolution.base }}" y2="{{ evolution.base }}" class="axe"></line>
-        {% for p in evolution.points %}<rect x="{{ p.barre.x }}" y="{{ p.barre.y }}" width="{{ p.barre.l }}" height="{{ p.barre.h }}" rx="2" class="barre"><title>{{ p.jour|date:"l d/m" }} : {{ p.tickets }} ticket{{ p.tickets|pluralize }}, attente moyenne {{ p.attente|default:"—"|localize }} min</title></rect>{% endfor %}
+        {% for p in evolution.points %}<rect x="{{ p.barre.x }}" y="{{ p.barre.y }}" width="{{ p.barre.l }}" height="{{ p.barre.h }}" rx="2" class="barre"><title>{{ p.jour|date:"l d/m" }} : {{ p.tickets }} ticket{{ p.tickets|pluralize }}, attente moyenne {{ p.attente|default_if_none:"—"|localize }} min</title></rect>{% endfor %}
         {% if evolution.aire %}<polygon points="{{ evolution.aire }}" class="aire"></polygon><polyline points="{{ evolution.ligne }}" class="ligne-courbe"></polyline>{% endif %}
     </svg>{% endlocalize %}
     <div class="ligne discret" style="justify-content:space-between;font-size:.8rem"><span>{{ evolution.points.0.jour|date:"d/m" }}</span><span>{% with derniere=evolution.points|last %}{{ derniere.jour|date:"d/m" }}{% endwith %}</span></div>
@@ -53,8 +53,8 @@
     {% for l in stats.par_service %}
         <li style="display:block">
             <div class="ligne"><strong>{{ l.service }}</strong><span class="pousse discret">{{ l.passages }} passage{{ l.passages|pluralize }}</span></div>
-            <div class="barre-temps"><div class="jauge"><span style="width:{% if max_temps_service %}{% widthratio l.attente_moy|default:0 max_temps_service 100 %}{% else %}0{% endif %}%"></span></div><span class="nombre">{{ l.attente_moy|default:"—" }}</span></div>
-            <div class="barre-temps"><div class="jauge accent"><span style="width:{% if max_temps_service %}{% widthratio l.prise_en_charge_moy|default:0 max_temps_service 100 %}{% else %}0{% endif %}%"></span></div><span class="nombre">{{ l.prise_en_charge_moy|default:"—" }}</span></div>
+            <div class="barre-temps"><div class="jauge"><span style="width:{% if max_temps_service %}{% widthratio l.attente_moy|default:0 max_temps_service 100 %}{% else %}0{% endif %}%"></span></div><span class="nombre">{{ l.attente_moy|default_if_none:"—" }}</span></div>
+            <div class="barre-temps"><div class="jauge accent"><span style="width:{% if max_temps_service %}{% widthratio l.prise_en_charge_moy|default:0 max_temps_service 100 %}{% else %}0{% endif %}%"></span></div><span class="nombre">{{ l.prise_en_charge_moy|default_if_none:"—" }}</span></div>
         </li>
     {% empty %}<li class="vide">Aucune donnée.</li>{% endfor %}
     </ul>
@@ -90,7 +90,7 @@
         </ul>
         {% for q in quotas_periodes %}
         <div style="margin-top:12px">
-            <div class="ligne"><strong>{{ q.periode }}</strong><span class="pousse discret">{{ q.occupees }} / {{ q.places }} places · quota atteint {{ q.atteints }} jour{{ q.atteints|pluralize }} sur {{ q.creneaux }}</span></div>
+            <div class="ligne"><strong>{{ q.periode }}</strong><span class="pousse discret">{{ q.occupees }} / {{ q.places }} places · quota atteint {{ q.atteints }} fois sur {{ q.creneaux }}</span></div>
             <div class="jauge {% if q.taux >= 100 %}alerte{% endif %}"><span style="width:{{ q.taux|default:0 }}%"></span></div>
         </div>
         {% endfor %}</section>
@@ -104,7 +104,7 @@
         <tbody>
         {% for l in stats.par_service %}
         <tr><td><strong>{{ l.service }}</strong></td><td class="nombre">{{ l.passages }}</td><td class="nombre">{{ l.termines }}</td><td class="nombre">{{ l.absences }}</td><td class="nombre">{{ l.transferts_recus }}</td>
-            <td class="nombre">{{ l.attente_moy|default:"—" }}</td><td class="nombre">{{ l.attente_max|default:"—" }}</td><td class="nombre">{{ l.prise_en_charge_moy|default:"—" }}</td></tr>
+            <td class="nombre">{{ l.attente_moy|default_if_none:"—" }}</td><td class="nombre">{{ l.attente_max|default_if_none:"—" }}</td><td class="nombre">{{ l.prise_en_charge_moy|default_if_none:"—" }}</td></tr>
         {% empty %}<tr><td colspan="8" class="vide">Aucune donnée.</td></tr>{% endfor %}
         </tbody>
     </table>
@@ -116,13 +116,13 @@
     <div class="indicateurs" style="margin-bottom:12px">
         <div class="indicateur"><span class="pictogramme">{% icone "autre" %}</span><div><div class="valeur">{{ demandes.demandes_autre }}</div><div class="libelle">demandes « Autre »</div></div></div>
         <div class="indicateur accent"><span class="pictogramme">{% icone "medecin" %}</span><div><div class="valeur">{{ demandes.vers_chef }}</div><div class="libelle">patients envoyés au médecin en chef</div></div></div>
-        <div class="indicateur ok"><span class="pictogramme">{% icone "horloge" %}</span><div><div class="valeur">{{ demandes.delai_moy|default:"—" }}{% if demandes.delai_moy is not None %} <small>min</small>{% endif %}</div><div class="libelle">délai moyen de la première réponse</div></div></div>
+        <div class="indicateur ok"><span class="pictogramme">{% icone "horloge" %}</span><div><div class="valeur">{{ demandes.delai_moy|default_if_none:"—" }}{% if demandes.delai_moy is not None %} <small>min</small>{% endif %}</div><div class="libelle">délai moyen de la première réponse</div></div></div>
         <div class="indicateur attention"><span class="pictogramme">{% icone "alerte" %}</span><div><div class="valeur">{{ demandes.sans_reponse }} <small>/ {{ demandes.transmises }}</small></div><div class="libelle">transmises restées sans réponse</div></div></div>
     </div>
     <ul class="chronologie">
     {% for l in demandes.par_destinataire %}
         <li style="display:block">
-            <div class="ligne"><strong>{{ l.destinataire }}</strong><span class="pousse discret">{{ l.recues }} reçue{{ l.recues|pluralize }}{% if l.sans_reponse %} · <span class="texte-alerte">{{ l.sans_reponse }} sans réponse</span>{% endif %} · délai moyen {{ l.delai_moy|default:"—" }}{% if l.delai_moy is not None %} min{% endif %}</span></div>
+            <div class="ligne"><strong>{{ l.destinataire }}</strong><span class="pousse discret">{{ l.recues }} reçue{{ l.recues|pluralize }}{% if l.sans_reponse %} · <span class="texte-alerte">{{ l.sans_reponse }} sans réponse</span>{% endif %} · délai moyen {{ l.delai_moy|default_if_none:"—" }}{% if l.delai_moy is not None %} min{% endif %}</span></div>
             <div class="jauge accent"><span style="width:{% if demandes.max_delai %}{% widthratio l.delai_moy|default:0 demandes.max_delai 100 %}{% else %}0{% endif %}%"></span></div>
         </li>
     {% empty %}<li class="vide">Aucune demande transmise sur la période.</li>{% endfor %}
@@ -134,7 +134,7 @@
     <div class="carte-entete" style="padding:16px 20px 0"><h2><span class="titre-icone">{% icone "transfert" %}</span>Par parcours</h2></div>
     <div class="tableau-defilant" style="margin-top:12px">
     <table><thead><tr><th>Parcours</th><th class="nombre">Tickets</th><th class="nombre">Terminés</th><th class="nombre">Durée moy. (min)</th></tr></thead>
-        <tbody>{% for l in stats.par_parcours %}<tr><td><strong>{{ l.parcours }}</strong></td><td class="nombre">{{ l.tickets }}</td><td class="nombre">{{ l.termines }}</td><td class="nombre">{{ l.duree_totale_moy|default:"—" }}</td></tr>
+        <tbody>{% for l in stats.par_parcours %}<tr><td><strong>{{ l.parcours }}</strong></td><td class="nombre">{{ l.tickets }}</td><td class="nombre">{{ l.termines }}</td><td class="nombre">{{ l.duree_totale_moy|default_if_none:"—" }}</td></tr>
         {% empty %}<tr><td colspan="4" class="vide">Aucune donnée.</td></tr>{% endfor %}</tbody></table>
     </div>
 </section>
@@ -152,7 +152,7 @@
     <div class="carte-entete" style="padding:16px 20px 0"><h2><span class="titre-icone">{% icone "utilisateur" %}</span>Activité par agent</h2></div>
     <div class="tableau-defilant" style="margin-top:12px">
     <table><thead><tr><th>Agent</th><th>Service</th><th class="nombre">Prises en charge</th><th class="nombre">Durée moy. (min)</th></tr></thead>
-        <tbody>{% for l in stats.par_agent %}<tr><td><strong>{{ l.agent }}</strong></td><td>{{ l.service }}</td><td class="nombre">{{ l.prises_en_charge }}<div class="jauge" style="min-width:80px"><span style="width:{% if max_agent %}{% widthratio l.prises_en_charge max_agent 100 %}{% else %}0{% endif %}%"></span></div></td><td class="nombre">{{ l.prise_en_charge_moy|default:"—" }}</td></tr>
+        <tbody>{% for l in stats.par_agent %}<tr><td><strong>{{ l.agent }}</strong></td><td>{{ l.service }}</td><td class="nombre">{{ l.prises_en_charge }}<div class="jauge" style="min-width:80px"><span style="width:{% if max_agent %}{% widthratio l.prises_en_charge max_agent 100 %}{% else %}0{% endif %}%"></span></div></td><td class="nombre">{{ l.prise_en_charge_moy|default_if_none:"—" }}</td></tr>
         {% empty %}<tr><td colspan="4" class="vide">Aucune donnée.</td></tr>{% endfor %}</tbody></table>
     </div>
 </section>

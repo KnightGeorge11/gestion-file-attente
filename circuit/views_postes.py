@@ -46,7 +46,31 @@ SESSION_BORNE = "borne_id"
 # Version du serveur (son démarrage) : un écran ouvert depuis longtemps
 # recharge sa page quand le serveur a été mis à jour, pour en prendre les
 # nouveautés (ex. voix des annonces) sans qu'on touche à la TV.
-VERSION_ECRANS = str(int(timezone.now().timestamp()))
+def _version_ecrans():
+    """
+    Même valeur dans tous les processus du serveur (Gunicorn en lance
+    plusieurs, et les redémarre) : sinon une TV servie tour à tour par deux
+    processus se recharge en boucle (audit du 24/11/2026). On prend la date
+    du fichier le plus récent du code des écrans : elle change à chaque mise
+    à jour, pas au redémarrage.
+    """
+    import os
+
+    from django.conf import settings
+
+    if os.getenv("VERSION_ECRANS"):
+        return os.getenv("VERSION_ECRANS")
+    racine = settings.BASE_DIR
+    plus_recent = 0
+    for dossier in ("circuit", "templates", os.path.join("static", "js"), os.path.join("static", "css")):
+        for chemin, _, fichiers in os.walk(os.path.join(racine, dossier)):
+            for nom in fichiers:
+                if nom.endswith((".py", ".html", ".js", ".css")):
+                    plus_recent = max(plus_recent, os.path.getmtime(os.path.join(chemin, nom)))
+    return str(int(plus_recent or timezone.now().timestamp()))
+
+
+VERSION_ECRANS = _version_ecrans()
 # Borne : cookie signé, indépendant de la session (une déconnexion d'agent ou
 # d'administrateur sur l'appareil ne désactive pas la borne).
 COOKIE_BORNE = "borne_poste"

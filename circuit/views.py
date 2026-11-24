@@ -8,7 +8,7 @@ permission) sont faites côté serveur.
 
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
-from django.db.models import Avg, Count, F, Q
+from django.db.models import Avg, Case, Count, F, Q, Value, When
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -133,6 +133,7 @@ def borne_basculer(request, borne_id):
     if not a_droit(request.user, "centres.change_borne", request.centre_actif):
         raise PermissionDenied
     borne.actif = not borne.actif
+    borne._audit_fait = True  # journalisé ci-dessous, une seule fois
     borne.save(update_fields=["actif"])
     etat = "remise en service" if borne.actif else "mise hors service"
     journaliser(JournalAudit.Action.MODIFICATION, request.user, objet=borne,
@@ -161,6 +162,7 @@ def borne_services(request, borne_id):
     if not choisis:
         messages.error(request, f"Borne « {borne.libelle} » : cochez au moins un service.")
         return redirect("circuit:bornes")
+    borne._audit_fait = True  # journalisé ci-dessous, une seule fois
     if len(choisis) == len(possibles):
         borne.parcours.clear()
         libelle = "tous les services du centre"
@@ -234,9 +236,14 @@ def ecran_affichage(request):
         affichage = get_object_or_404(EcranAffichage.objects.filter(centre=centre), pk=entier(request.POST.get("affichage")))
     if affichage is not None and request.POST.get("action") == "retirer":
         affichage.actif = False
+        affichage._audit_fait = True  # journalisé ci-dessous, une seule fois
         affichage.save(update_fields=["actif"])
         journaliser(JournalAudit.Action.DESACTIVATION, request.user, objet=affichage, request=request)
-        messages.success(request, f"Affichage « {affichage.libelle} » retiré : ses écrans affichent tous les appels.")
+        message = f"Affichage « {affichage.libelle} » retiré : ses écrans affichent tous les appels."
+        if affichage.cle_hash and affichage.cle_hash != "!":
+            # Écran activé avec la clé de cet affichage : il n'est plus reconnu (audit du 24/11/2026).
+            message += " Un écran activé avec la clé de cet affichage devra être réactivé."
+        messages.success(request, message)
         return redirect("circuit:ecran_connexion")
     libelle = request.POST.get("libelle", "").strip()[:100]
     if not libelle:
@@ -255,6 +262,7 @@ def ecran_affichage(request):
     affichage.libelle = libelle
     affichage.nb_appels_affiches = nombre
     affichage.annonce_vocale = request.POST.get("annonce_vocale") == "1"
+    affichage._audit_fait = True  # journalisé ci-dessous, une seule fois (la création reste notée)
     affichage.save()
     affichage.services.set(services_choisis)
     journaliser(JournalAudit.Action.MODIFICATION, request.user, objet=affichage, request=request, details={
@@ -393,7 +401,10 @@ def _salle_a_indiquer(request):
 
 
 def _vers_ma_salle(request):
-    return redirect(f"{reverse('circuit:ma_salle')}?next={request.get_full_path()}")
+    from urllib.parse import urlencode
+
+    # Adresse de retour encodée : sinon « ?file=5&x=1 » perdait tout après le « & » (audit du 24/11/2026).
+    return redirect(f"{reverse('circuit:ma_salle')}?{urlencode({'next': request.get_full_path()})}")
 
 
 @centre_actif_requis
@@ -582,7 +593,7 @@ def _contexte_guichet(request, service, file):
                     and a_droit(agent, "circuit.transferer", request.centre_actif, service)
                 ),
                 "prochain_appel": tenue.prochain_appel_possible(),
-                "appels_max": tenue.nb_appels >= file.nb_appels_avant_absence,
+                "appels_max": tenue.nb_appels >= tenue.file.nb_appels_avant_absence,
                 "reservation": ticket.reservation_active(),
             }
         )
@@ -665,7 +676,9 @@ def _reponse_guichet(request, service, file):
 
 def _entree_de_la_file(request, file):
     return get_object_or_404(
-        EntreeFile.objects.filter(centre=request.centre_actif, file=file),
+        # Même service, quelle que soit la file affichée : un ticket appelé depuis une autre
+        # file du service (ex. « Autre » à l'accueil) reste traitable (audit du 24/11/2026).
+        EntreeFile.objects.filter(centre=request.centre_actif, file__service_id=file.service_id),
         pk=entier(request.POST.get("entree")),
     )
 
@@ -886,7 +899,13 @@ def demandes(request):
         .filter(Q(ticket__jour=jour) | ~Q(statut=DemandeAutre.Statut.CLOTUREE))
         .select_related("ticket", "motif")
         .prefetch_related("notifications__reponses", "notifications__destinataire")
-        .order_by("statut", "-date_creation")
+        # Nouvelles d'abord, puis transmises, clôturées en dernier (l'ordre alphabétique
+        # mettait les clôturées en tête, audit du 24/11/2026).
+        .order_by(Case(
+            When(statut=DemandeAutre.Statut.NOUVELLE, then=Value(0)),
+            When(statut=DemandeAutre.Statut.TRANSMISE, then=Value(1)),
+            default=Value(2),
+        ), "-date_creation")
     )
     ReponseNotification.objects.filter(
         centre=centre, lue_par_accueil=False, notification__demande__ticket__mode=Ticket.Mode.AUTRE

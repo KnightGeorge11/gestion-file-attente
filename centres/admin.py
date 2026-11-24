@@ -77,6 +77,7 @@ class CentreAdmin(ListeLisibleMixin, admin.ModelAdmin):
         }),
         ("Paramètres de fonctionnement", {
             "fields": (
+                "accueil_delivre_tickets",
                 "heure_coupure_matin",
                 "heure_cloture_tickets",
                 "max_reintegrations",
@@ -94,8 +95,26 @@ class CentreAdmin(ListeLisibleMixin, admin.ModelAdmin):
     )
 
 
+class HorairesFormSet(forms.BaseInlineFormSet):
+    """Refuse deux plages du même jour qui se chevauchent, saisies ensemble (la base ne les voit pas encore)."""
+
+    def clean(self):
+        super().clean()
+        plages = []
+        for formulaire in self.forms:
+            donnees = getattr(formulaire, "cleaned_data", None) or {}
+            if donnees.get("DELETE") or not donnees.get("heure_debut") or not donnees.get("heure_fin"):
+                continue
+            plage = (donnees.get("jour_semaine"), donnees["heure_debut"], donnees["heure_fin"])
+            for jour, debut, fin in plages:
+                if jour == plage[0] and debut < plage[2] and plage[1] < fin:
+                    raise forms.ValidationError("Deux plages du même jour se chevauchent.")
+            plages.append(plage)
+
+
 class HoraireServiceInline(admin.TabularInline):
     model = HoraireService
+    formset = HorairesFormSet
     extra = 0
 
 
@@ -224,7 +243,7 @@ class FileAttenteAdmin(CentreAdminMixin, admin.ModelAdmin):
         "service__nom",
     )
 
-    list_select_related = ("service", "centre")
+    list_select_related = ("service__centre", "centre")
 
     readonly_fields = ("date_creation", "date_modification")
 
@@ -236,6 +255,9 @@ class BorneAdmin(CentreAdminMixin, admin.ModelAdmin):
     list_display = ("libelle", "code", "centre", "services_proposes", "imprimante_ou_navigateur",
                     "etat_et_bascule", "derniere_activite")
     list_display_links = ("libelle",)
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("centre", "imprimante").prefetch_related("parcours")
 
     @admin.display(description="Services proposés")
     def services_proposes(self, obj):
@@ -418,6 +440,7 @@ class AppareilEcranAdmin(ListeLisibleMixin, admin.ModelAdmin):
     """Écrans Wi-Fi (TV qui ont ouvert …/tv/) : on peut les nommer ou les retirer ; réservé à la plateforme."""
 
     list_display = ("__str__", "code", "centre", "affichage", "adresse_ip", "etat", "derniere_activite")
+    list_select_related = ("centre", "affichage__centre")
     list_filter = ("centre",)
     search_fields = ("nom", "code", "adresse_ip")
     fields = ("nom", "code", "centre", "affichage", "adresse_ip", "navigateur", "date_creation", "derniere_activite")

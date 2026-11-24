@@ -124,6 +124,7 @@ def _lignes_export(stats, demandes=None, quotas_periodes=None):
             *[[f"Tickets - {k}", v] for k, v in stats["par_statut"].items()],
             *[[f"Mode - {k}", v] for k, v in stats["par_mode"].items()],
             ["Places de quota réservées", stats["quotas"]["reservees"]],
+            ["Places de quota consommées", stats["quotas"]["consommees"]],
             ["Dérogations au quota", stats["quotas"]["derogations"]],
             ["Places libérées", stats["quotas"]["liberees"]],
         ]),
@@ -142,7 +143,7 @@ def _lignes_export(stats, demandes=None, quotas_periodes=None):
             [[l["destinataire"], l["recues"], l["sans_reponse"], l["delai_moy"]] for l in demandes["par_destinataire"]])]
           if demandes is not None else []),
         *([("Quota dentiste par période",
-            ["Période", "Jours avec réservations", "Jours quota atteint", "Places occupées", "Places prévues", "Remplissage (%)"],
+            ["Période", "Créneaux avec réservations (jour × centre)", "Créneaux quota atteint", "Places occupées", "Places prévues", "Remplissage (%)"],
             [[l["periode"], l["creneaux"], l["atteints"], l["occupees"], l["places"], l["taux"]] for l in quotas_periodes])]
           if quotas_periodes is not None else []),
     ]

@@ -256,7 +256,8 @@ def demandes(centres, date_debut, date_fin):
             delai = max(reponses[0] - n.date, timedelta())
             ligne["delais"].append(delai)
             delais.append(delai)
-        else:
+        elif n.demande.statut != DemandeAutre.Statut.CLOTUREE:
+            # Demande clôturée : plus rien à répondre (même calcul que la page « Direct »).
             ligne["sans_reponse"] += 1
             sans_reponse += 1
     lignes = []

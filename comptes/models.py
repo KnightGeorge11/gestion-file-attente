@@ -186,10 +186,16 @@ class AffectationService(models.Model):
     def clean(self):
         super().clean()
 
+        # Nouvelle affectation (inline de l'administration) : affectation_id est
+        # encore vide, mais l'affectation est déjà rattachée (audit du 24/11/2026).
+        try:
+            affectation = self.affectation
+        except AffectationUtilisateur.DoesNotExist:
+            affectation = None
         if (
-            self.affectation_id
+            affectation is not None
             and self.service_id
-            and self.affectation.centre_id != self.service.centre_id
+            and affectation.centre_id != self.service.centre_id
         ):
             raise ValidationError(
                 "Le service doit appartenir au centre de l'affectation."

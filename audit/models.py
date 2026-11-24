@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 
 
 class JournalAudit(models.Model):
@@ -61,7 +62,7 @@ class JournalAudit(models.Model):
         verbose_name_plural = "Journal d'audit"
 
     def __str__(self):
-        return f"{self.date:%d/%m/%Y %H:%M} {self.get_action_display()} {self.objet_libelle}"
+        return f"{timezone.localtime(self.date):%d/%m/%Y %H:%M} {self.get_action_display()} {self.objet_libelle}"
 
     def save(self, *args, **kwargs):
         if not self._state.adding:

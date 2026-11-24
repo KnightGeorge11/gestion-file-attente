@@ -139,6 +139,14 @@
         try { localStorage.setItem(CLE, JSON.stringify(choix)); localStorage.removeItem(ANCIENNE_CLE); } catch (e) {}
     }
     function nomEcran(ecran, rang) { return ecran.label || ("Écran " + (rang + 1)); }
+    // Deux TV du même modèle ont le même libellé : la position les distingue (audit du 24/11/2026).
+    function cleEcran(ecran, rang) { return nomEcran(ecran, rang) + " @" + ecran.left + "," + ecran.top; }
+    function choixDe(choix, ecran, rang) {
+        const cle = cleEcran(ecran, rang);
+        if (cle in choix) { return cle; }
+        const nom = nomEcran(ecran, rang);
+        return nom in choix ? nom : null;  // choix mémorisé avant cette correction
+    }
     function libelleAffichage(id) {
         const a = AFFICHAGES.find(function (x) { return String(x.id) === String(id); });
         return a ? a.libelle : "tous les appels";
@@ -148,26 +156,43 @@
     // Affiche l'écran des appels en plein écran sur cet écran physique, avec son affichage.
     function afficherSur(ecran, rang, automatique, affichage) {
         const nom = nomEcran(ecran, rang);
+        const cle = cleEcran(ecran, rang);
         const options = "popup,fullscreen,left=" + ecran.availLeft + ",top=" + ecran.availTop +
             ",width=" + ecran.availWidth + ",height=" + ecran.availHeight;
         const url = adresse + (affichage ? "?affichage=" + encodeURIComponent(affichage) : "");
-        const fenetre = window.open(url, "ecran-salle-" + rang, options);
+        let fenetre;
+        if (automatique) {
+            // Fenêtre déjà ouverte (page Écran revisitée) : on la garde telle quelle, sans la
+            // recharger, pour que la TV reste en plein écran et garde le son (audit du 24/11/2026).
+            fenetre = window.open("", "ecran-salle-" + cle, options);
+            let vide = true;
+            try { vide = !fenetre || fenetre.location.href === "about:blank"; } catch (e) { vide = true; }
+            if (fenetre && vide) { fenetre.location.href = url; }
+        } else {
+            fenetre = window.open(url, "ecran-salle-" + cle, options);
+        }
         if (!fenetre) {
             notifier("Le navigateur a bloqué l'ouverture : autorisez les fenêtres surgissantes pour ce site, puis réessayez.", "warning");
             return;
         }
-        fenetres[nom] = fenetre;
+        fenetres[cle] = fenetre;
         const choix = lire();
-        choix[nom] = affichage || "";
+        if (nom !== cle) { delete choix[nom]; }
+        choix[cle] = affichage || "";
         memoriser(choix);
         if (!automatique) { notifier("« " + nom + " » affiche : " + libelleAffichage(affichage) + ".", "success"); }
         afficherListe();
     }
 
-    function arreter(nom) {
-        if (ouverte(nom)) { fenetres[nom].close(); }
-        delete fenetres[nom];
+    function arreter(nom, cle) {
+        if (!ouverte(cle)) {
+            // Fenêtre ouverte lors d'une visite précédente de la page : on la retrouve par son nom.
+            try { fenetres[cle] = window.open("", "ecran-salle-" + cle); } catch (e) {}
+        }
+        if (fenetres[cle]) { fenetres[cle].close(); }
+        delete fenetres[cle];
         const choix = lire();
+        delete choix[cle];
         delete choix[nom];
         memoriser(choix);
         notifier("Affichage arrêté sur « " + nom + " ».", "success");
@@ -185,8 +210,11 @@
             const tuile = document.createElement("div");
             tuile.className = "carte tuile";
             const nom = nomEcran(ecran, rang);
+            const cle = cleEcran(ecran, rang);
             const principal = ecran === details.currentScreen;
-            const choisi = nom in choix;
+            const memorise = choixDe(choix, ecran, rang);
+            const choisi = memorise !== null;
+            if (choisi) { choix[cle] = choix[memorise]; }
             tuile.innerHTML =
                 '<div class="tuile-haut"><span class="tuile-icone"><svg class="ic" aria-hidden="true"><use href="#i-ecran"></use></svg></span>' +
                 '<div><h2></h2><span class="etiquette"></span></div></div>' +
@@ -194,7 +222,7 @@
                 '<div class="ligne" style="margin-top:8px"><button type="button" class="large"></button></div>';
             tuile.querySelector("h2").textContent = nom;
             const etiquette = tuile.querySelector(".etiquette");
-            etiquette.textContent = principal ? "Écran de cet ordinateur" : (choisi ? "Affiche : " + libelleAffichage(choix[nom]) : "Écran relié");
+            etiquette.textContent = principal ? "Écran de cet ordinateur" : (choisi ? "Affiche : " + libelleAffichage(choix[cle]) : "Écran relié");
             if (!principal) { etiquette.classList.add(choisi ? "ok" : "info"); }
             tuile.querySelector("p").textContent = ecran.width + " × " + ecran.height + (ecran.isInternal ? " · intégré" : " · externe");
             // Choix de l'affichage : administrateurs ; les autres gardent celui déjà choisi.
@@ -207,7 +235,9 @@
                     const option = document.createElement("option");
                     option.value = a.id;
                     option.textContent = a.libelle;
-                    if (choisi && String(choix[nom]) === String(a.id)) { option.selected = true; }
+                    // defaultSelected : sinon le menu passe pour une saisie en cours et bloque le
+                    // rafraîchissement des écrans Wi-Fi (app.js, pasDeSaisie).
+                    if (choisi && String(choix[cle]) === String(a.id)) { option.defaultSelected = option.selected = true; }
                     menu.appendChild(option);
                 });
             }
@@ -216,7 +246,7 @@
                 (choisi && PEUT_GERER ? "Appliquer à cet écran" : "Afficher les appels ici");
             if (!principal) { bouton.classList.add("principal"); }
             bouton.addEventListener("click", function () {
-                const affichage = menu.hidden ? (choisi ? choix[nom] : "") : menu.value;
+                const affichage = menu.hidden ? (choisi ? choix[cle] : "") : menu.value;
                 afficherSur(ecran, rang, false, affichage);
             });
             if (choisi) {
@@ -224,7 +254,7 @@
                 stop.type = "button";
                 stop.className = "large";
                 stop.innerHTML = '<svg class="ic" aria-hidden="true"><use href="#i-croix"></use></svg>Arrêter';
-                stop.addEventListener("click", function () { arreter(nom); });
+                stop.addEventListener("click", function () { arreter(nom, cle); });
                 tuile.querySelector(".ligne").appendChild(stop);
             }
             liste.appendChild(tuile);
@@ -241,8 +271,10 @@
     function reconnecter() {
         const choix = lire();
         details.screens.forEach(function (ecran, rang) {
-            const nom = nomEcran(ecran, rang);
-            if (nom in choix && !ouverte(nom) && ecran !== details.currentScreen) { afficherSur(ecran, rang, true, choix[nom]); }
+            const memorise = choixDe(choix, ecran, rang);
+            if (memorise !== null && !ouverte(cleEcran(ecran, rang)) && ecran !== details.currentScreen) {
+                afficherSur(ecran, rang, true, choix[memorise]);
+            }
         });
     }
 
@@ -257,7 +289,10 @@
             document.getElementById("encart-permission").hidden = true;
             afficherListe();
             reconnecter();
-            details.addEventListener("screenschange", function () { afficherListe(); reconnecter(); });
+            // Un seul écouteur, même après plusieurs visites de la page (navigation HTMX).
+            if (window.__ecransChange) { details.removeEventListener("screenschange", window.__ecransChange); }
+            window.__ecransChange = function () { afficherListe(); reconnecter(); };
+            details.addEventListener("screenschange", window.__ecransChange);
         }).catch(function () {
             notifier("Autorisation refusée : le navigateur ne peut pas voir les écrans. Autorisez « Gestion des fenêtres » pour ce site, puis réessayez.", "error");
         });

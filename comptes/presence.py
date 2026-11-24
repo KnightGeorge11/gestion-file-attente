@@ -51,6 +51,11 @@ class PresenceMiddleware:
                 session[CLE_VU] = maintenant
                 session[CLE_IP] = adresse_client(request) or ""
                 session[CLE_NAVIGATEUR] = request.headers.get("User-Agent", "")[:200]
+                if session.get("_session_expiry") is None:
+                    # Écrire dans la session repousserait son expiration à chaque minute :
+                    # la déconnexion après SESSION_COOKIE_AGE (12 h) ne viendrait jamais.
+                    # L'échéance est fixée une fois pour toutes (audit du 24/11/2026).
+                    session.set_expiry(timezone.now() + timedelta(seconds=settings.SESSION_COOKIE_AGE))
                 if not vu:
                     cache.delete(CLE_CACHE)   # nouvel arrivant : visible tout de suite
         return reponse
@@ -107,6 +112,12 @@ ROLE_RELAIS_ACCUEIL = "Infirmerie"
 
 def accueil_connecte(centre):
     """Vrai si un agent d'accueil du centre a une page ouverte sur ce centre."""
+    from core.memo import memorise
+
+    return memorise(("accueil_connecte", centre.pk), lambda: _accueil_connecte(centre))
+
+
+def _accueil_connecte(centre):
     from .models import AffectationUtilisateur
 
     connectes = utilisateurs_connectes()
@@ -129,8 +140,23 @@ def relais_accueil(affectation, centre):
         affectation is not None
         and affectation.groupe_id
         and affectation.groupe.name == ROLE_RELAIS_ACCUEIL
-        and not accueil_connecte(centre)
+        and (not accueil_connecte(centre) or _tient_un_ticket_de_l_accueil(affectation, centre))
     )
+
+
+def _tient_un_ticket_de_l_accueil(affectation, centre):
+    """
+    L'infirmière qui a appelé un patient à l'accueil le termine, même si un
+    agent d'accueil se connecte entre-temps : sinon personne ne peut plus
+    agir sur ce ticket, et elle ne peut plus appeler (audit du 24/11/2026).
+    """
+    from circuit.models import EntreeFile
+    from core.memo import memorise
+
+    return memorise(("tient_accueil", affectation.utilisateur_id, centre.pk), lambda: EntreeFile.objects.filter(
+        agent_id=affectation.utilisateur_id, statut__in=EntreeFile.STATUTS_TENUS,
+        file__service__centre=centre, file__service__est_accueil=True,
+    ).exists())
 
 
 def marquer_present(utilisateur, centre=None):

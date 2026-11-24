@@ -145,6 +145,8 @@ def audit_groupes_utilisateur(sender, instance, action, pk_set, **kwargs):
 
 @receiver(post_save, sender=AffectationService)
 def audit_affectation_service(sender, instance, created, **kwargs):
+    if not created:
+        return  # simple réenregistrement : aucun service ajouté
     journaliser(
         JournalAudit.Action.ROLE,
         utilisateur_courant(),
@@ -216,7 +218,10 @@ def _valeurs(instance):
     return {
         champ.attname: getattr(instance, champ.attname)
         for champ in instance._meta.concrete_fields
-        if champ.attname not in ("id", "derniere_activite", "date_creation")
+        # date_modification change à chaque sauvegarde, le compteur de patients aussi :
+        # ce ne sont pas des modifications de réglage (audit du 24/11/2026).
+        if champ.attname not in ("id", "derniere_activite", "date_creation", "date_modification",
+                                 "prochain_numero_patient")
     }
 
 
@@ -232,7 +237,8 @@ def audit_poste(sender, instance, created, **kwargs):
         journaliser(JournalAudit.Action.CREATION, utilisateur_courant(), objet=instance)
         return
     avant = getattr(instance, "_etat_avant", None)
-    if not avant:
+    if not avant or getattr(instance, "_audit_fait", False):
+        # _audit_fait : la vue journalise elle-même ce changement (pas de doublon).
         return
     apres = _valeurs(instance)
     changements = {}
@@ -267,3 +273,22 @@ def audit_permissions_role(sender, instance, action, pk_set, **kwargs):
             objet=instance,
             details={"operation": action, "permissions": sorted(pk_set or [])},
         )
+
+
+def audit_choix_poste(sender, instance, action, pk_set, **kwargs):
+    """
+    Services proposés par une borne, services affichés par un écran : changés
+    dans l'administration, ils n'étaient pas journalisés (audit du 24/11/2026).
+    """
+    if action not in ("post_add", "post_remove", "post_clear") or getattr(instance, "_audit_fait", False):
+        return
+    journaliser(
+        JournalAudit.Action.MODIFICATION,
+        utilisateur_courant(),
+        objet=instance,
+        details={"operation": action, "choix": sorted(pk_set or [])},
+    )
+
+
+m2m_changed.connect(audit_choix_poste, sender=Borne.parcours.through, dispatch_uid="audit_borne_parcours")
+m2m_changed.connect(audit_choix_poste, sender=EcranAffichage.services.through, dispatch_uid="audit_ecran_services")

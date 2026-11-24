@@ -222,7 +222,9 @@ def etat_imprimantes(centre):
     alertes = []
     for borne in Borne.objects.filter(centre=centre, actif=True).select_related("imprimante"):
         dernier = _derniere_impression(borne)
-        if borne.imprimante_id is None and not (dernier and dernier.details.get("bluetooth")):
+        # Imprimante désactivée : la borne imprime par la tablette, plus d'alerte (audit du 24/11/2026).
+        reseau = borne.imprimante_id is not None and borne.imprimante.actif
+        if not reseau and not (dernier and dernier.details.get("bluetooth")):
             continue
         if dernier is not None and dernier.type == Evenement.Type.ECHEC_IMPRESSION:
             alertes.append({

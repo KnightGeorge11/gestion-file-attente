@@ -2,7 +2,6 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
-from django.views.decorators.http import require_POST
 
 from core.requetes import entier
 
@@ -10,7 +9,6 @@ from .access import (
     SESSION_CENTRE_KEY,
     centres_autorises,
 )
-from .models import Centre
 
 
 @login_required

@@ -550,4 +550,4 @@ class ModificationQuota(models.Model):
         verbose_name_plural = "Modifications de quotas"
 
     def __str__(self):
-        return f"{self.get_action_display()} - {self.parcours} - {self.date:%d/%m/%Y %H:%M}"
+        return f"{self.get_action_display()} - {self.parcours} - {timezone.localtime(self.date):%d/%m/%Y %H:%M}"

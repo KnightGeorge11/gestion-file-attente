@@ -11,6 +11,7 @@ service lorsque l'action concerne un service).
 from django.contrib.auth.models import Permission
 
 from centres.access import est_administrateur_central
+from core.memo import memorise
 
 from .models import AffectationService, AffectationUtilisateur
 from .presence import ROLE_ACCUEIL, ROLE_RELAIS_ACCUEIL, relais_accueil
@@ -48,21 +49,19 @@ def affectation_active(utilisateur, centre):
     if centre is None or not getattr(utilisateur, "is_authenticated", False):
         return None
 
-    return (
+    return memorise(("affectation", utilisateur.pk, centre.pk), lambda: (
         AffectationUtilisateur.objects
         .filter(utilisateur=utilisateur, centre=centre, actif=True, centre__actif=True)
         .select_related("groupe")
         .first()
-    )
+    ))
 
 
 def service_dans_portee(affectation, service):
-    restrictions = AffectationService.objects.filter(affectation=affectation)
-
-    if not restrictions.exists():
-        return True
-
-    return restrictions.filter(service=service).exists()
+    services = memorise(("portee", affectation.pk), lambda: set(
+        AffectationService.objects.filter(affectation=affectation).values_list("service_id", flat=True)
+    ))
+    return not services or service.pk in services
 
 
 def a_droit(utilisateur, permission, centre, service=None):
@@ -112,7 +111,7 @@ def a_droit(utilisateur, permission, centre, service=None):
 
 def permissions_role(nom):
     """Permissions « app.codename » d'un rôle (groupe Django)."""
-    return _codes(Permission.objects.filter(group__name=nom))
+    return memorise(("role", nom), lambda: _codes(Permission.objects.filter(group__name=nom)))
 
 
 # Décision du 19/11/2026 : tout passe d'abord par l'accueil. Les

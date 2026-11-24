@@ -5,7 +5,7 @@ from django.contrib.auth.models import Group, Permission
 from django.db.models import Q
 
 from centres.access import est_administrateur_central
-from django.urls import reverse
+from django.utils import timezone
 from django.utils.html import format_html
 
 from core.admin import CentreAdminMixin, ListeLisibleMixin, centres_administres, etat_actif, pastille
@@ -141,9 +141,6 @@ class UtilisateurAdmin(ListeLisibleMixin, UserAdmin):
     list_display = ("nom_complet", "username", "type_compte", "roles", "connexion", "etat")
     list_display_links = ("nom_complet", "username")
 
-    def get_queryset(self, request):
-        return super().get_queryset(request).prefetch_related("affectations__groupe", "affectations__centre")
-
     @admin.display(description="Nom", ordering="last_name")
     def nom_complet(self, obj):
         return obj.get_full_name() or "—"
@@ -163,7 +160,7 @@ class UtilisateurAdmin(ListeLisibleMixin, UserAdmin):
         if obj.pk in utilisateurs_connectes():
             texte = pastille("Connecté", "ok")
         elif obj.last_login:
-            texte = format_html('<span class="discret-admin">{}</span>', obj.last_login.strftime("%d/%m/%Y"))
+            texte = format_html('<span class="discret-admin">{}</span>', timezone.localtime(obj.last_login).strftime("%d/%m/%Y"))
         else:
             texte = format_html('<span class="discret-admin">{}</span>', "jamais")
         return texte
@@ -211,7 +208,8 @@ class UtilisateurAdmin(ListeLisibleMixin, UserAdmin):
     CHAMPS_SENSIBLES = ("is_superuser", "is_staff", "type_compte", "groups", "user_permissions")
 
     def get_queryset(self, request):
-        queryset = super().get_queryset(request)
+        # Rôles affichés dans la liste sans une requête par compte.
+        queryset = super().get_queryset(request).prefetch_related("affectations__groupe", "affectations__centre")
         if est_administrateur_central(request.user):
             return queryset
         # Administrateur d'un centre : comptes des centres qu'il administre,
@@ -329,7 +327,11 @@ class AffectationUtilisateurAdmin(CentreAdminMixin, admin.ModelAdmin):
     list_select_related = (
         "utilisateur",
         "centre",
+        "groupe",
     )
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).prefetch_related("services_autorises__service")
 
 
 # Les rôles (groupes) sont communs à tous les centres : seul l'administrateur

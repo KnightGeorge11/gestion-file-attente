@@ -46,12 +46,6 @@ class Simulateur:
             raise ErreurCircuit(
                 "Aucun compte de test dans ce centre : lancez d'abord « python manage.py creer_comptes_test »."
             )
-        # Toutes les files actives, dont celle des demandes « Autre » de l'accueil
-        # (sinon les « Autre » simulés s'accumulent, relecture du 23/11/2026).
-        self.files = [
-            (code, file) for code, service in self.services.items()
-            for file in service.files.filter(actif=True).order_by("-par_defaut", "nom")
-        ]
         # Les tickets simulés sont émis par une borne dédiée : la simulation
         # n'agit QUE sur ses propres tickets et QUE avec les comptes de test.
         self.borne, _ = Borne.objects.get_or_create(
@@ -102,6 +96,8 @@ class Simulateur:
                         self.centre, Ticket.Mode.AUTRE, borne=self.borne,
                         motif=self.hasard.choice(motifs) if motifs else None,
                     )
+                elif not parcours:
+                    continue  # aucun parcours de soins proposé à la borne
                 else:
                     mode = Ticket.Mode.INTERNE if tirage < 0.55 else Ticket.Mode.EXTERNE
                     ticket = services.emettre_ticket(
@@ -148,6 +144,19 @@ class Simulateur:
             return
         destination = "fin du parcours" if suite is None else suite.nom_service
         self.journal(f"{service.nom} : {ticket.numero} terminé -> {destination}")
+
+    @property
+    def files(self):
+        """
+        Toutes les files actives, dont celle des demandes « Autre » de l'accueil
+        (sinon les « Autre » simulés s'accumulent, relecture du 23/11/2026). Relue
+        à chaque pas : sur un centre neuf, la file « Autre » n'est créée qu'au
+        premier ticket « Autre » émis (audit du 24/11/2026).
+        """
+        return [
+            (code, file) for code, service in self.services.items()
+            for file in service.files.filter(actif=True).order_by("-par_defaut", "nom")
+        ]
 
     def etape(self):
         """Fait avancer la simulation d'un pas. Retourne le nombre d'actions."""

@@ -717,6 +717,12 @@ class AppareilEcran(models.Model):
     def __str__(self):
         return self.nom or f"Écran {self.code}"
 
+    def clean(self):
+        super().clean()
+        # Affichage d'un autre centre : il serait ignoré sans message (audit du 24/11/2026).
+        if self.affichage_id and self.affichage.centre_id != self.centre_id:
+            raise ValidationError({"affichage": "Choisissez un affichage du centre de cet écran."})
+
     @property
     def en_ligne(self):
         from django.utils import timezone

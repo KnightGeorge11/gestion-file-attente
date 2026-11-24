@@ -496,6 +496,10 @@ tr:first-child .rang { background: var(--accent); color: #fff; }
 .legende-graphique .carre.primaire { background: var(--primaire); }
 .legende-graphique .carre.accent { background: var(--accent); }
 .legende-graphique .carre.clair { background: #c3d4f4; }
+.legende-graphique .carre.niveau-1 { background: #dbe7fb; }
+.legende-graphique .carre.niveau-2 { background: #a9c3f2; }
+.legende-graphique .carre.niveau-3 { background: #5683d6; }
+.legende-graphique .carre.niveau-4 { background: var(--primaire-fonce); }
 .courbe { display: block; width: 100%; height: 170px; }
 .courbe .axe { stroke: var(--bordure-forte); stroke-width: 1; }
 .courbe .barre { fill: #c3d4f4; }
