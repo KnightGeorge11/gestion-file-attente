@@ -17,6 +17,7 @@ urlpatterns = [
     path("deconnexion/", auth_views.LogoutView.as_view(), name="deconnexion"),
     path("admin/", admin.site.urls),
     path("centres/", include("centres.urls")),
+    path("comptes/", include("comptes.urls")),
     path("circuit/", include("circuit.urls")),
     path("statistiques/", include("statistiques.urls")),
     # Écran Wi-Fi : adresse courte à taper une fois sur la TV (décision du 21/11/2026).

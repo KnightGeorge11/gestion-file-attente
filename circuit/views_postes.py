@@ -412,7 +412,7 @@ def _centre_ecran(request):
     return None, None
 
 
-def appels_ecran(centre, nombre=8):
+def appels_ecran(centre, nombre=8, services=None):
     """
     Appels de l'écran principal, en deux groupes : (en_cours, precedents).
 
@@ -436,8 +436,14 @@ def appels_ecran(centre, nombre=8):
     duree = timedelta(seconds=max(centre.duree_affichage_appel_secondes, 1))
     limite_historique = maintenant - duree * 10
     jour = maintenant_centre(centre).date()
+    appels = Appel.objects.filter(centre=centre, mode=Appel.Mode.ECRAN)
+    if services:
+        # Écran réglé par l'administrateur (24/11/2026) : ses services seulement.
+        appels = appels.filter(service__in=services)
+    else:
+        appels = appels.filter(service__afficher_ecran_principal=True)
     candidats = (
-        Appel.objects.filter(centre=centre, mode=Appel.Mode.ECRAN, service__afficher_ecran_principal=True)
+        appels
         .filter(
             Q(date__gte=limite_historique)
             | Q(ticket__jour=jour, entree__statut__in=EntreeFile.STATUTS_TENUS)
@@ -496,17 +502,27 @@ def _centre_de_la_salle(request, code_centre):
     return centre
 
 
+def _affichage(centre, valeur):
+    """Réglage d'affichage choisi par l'administrateur pour un écran (24/11/2026)."""
+    if not valeur:
+        return None
+    return EcranAffichage.objects.filter(centre=centre, actif=True, pk=entier(valeur)).first()
+
+
 def ecran_salle(request, code_centre):
     """
     Écran des appels de la salle, ouvert depuis l'ordinateur d'un agent sur
     son second écran (HDMI ou sans fil, décision du 21/11/2026). Il ne dépend
     pas de la session de l'agent : il reste affiché après sa déconnexion.
+    Plusieurs écrans peuvent être ouverts en même temps, chacun avec son
+    réglage (« ?affichage=… », décision du 24/11/2026).
     """
     centre = _centre_de_la_salle(request, code_centre)
+    affichage = _affichage(centre, request.GET.get("affichage"))
     return render(request, "circuit/ecran.html", {
         "voix_serveur": voix_disponible(),
         "version_ecrans": VERSION_ECRANS,
-        "centre": centre, "poste": None, "salle": True,
+        "centre": centre, "poste": affichage, "salle": True, "affichage": affichage,
         "url_appels": reverse("circuit:ecran_salle_appels", args=[centre.code]),
     })
 
@@ -526,8 +542,12 @@ def _page_perimee(request, page):
 
 def ecran_salle_appels(request, code_centre):
     centre = _centre_de_la_salle(request, code_centre)
-    perimee = _page_perimee(request, reverse("circuit:ecran_salle", args=[centre.code]))
-    return perimee or _appels_de_l_ecran(request, centre, None)
+    affichage = _affichage(centre, request.GET.get("affichage"))
+    page = reverse("circuit:ecran_salle", args=[centre.code])
+    if affichage is not None:
+        page += f"?affichage={affichage.pk}"
+    perimee = _page_perimee(request, page)
+    return perimee or _appels_de_l_ecran(request, centre, affichage)
 
 
 def ecran_appels(request):
@@ -573,7 +593,8 @@ def _appels_de_l_ecran(request, centre, poste):
         # Suivi de l'écran : une écriture par minute suffit (et non toutes les 3 s).
         EcranAffichage.objects.filter(pk=poste.pk).update(derniere_activite=timezone.now())
     nombre = poste.nb_appels_affiches if poste else 8
-    en_cours, precedents = appels_ecran(centre, nombre)
+    services_ecran = list(poste.services.all()) if poste else None
+    en_cours, precedents = appels_ecran(centre, nombre, services_ecran)
     masques = max(0, len(en_cours) - nombre)
     en_cours = en_cours[:nombre]
     recents = timezone.now() - timedelta(seconds=centre.duree_affichage_appel_secondes)
@@ -689,9 +710,9 @@ def ecran_tv(request):
     else:
         timezone.activate(fuseau_horaire_centre(centre))
         reponse = render(request, "circuit/ecran.html", {
-        "voix_serveur": voix_disponible(),
-        "version_ecrans": VERSION_ECRANS,
-            "centre": centre, "poste": None, "salle": True, "url_appels": reverse("ecran_tv_appels"),
+            "voix_serveur": voix_disponible(),
+            "version_ecrans": VERSION_ECRANS,
+            "centre": centre, "poste": _affichage_tv(appareil), "salle": True, "url_appels": reverse("ecran_tv_appels"),
         })
     return _retenir_tv(reponse, request)
 
@@ -711,7 +732,17 @@ def ecran_tv_appels(request):
     appareil = _appareil_tv(request)
     if appareil is None or not appareil.centre_id or not appareil.centre.actif:
         return _vers_tv()
-    return _page_perimee(request, reverse("ecran_tv")) or _appels_de_l_ecran(request, appareil.centre, None)
+    return _page_perimee(request, reverse("ecran_tv")) or _appels_de_l_ecran(
+        request, appareil.centre, _affichage_tv(appareil)
+    )
+
+
+def _affichage_tv(appareil):
+    """Réglage d'affichage de la TV, s'il appartient bien à son centre et est actif."""
+    affichage = appareil.affichage if appareil.affichage_id else None
+    if affichage is None or affichage.centre_id != appareil.centre_id or not affichage.actif:
+        return None
+    return affichage
 
 
 

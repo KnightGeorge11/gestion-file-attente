@@ -187,12 +187,81 @@ def ecran_connexion(request):
 
     centre = request.centre_actif
     adresse = adresse_pour_le_reseau(request, reverse("circuit:ecran_salle", args=[centre.code]))
+    affichages = _affichages_du_centre(centre)
     return render(request, "circuit/ecran_connexion.html", {
+        # Plusieurs écrans, chacun avec son réglage géré par l'administrateur (24/11/2026).
+        "affichages": affichages,
+        "affichages_js": [{"id": a.pk, "libelle": a.libelle} for a in affichages],
+        "services_ecran": Service.objects.filter(centre=centre, actif=True).order_by("ordre", "nom"),
+        "peut_gerer_ecrans": _peut_gerer_ecrans(request),
         "adresse_ecran": adresse,
         "adresse_tv": adresse_pour_le_reseau(request, reverse("ecran_tv")),
         # Toujours « localhost » : aucune adresse réseau trouvée (PC hors réseau).
         "adresse_locale": urlsplit(adresse).hostname in ("localhost", "127.0.0.1", "::1"),
     })
+
+
+def _affichages_du_centre(centre):
+    from centres.models import EcranAffichage
+
+    return list(
+        EcranAffichage.objects.filter(centre=centre, actif=True)
+        .prefetch_related("services").order_by("libelle")
+    )
+
+
+def _peut_gerer_ecrans(request):
+    """Régler ce que les écrans affichent : administrateurs (24/11/2026)."""
+    return a_droit(request.user, "centres.change_ecranaffichage", request.centre_actif)
+
+
+@require_POST
+@centre_actif_requis
+def ecran_affichage(request):
+    """
+    Créer, modifier ou retirer un réglage d'affichage (nom, services dont les
+    appels s'affichent, nombre d'appels, voix). Réservé aux administrateurs.
+    """
+    from audit.journal import journaliser
+    from audit.models import JournalAudit
+    from centres.models import EcranAffichage
+
+    if not _peut_gerer_ecrans(request):
+        raise PermissionDenied
+    centre = request.centre_actif
+    affichage = None
+    if request.POST.get("affichage"):
+        affichage = get_object_or_404(EcranAffichage.objects.filter(centre=centre), pk=entier(request.POST.get("affichage")))
+    if affichage is not None and request.POST.get("action") == "retirer":
+        affichage.actif = False
+        affichage.save(update_fields=["actif"])
+        journaliser(JournalAudit.Action.DESACTIVATION, request.user, objet=affichage, request=request)
+        messages.success(request, f"Affichage « {affichage.libelle} » retiré : ses écrans affichent tous les appels.")
+        return redirect("circuit:ecran_connexion")
+    libelle = request.POST.get("libelle", "").strip()[:100]
+    if not libelle:
+        messages.error(request, "Donnez un nom à l'affichage (ex. TV salle d'attente).")
+        return redirect("circuit:ecran_connexion")
+    nombre = max(1, min(entier(request.POST.get("nb_appels_affiches")) or 8, 20))
+    services_choisis = list(Service.objects.filter(
+        centre=centre, actif=True, pk__in=[entier(v) for v in request.POST.getlist("services")]
+    ))
+    if affichage is None:
+        codes = set(EcranAffichage.objects.filter(centre=centre).values_list("code", flat=True))
+        rang = 1
+        while f"E{rang}" in codes:
+            rang += 1
+        affichage = EcranAffichage(centre=centre, code=f"E{rang}")
+    affichage.libelle = libelle
+    affichage.nb_appels_affiches = nombre
+    affichage.annonce_vocale = request.POST.get("annonce_vocale") == "1"
+    affichage.save()
+    affichage.services.set(services_choisis)
+    journaliser(JournalAudit.Action.MODIFICATION, request.user, objet=affichage, request=request, details={
+        "services": [s.nom for s in services_choisis] or "tous", "appels": nombre, "voix": affichage.annonce_vocale,
+    })
+    messages.success(request, f"Affichage « {libelle} » enregistré.")
+    return redirect("circuit:ecran_connexion")
 
 
 def _contexte_ecrans_wifi(request, rechercher=True):
@@ -229,7 +298,7 @@ def _contexte_ecrans_wifi(request, rechercher=True):
     if est_administrateur_central(request.user):
         visibles |= Q(derniere_activite__gte=recents)
     appareils = list(
-        AppareilEcran.objects.select_related("centre").filter(visibles)
+        AppareilEcran.objects.select_related("centre", "affichage").filter(visibles)
         .order_by("-derniere_activite")[:30]
     )
     for appareil in appareils:
@@ -239,6 +308,8 @@ def _contexte_ecrans_wifi(request, rechercher=True):
     adresses_pretes = {a.adresse_ip for a in appareils}
     return {
         "appareils": appareils,
+        "affichages": _affichages_du_centre(centre),
+        "peut_gerer_ecrans": _peut_gerer_ecrans(request),
         "a_preparer": [e for e in trouves if e["adresse_ip"] not in adresses_pretes],
         "adresse_tv": adresse_pour_le_reseau(request, reverse("ecran_tv")),
     }
@@ -269,20 +340,38 @@ def ecran_wifi_choisir(request):
     pris_ailleurs = appareil.centre_id and appareil.centre_id != centre.pk
     if pris_ailleurs and not est_administrateur_central(request.user):
         messages.error(request, f"Cet écran affiche les appels du centre {appareil.centre.nom}.")
+    elif request.POST.get("action") == "regler":
+        # Ce que la TV affiche : réservé aux administrateurs (24/11/2026).
+        if not _peut_gerer_ecrans(request) or appareil.centre_id != centre.pk:
+            raise PermissionDenied
+        appareil.affichage = _affichage_choisi(request, centre)
+        appareil.save(update_fields=["affichage"])
+        messages.success(request, f"« {appareil} » affiche maintenant : {appareil.affichage or 'tous les appels du centre'}.")
     elif request.POST.get("action") == "arreter":
         appareil.centre = None
-        appareil.save(update_fields=["centre"])
+        appareil.affichage = None
+        appareil.save(update_fields=["centre", "affichage"])
         messages.success(request, f"Affichage arrêté sur « {appareil} ».")
         journaliser(JournalAudit.Action.MODIFICATION, request.user, centre=centre,
                     details={"ecran_wifi": appareil.code, "action": "arrêt"}, request=request)
     else:
         appareil.centre = centre
-        appareil.save(update_fields=["centre"])
+        appareil.affichage = _affichage_choisi(request, centre) if _peut_gerer_ecrans(request) else None
+        appareil.save(update_fields=["centre", "affichage"])
         messages.success(request, f"Les appels s'affichent sur « {appareil} » (dans 3 secondes au plus).")
         journaliser(JournalAudit.Action.MODIFICATION, request.user, centre=centre,
                     details={"ecran_wifi": appareil.code, "action": "affichage"}, request=request)
     reponse = render(request, "circuit/_ecrans_reseau.html", _contexte_ecrans_wifi(request, rechercher=False))
     return reponse
+
+
+def _affichage_choisi(request, centre):
+    from centres.models import EcranAffichage
+
+    valeur = request.POST.get("affichage")
+    if not valeur:
+        return None
+    return EcranAffichage.objects.filter(centre=centre, actif=True, pk=entier(valeur)).first()
 
 
 SESSION_SALLE = "salle_indiquee"

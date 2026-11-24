@@ -781,6 +781,9 @@ class VisibiliteParServiceTests(BaseVues):
         self.assertEqual(self._visibles(self.medecin), {self.m_pharmacie, self.m_infirmerie})
 
     def test_infirmerie(self):
+        from comptes.presence import marquer_present
+
+        marquer_present(self.accueil, self.d.centre)   # accueil connecté : pas de relais
         self.assertEqual(self._visibles(self.infirmier), {self.m_pharmacie, self.m_infirmerie})
 
     def test_dentiste_et_echographie(self):

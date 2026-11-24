@@ -13,6 +13,7 @@ from django.contrib.auth.models import Permission
 from centres.access import est_administrateur_central
 
 from .models import AffectationService, AffectationUtilisateur
+from .presence import ROLE_ACCUEIL, ROLE_RELAIS_ACCUEIL, relais_accueil
 
 
 def _codes(permissions):
@@ -87,10 +88,31 @@ def a_droit(utilisateur, permission, centre, service=None):
     if affectation is None:
         return False
 
+    relais = None
     if service is not None and not service_dans_portee(affectation, service):
-        return False
+        # Infirmerie en relais de l'accueil (24/11/2026) : la file de l'accueil
+        # lui est ouverte tant qu'aucun agent d'accueil n'est connecté.
+        relais = service.est_accueil and relais_accueil(affectation, centre)
+        if not relais:
+            return False
 
-    return permission in permissions_affectation(affectation)
+    if permission in permissions_affectation(affectation):
+        return True
+    if service is not None and not service.est_accueil:
+        return False
+    # Droits de l'accueil (orienter les demandes, annuler un ticket…) pendant le relais.
+    if not (affectation.groupe_id and affectation.groupe.name == ROLE_RELAIS_ACCUEIL):
+        return False
+    if permission not in permissions_role(ROLE_ACCUEIL):
+        return False
+    if relais is None:
+        relais = relais_accueil(affectation, centre)
+    return relais
+
+
+def permissions_role(nom):
+    """Permissions « app.codename » d'un rôle (groupe Django)."""
+    return _codes(Permission.objects.filter(group__name=nom))
 
 
 # Décision du 19/11/2026 : tout passe d'abord par l'accueil. Les

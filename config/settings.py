@@ -94,6 +94,8 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "centres.middleware.CentreActifMiddleware",
+    # Comptes connectés (24/11/2026) : heure de la dernière page ouverte.
+    "comptes.presence.PresenceMiddleware",
     "audit.threadlocal.UtilisateurCourantMiddleware",
 ]
 

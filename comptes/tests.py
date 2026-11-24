@@ -90,6 +90,12 @@ class RolesEtPermissionsTests(BaseComptes):
         self.affecter(agent, self.a, "Infirmerie", [self.inf_a])
         self.assertTrue(a_droit(agent, "circuit.appeler", self.a, self.inf_a))
         self.assertTrue(a_droit(agent, "circuit.transferer", self.a, self.inf_a))
+        # Un agent d'accueil est connecté : pas de relais de l'accueil par l'infirmerie.
+        from comptes.presence import marquer_present
+
+        accueil = self.utilisateur("acc_present")
+        self.affecter(accueil, self.a, "Accueil", [self.acc_a])
+        marquer_present(accueil, self.a)
         # Service hors de la liste de l'affectation.
         self.assertFalse(a_droit(agent, "circuit.appeler", self.a, self.acc_a))
         # Permission absente du rôle.
@@ -169,6 +175,12 @@ class MultiCentresTests(BaseComptes):
         self.affecter(self.agent, self.b, "Infirmerie")
 
     def test_roles_differents_selon_le_centre(self):
+        # Un agent d'accueil est connecté au centre B : pas de relais par l'infirmerie.
+        from comptes.presence import marquer_present
+
+        accueil_b = self.utilisateur("acc_b")
+        self.affecter(accueil_b, self.b, "Accueil", [self.acc_b])
+        marquer_present(accueil_b, self.b)
         self.assertTrue(a_droit(self.agent, "circuit.annuler_ticket", self.a, self.acc_a))
         self.assertFalse(a_droit(self.agent, "circuit.annuler_ticket", self.b, self.acc_b))
         self.assertTrue(a_droit(self.agent, "circuit.transferer", self.b, self.acc_b))
@@ -499,3 +511,54 @@ class AffectationDUnAutreAdministrateurTests(BaseComptes):
         modele_admin = AffectationUtilisateurAdmin(AffectationUtilisateur, site)
         requete = type("R", (), {"user": self.admin_a})()
         self.assertFalse(modele_admin.has_change_permission(requete, aff_autre))
+
+
+class RelaisDeLAccueilParLInfirmerieTests(BaseComptes):
+    """Décision du 24/11/2026 : sans agent d'accueil connecté, l'infirmerie fait le travail de l'accueil."""
+
+    def setUp(self):
+        self.infirmier = self.utilisateur("inf_relais")
+        self.affecter(self.infirmier, self.a, "Infirmerie", [self.inf_a])
+        self.accueil = self.utilisateur("acc_relais")
+        self.affecter(self.accueil, self.a, "Accueil", [self.acc_a])
+
+    def test_relais_quand_aucun_accueil_connecte(self):
+        from comptes.access import utilisateur_peut_acceder_service
+
+        self.assertTrue(a_droit(self.infirmier, "circuit.appeler", self.a, self.acc_a))
+        self.assertTrue(a_droit(self.infirmier, "circuit.orienter_demande", self.a, self.acc_a))
+        self.assertTrue(a_droit(self.infirmier, "circuit.annuler_ticket", self.a))
+        self.assertTrue(utilisateur_peut_acceder_service(self.infirmier, self.a, self.acc_a))
+        # Jamais les autres centres ni les droits que l'accueil n'a pas.
+        self.assertFalse(a_droit(self.infirmier, "circuit.appeler", self.b, self.acc_b))
+        self.assertFalse(a_droit(self.infirmier, "circuit.voir_statistiques", self.a))
+
+    def test_fin_du_relais_des_qu_un_accueil_se_connecte(self):
+        from comptes.access import utilisateur_peut_acceder_service
+        from comptes.presence import marquer_present
+
+        marquer_present(self.accueil, self.a)
+        self.assertFalse(a_droit(self.infirmier, "circuit.appeler", self.a, self.acc_a))
+        self.assertFalse(a_droit(self.infirmier, "circuit.orienter_demande", self.a, self.acc_a))
+        self.assertFalse(utilisateur_peut_acceder_service(self.infirmier, self.a, self.acc_a))
+
+    def test_accueil_d_un_autre_centre_ne_compte_pas(self):
+        from comptes.presence import marquer_present
+
+        marquer_present(self.accueil, self.b)          # sa page est ouverte sur un autre centre
+        self.assertTrue(a_droit(self.infirmier, "circuit.appeler", self.a, self.acc_a))
+
+    def test_les_autres_roles_n_ont_pas_de_relais(self):
+        medecin = self.utilisateur("med_relais")
+        self.affecter(medecin, self.a, "Médecin", [self.inf_a])
+        self.assertFalse(a_droit(medecin, "circuit.appeler", self.a, self.acc_a))
+
+    def test_page_connectee_note_la_presence(self):
+        from comptes.presence import utilisateurs_connectes
+
+        self.client.force_login(self.accueil)
+        self.client.get(reverse("circuit:guichets"))
+        self.assertIn(self.accueil.pk, utilisateurs_connectes())
+        self.assertFalse(a_droit(self.infirmier, "circuit.appeler", self.a, self.acc_a))
+        self.client.post(reverse("deconnexion"))
+        self.assertNotIn(self.accueil.pk, utilisateurs_connectes())

@@ -33,6 +33,7 @@
         <a href="{% url 'circuit:ecran_connexion' %}" class="{% if page == 'ecran_connexion' %}actif{% endif %}" title="Afficher les appels sur l'écran de la salle">{% icone "ecran" %}Écran</a>
         {# Bornes du centre : services proposés, activation (administrateurs, décision du 23/11/2026). #}
         {% if administre_bornes %}<a href="{% url 'circuit:bornes' %}" class="{% if page == 'bornes' %}actif{% endif %}" title="Activer une borne sur cet appareil">{% icone "imprimante" %}Borne</a>{% endif %}
+        {% if est_admin_plateforme %}<a href="{% url 'comptes:comptes' %}" class="{% if page == 'comptes' %}actif{% endif %}">{% icone "groupe" %}Comptes</a>{% endif %}
         {% if user.is_staff %}<a href="{% url 'admin:index' %}" hx-boost="false">{% icone "reglages" %}Administration</a>{% endif %}
     </nav>
     {% endif %}
@@ -48,6 +49,7 @@
 {% endblock %}
 <main>
     {% include "_messages.html" %}
+    {% if relais_accueil_actif %}<div class="encart attention" style="margin-bottom:16px">{% icone "accueil" %}<span><strong>Aucun agent d'accueil n'est connecté :</strong> vous faites aussi le travail de l'accueil (service Accueil et page Demandes). Cela s'arrête dès qu'un agent d'accueil se connecte.</span></div>{% endif %}
     {% block contenu %}{% endblock %}
 </main>
 <div class="bandeau-connexion" role="status"><span class="point"></span>Connexion au serveur perdue · nouvel essai automatique…</div>

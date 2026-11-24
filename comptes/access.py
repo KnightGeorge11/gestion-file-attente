@@ -44,4 +44,12 @@ def utilisateur_peut_acceder_service(utilisateur, centre, service):
     if not restrictions.exists():
         return True
 
-    return restrictions.filter(service=service).exists()
+    if restrictions.filter(service=service).exists():
+        return True
+
+    # Infirmerie en relais de l'accueil quand aucun agent d'accueil n'est connecté (24/11/2026).
+    if service.est_accueil:
+        from .presence import relais_accueil
+
+        return relais_accueil(affectation, centre)
+    return False

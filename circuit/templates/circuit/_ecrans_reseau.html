@@ -16,12 +16,21 @@
             </div>
         </div>
         <p class="discret">Code {{ a.code }}{% if a.marque %} · {{ a.marque }}{% endif %}{% if a.adresse_ip %} · {{ a.adresse_ip }}{% endif %} · {% if a.en_ligne %}en ligne{% else %}hors ligne depuis {{ a.derniere_activite|time:"H:i" }}{% endif %}</p>
+        {% if a.centre_id == centre_actif.pk %}<p class="discret">{% icone "services" %} Affiche : <strong>{% if a.affichage and a.affichage.actif %}{{ a.affichage.libelle }}{% else %}tous les appels{% endif %}</strong></p>{% endif %}
         <form hx-post="{% url 'circuit:ecran_wifi_choisir' %}" hx-target="#ecrans-reseau" hx-swap="innerHTML" method="post" action="{% url 'circuit:ecran_wifi_choisir' %}">
             {% csrf_token %}<input type="hidden" name="appareil" value="{{ a.pk }}">
+            {% if peut_gerer_ecrans and affichages %}{% if not a.centre_id or a.centre_id == centre_actif.pk %}
+            <label for="affichage-tv-{{ a.pk }}">Affichage</label>
+            <select id="affichage-tv-{{ a.pk }}" name="affichage"><option value="">Tous les appels</option>
+                {% for f in affichages %}<option value="{{ f.pk }}" {% if a.affichage_id == f.pk %}selected{% endif %}>{{ f.libelle }}</option>{% endfor %}</select>
+            {% endif %}{% endif %}
             {% if a.centre_id == centre_actif.pk %}
-            <button class="large" name="action" value="arreter">{% icone "croix" %}Arrêter l'affichage</button>
+            <div class="ligne" style="margin-top:8px">
+                {% if peut_gerer_ecrans and affichages %}<button class="principal" name="action" value="regler">{% icone "check" %}Appliquer</button>{% endif %}
+                <button name="action" value="arreter">{% icone "croix" %}Arrêter l'affichage</button>
+            </div>
             {% elif not a.centre_id %}
-            <button class="principal large" name="action" value="afficher" {% if not a.en_ligne %}disabled{% endif %}>{% icone "ecran" %}Afficher les appels ici</button>
+            <button class="principal large" name="action" value="afficher" {% if not a.en_ligne %}disabled title="L'écran est hors ligne : allumez la TV"{% endif %}>{% icone "ecran" %}Afficher les appels ici</button>
             {% endif %}
         </form>
     </div>

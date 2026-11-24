@@ -15,9 +15,66 @@
 <div class="encart" id="encart-compatibilite" hidden>{% icone "alerte" %}<span>Ce navigateur ne sait pas détecter les écrans reliés à l'ordinateur. Ouvrez cette page dans <strong>Google Chrome</strong> ou <strong>Microsoft Edge</strong>.</span></div>
 <div class="encart" id="encart-permission" hidden>{% icone "info" %}<span>Le navigateur va demander l'autorisation de <strong>gérer les fenêtres sur tous vos écrans</strong> : acceptez-la. Autorisez aussi les <strong>fenêtres surgissantes</strong> pour ce site, pour que l'écran des appels se rouvre tout seul quand l'écran est rebranché.</span></div>
 
+{# Plusieurs écrans en même temps, chacun avec ce qu'il doit afficher (décision du 24/11/2026). #}
+<section class="carte" style="margin-bottom:var(--espace-5)">
+    <div class="carte-entete"><h2><span class="titre-icone">{% icone "reglages" %}</span>Ce que les écrans affichent</h2><span class="etiquette">{{ affichages|length }} affichage{{ affichages|length|pluralize }}</span></div>
+    <p class="discret">Un affichage = un nom et les services dont les appels s'affichent (ex. « TV salle d'attente » : Médecin et Infirmerie ; « TV pharmacie » : Pharmacie). Choisissez ensuite l'affichage de chaque écran ci-dessous. Un écran sans affichage montre tous les appels.{% if not peut_gerer_ecrans %} Seul un administrateur peut les modifier.{% endif %}</p>
+    <div class="tuiles">
+    {% for a in affichages %}
+        <div class="carte tuile">
+            <div class="tuile-haut"><span class="tuile-icone">{% icone "ecran" %}</span>
+                <div><h2>{{ a.libelle }}</h2><span class="etiquette info">{{ a.nb_appels_affiches }} appels · {% if a.annonce_vocale %}voix{% else %}sans voix{% endif %}</span></div></div>
+            <p class="discret">{% icone "services" %} {% for s in a.services.all %}{{ s.nom }}{% if not forloop.last %}, {% endif %}{% empty %}Tous les services{% endfor %}</p>
+            {% if peut_gerer_ecrans %}<details><summary>{% icone "reglages" %}Modifier</summary>
+            <form method="post" action="{% url 'circuit:ecran_affichage' %}">
+                {% csrf_token %}{% if a %}<input type="hidden" name="affichage" value="{{ a.pk }}">{% endif %}
+                <label for="libelle-{{ a.pk|default:'nouveau' }}">Nom de l'écran</label>
+                <input id="libelle-{{ a.pk|default:'nouveau' }}" name="libelle" maxlength="100" value="{{ a.libelle|default:'' }}" placeholder="ex. TV salle d'attente" required>
+                <p class="discret" style="margin:10px 0 4px">Appels affichés (aucun coché : tous les services de l'écran principal)</p>
+                {% for s in services_ecran %}<label class="case"><input type="checkbox" name="services" value="{{ s.pk }}" {% if a and s in a.services.all %}checked{% endif %}> {% icone s|icone_service %} {{ s.nom }}</label>{% endfor %}
+                <div class="ligne" style="margin-top:8px">
+                    <label for="nb-{{ a.pk|default:'nouveau' }}" style="margin:0">Appels à l'écran</label>
+                    <input id="nb-{{ a.pk|default:'nouveau' }}" type="number" name="nb_appels_affiches" min="1" max="20" value="{{ a.nb_appels_affiches|default:8 }}" style="width:90px;min-width:0">
+                    <label class="case" style="margin:0"><input type="checkbox" name="annonce_vocale" value="1" {% if not a or a.annonce_vocale %}checked{% endif %}> Annonce vocale</label>
+                </div>
+                <div class="ligne" style="margin-top:12px">
+                    <button class="principal">{% icone "check" %}Enregistrer</button>
+                    {% if a %}<button name="action" value="retirer" class="danger" onclick="return confirm('Retirer l\'affichage « {{ a.libelle|escapejs }} » ? Ses écrans afficheront tous les appels.')">{% icone "croix" %}Retirer</button>{% endif %}
+                </div>
+            </form>
+            </details>{% endif %}
+        </div>
+    {% empty %}
+        <div class="attente-vide">{% icone "ecran" %}<strong>Aucun affichage réglé</strong><span class="discret">Tous les écrans montrent tous les appels.{% if peut_gerer_ecrans %} Ajoutez un affichage pour choisir les services de chaque écran.{% endif %}</span></div>
+    {% endfor %}
+    {% if peut_gerer_ecrans %}
+        {% with a=None %}
+        <div class="carte tuile"><details {% if not affichages %}open{% endif %}><summary>{% icone "ecran" %}Ajouter un affichage</summary>
+            <form method="post" action="{% url 'circuit:ecran_affichage' %}">
+                {% csrf_token %}{% if a %}<input type="hidden" name="affichage" value="{{ a.pk }}">{% endif %}
+                <label for="libelle-{{ a.pk|default:'nouveau' }}">Nom de l'écran</label>
+                <input id="libelle-{{ a.pk|default:'nouveau' }}" name="libelle" maxlength="100" value="{{ a.libelle|default:'' }}" placeholder="ex. TV salle d'attente" required>
+                <p class="discret" style="margin:10px 0 4px">Appels affichés (aucun coché : tous les services de l'écran principal)</p>
+                {% for s in services_ecran %}<label class="case"><input type="checkbox" name="services" value="{{ s.pk }}" {% if a and s in a.services.all %}checked{% endif %}> {% icone s|icone_service %} {{ s.nom }}</label>{% endfor %}
+                <div class="ligne" style="margin-top:8px">
+                    <label for="nb-{{ a.pk|default:'nouveau' }}" style="margin:0">Appels à l'écran</label>
+                    <input id="nb-{{ a.pk|default:'nouveau' }}" type="number" name="nb_appels_affiches" min="1" max="20" value="{{ a.nb_appels_affiches|default:8 }}" style="width:90px;min-width:0">
+                    <label class="case" style="margin:0"><input type="checkbox" name="annonce_vocale" value="1" {% if not a or a.annonce_vocale %}checked{% endif %}> Annonce vocale</label>
+                </div>
+                <div class="ligne" style="margin-top:12px">
+                    <button class="principal">{% icone "check" %}Enregistrer</button>
+                    {% if a %}<button name="action" value="retirer" class="danger" onclick="return confirm('Retirer l\'affichage « {{ a.libelle|escapejs }} » ? Ses écrans afficheront tous les appels.')">{% icone "croix" %}Retirer</button>{% endif %}
+                </div>
+            </form>
+        </details></div>
+        {% endwith %}
+    {% endif %}
+    </div>
+</section>
+
 <section class="carte">
     <div class="carte-entete"><h2><span class="titre-icone">{% icone "ecran" %}</span>Écrans reliés par câble</h2><span class="etiquette" id="nombre-ecrans" hidden></span></div>
-    <p class="discret">Écran ou TV branché à cet ordinateur en <strong>HDMI</strong> (ou connecté par Miracast) : il apparaît ici dès que Windows le reconnaît. Choisissez-le une fois ; ensuite, les appels s'y affichent en plein écran à chaque fois qu'il est reconnecté.</p>
+    <p class="discret">Écrans ou TV branchés à cet ordinateur en <strong>HDMI</strong> (ou par Miracast) : ils apparaissent ici dès que Windows les reconnaît. Vous pouvez en utiliser <strong>plusieurs en même temps</strong>, chacun avec son affichage. Choisissez-les une fois ; ensuite, les appels s'y réaffichent en plein écran à chaque reconnexion.</p>
     <div class="tuiles" id="liste-ecrans">
         <div class="attente-vide">{% icone "ecran" %}<strong>Écrans non recherchés</strong><span class="discret">Cliquez sur « Rechercher les écrans » : les écrans branchés à cet ordinateur s'afficheront ici.</span></div>
     </div>
@@ -56,36 +113,70 @@
 </details>
 {% endblock %}
 {% block scripts %}
+{{ affichages_js|json_script:"affichages-ecrans" }}
 <script>
 (function () {
     const adresse = "{{ adresse_ecran|escapejs }}";
-    const CLE = "ecran-salle-choisi";
+    const PEUT_GERER = {% if peut_gerer_ecrans %}true{% else %}false{% endif %};
+    const AFFICHAGES = JSON.parse(document.getElementById("affichages-ecrans").textContent);
+    // Plusieurs écrans (24/11/2026) : { nom de l'écran : id de l'affichage ("" = tous les appels) }.
+    const CLE = "ecrans-salle";
+    const ANCIENNE_CLE = "ecran-salle-choisi";
     const liste = document.getElementById("liste-ecrans");
     let details = null;
-    let fenetre = null;
+    const fenetres = {};
 
     function notifier(texte, genre) { if (window.notifier) { window.notifier(texte, genre); } }
-    function lire() { try { return localStorage.getItem(CLE) || ""; } catch (e) { return ""; } }
-    function memoriser(nom) { try { localStorage.setItem(CLE, nom); } catch (e) {} }
+    function lire() {
+        try {
+            const choix = JSON.parse(localStorage.getItem(CLE) || "{}");
+            const ancien = localStorage.getItem(ANCIENNE_CLE);
+            if (ancien && !(ancien in choix)) { choix[ancien] = ""; }
+            return choix;
+        } catch (e) { return {}; }
+    }
+    function memoriser(choix) {
+        try { localStorage.setItem(CLE, JSON.stringify(choix)); localStorage.removeItem(ANCIENNE_CLE); } catch (e) {}
+    }
     function nomEcran(ecran, rang) { return ecran.label || ("Écran " + (rang + 1)); }
+    function libelleAffichage(id) {
+        const a = AFFICHAGES.find(function (x) { return String(x.id) === String(id); });
+        return a ? a.libelle : "tous les appels";
+    }
+    function ouverte(nom) { return fenetres[nom] && !fenetres[nom].closed; }
 
-    // Affiche l'écran des appels en plein écran sur l'écran physique choisi.
-    function afficherSur(ecran, rang, automatique) {
+    // Affiche l'écran des appels en plein écran sur cet écran physique, avec son affichage.
+    function afficherSur(ecran, rang, automatique, affichage) {
+        const nom = nomEcran(ecran, rang);
         const options = "popup,fullscreen,left=" + ecran.availLeft + ",top=" + ecran.availTop +
             ",width=" + ecran.availWidth + ",height=" + ecran.availHeight;
-        fenetre = window.open(adresse, "ecran-salle", options);
+        const url = adresse + (affichage ? "?affichage=" + encodeURIComponent(affichage) : "");
+        const fenetre = window.open(url, "ecran-salle-" + rang, options);
         if (!fenetre) {
             notifier("Le navigateur a bloqué l'ouverture : autorisez les fenêtres surgissantes pour ce site, puis réessayez.", "warning");
             return;
         }
-        memoriser(nomEcran(ecran, rang));
-        if (!automatique) { notifier("Écran des appels affiché sur « " + nomEcran(ecran, rang) + " ».", "success"); }
+        fenetres[nom] = fenetre;
+        const choix = lire();
+        choix[nom] = affichage || "";
+        memoriser(choix);
+        if (!automatique) { notifier("« " + nom + " » affiche : " + libelleAffichage(affichage) + ".", "success"); }
+        afficherListe();
+    }
+
+    function arreter(nom) {
+        if (ouverte(nom)) { fenetres[nom].close(); }
+        delete fenetres[nom];
+        const choix = lire();
+        delete choix[nom];
+        memoriser(choix);
+        notifier("Affichage arrêté sur « " + nom + " ».", "success");
         afficherListe();
     }
 
     function afficherListe() {
         const ecrans = details.screens;
-        const choisi = lire();
+        const choix = lire();
         const nombre = document.getElementById("nombre-ecrans");
         nombre.textContent = ecrans.length + " écran" + (ecrans.length > 1 ? "s" : "");
         nombre.hidden = false;
@@ -95,19 +186,47 @@
             tuile.className = "carte tuile";
             const nom = nomEcran(ecran, rang);
             const principal = ecran === details.currentScreen;
+            const choisi = nom in choix;
             tuile.innerHTML =
                 '<div class="tuile-haut"><span class="tuile-icone"><svg class="ic" aria-hidden="true"><use href="#i-ecran"></use></svg></span>' +
                 '<div><h2></h2><span class="etiquette"></span></div></div>' +
-                '<p class="discret"></p><button type="button" class="large"></button>';
+                '<p class="discret"></p><label class="discret" hidden>Affichage</label><select hidden></select>' +
+                '<div class="ligne" style="margin-top:8px"><button type="button" class="large"></button></div>';
             tuile.querySelector("h2").textContent = nom;
             const etiquette = tuile.querySelector(".etiquette");
-            etiquette.textContent = principal ? "Écran de cet ordinateur" : (nom === choisi ? "Écran de la salle" : "Écran relié");
-            if (!principal) { etiquette.classList.add(nom === choisi ? "ok" : "info"); }
+            etiquette.textContent = principal ? "Écran de cet ordinateur" : (choisi ? "Affiche : " + libelleAffichage(choix[nom]) : "Écran relié");
+            if (!principal) { etiquette.classList.add(choisi ? "ok" : "info"); }
             tuile.querySelector("p").textContent = ecran.width + " × " + ecran.height + (ecran.isInternal ? " · intégré" : " · externe");
+            // Choix de l'affichage : administrateurs ; les autres gardent celui déjà choisi.
+            const menu = tuile.querySelector("select");
+            if (PEUT_GERER && AFFICHAGES.length) {
+                tuile.querySelector("label").hidden = false;
+                menu.hidden = false;
+                menu.setAttribute("aria-label", "Affichage de " + nom);
+                [{id: "", libelle: "Tous les appels"}].concat(AFFICHAGES).forEach(function (a) {
+                    const option = document.createElement("option");
+                    option.value = a.id;
+                    option.textContent = a.libelle;
+                    if (choisi && String(choix[nom]) === String(a.id)) { option.selected = true; }
+                    menu.appendChild(option);
+                });
+            }
             const bouton = tuile.querySelector("button");
-            bouton.innerHTML = '<svg class="ic" aria-hidden="true"><use href="#i-ecran"></use></svg>Afficher les appels ici';
+            bouton.innerHTML = '<svg class="ic" aria-hidden="true"><use href="#i-ecran"></use></svg>' +
+                (choisi && PEUT_GERER ? "Appliquer à cet écran" : "Afficher les appels ici");
             if (!principal) { bouton.classList.add("principal"); }
-            bouton.addEventListener("click", function () { afficherSur(ecran, rang, false); });
+            bouton.addEventListener("click", function () {
+                const affichage = menu.hidden ? (choisi ? choix[nom] : "") : menu.value;
+                afficherSur(ecran, rang, false, affichage);
+            });
+            if (choisi) {
+                const stop = document.createElement("button");
+                stop.type = "button";
+                stop.className = "large";
+                stop.innerHTML = '<svg class="ic" aria-hidden="true"><use href="#i-croix"></use></svg>Arrêter';
+                stop.addEventListener("click", function () { arreter(nom); });
+                tuile.querySelector(".ligne").appendChild(stop);
+            }
             liste.appendChild(tuile);
         });
         if (ecrans.length < 2) {
@@ -118,12 +237,12 @@
         }
     }
 
-    // Écran de la salle rebranché ou reconnecté : les appels s'y réaffichent tout seuls.
+    // Écrans rebranchés ou reconnectés : les appels s'y réaffichent tout seuls, chacun avec son affichage.
     function reconnecter() {
-        const choisi = lire();
-        if (!choisi || (fenetre && !fenetre.closed)) { return; }
+        const choix = lire();
         details.screens.forEach(function (ecran, rang) {
-            if (nomEcran(ecran, rang) === choisi && ecran !== details.currentScreen) { afficherSur(ecran, rang, true); }
+            const nom = nomEcran(ecran, rang);
+            if (nom in choix && !ouverte(nom) && ecran !== details.currentScreen) { afficherSur(ecran, rang, true, choix[nom]); }
         });
     }
 

@@ -38,6 +38,7 @@ urlpatterns = [
     path("ecran/annonce/<int:appel_id>/", views_postes.ecran_annonce, name="ecran_annonce"),
     path("ecran/reseau/", views.ecrans_reseau, name="ecrans_reseau"),
     path("ecran/wifi/choisir/", views.ecran_wifi_choisir, name="ecran_wifi_choisir"),
+    path("ecran/affichage/", views.ecran_affichage, name="ecran_affichage"),
     path("ecran/salle/<str:code_centre>/", views_postes.ecran_salle, name="ecran_salle"),
     path("ecran/salle/<str:code_centre>/appels/", views_postes.ecran_salle_appels, name="ecran_salle_appels"),
     path("poste/deconnexion/", views_postes.poste_deconnexion, name="poste_deconnexion"),

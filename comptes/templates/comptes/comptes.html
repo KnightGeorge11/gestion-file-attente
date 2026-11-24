@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% load interface %}
+{% block titre %}Comptes{% endblock %}
+{% block contenu %}
+<div class="entete-page">
+    <div>
+        <h1>Comptes</h1>
+        <p class="sous-titre">Qui est connecté maintenant, et le profil de chaque compte. Un compte est connecté s'il a une page de la plateforme ouverte (activité depuis moins de {{ minutes_presence }} min).</p>
+    </div>
+    <span class="etiquette ok vivant">Mise à jour toutes les 30 s</span>
+</div>
+
+<form method="get" class="carte compacte barre-filtres" style="margin-bottom:20px">
+    <a class="bouton {% if vue == 'connectes' %}principal{% endif %}" href="?vue=connectes{% if recherche %}&q={{ recherche|urlencode }}{% endif %}">{% icone "utilisateur" %}Connectés maintenant ({{ nb_connectes }})</a>
+    <a class="bouton {% if vue != 'connectes' %}principal{% endif %}" href="?vue=tous{% if recherche %}&q={{ recherche|urlencode }}{% endif %}">{% icone "groupe" %}Tous les comptes ({{ nb_comptes }})</a>
+    <input type="hidden" name="vue" value="{{ vue }}">
+    <input name="q" value="{{ recherche }}" placeholder="Nom ou identifiant" aria-label="Rechercher un compte">
+    <button>{% icone "recherche" %}Rechercher</button>
+</form>
+
+<div id="zone-comptes" hx-get="{{ request.get_full_path }}" hx-trigger="every 30s [pasDeSaisie()]" hx-select="#zone-comptes" hx-swap="outerHTML" hx-disinherit="hx-select hx-swap hx-target">
+<section class="carte sans-marge">
+    <div class="tableau-defilant">
+    <table>
+        <thead><tr><th>Compte</th><th>Rôle (centre)</th><th>État</th><th>Centre ouvert</th><th>Appareil</th><th></th></tr></thead>
+        <tbody>
+        {% for l in lignes %}
+        <tr>
+            <td><strong>{{ l.utilisateur }}</strong><div class="discret">{{ l.utilisateur.username }}{% if not l.utilisateur.is_active %} · <span class="texte-alerte">désactivé</span>{% endif %}</div></td>
+            <td>{{ l.roles|join:", "|default:l.utilisateur.get_type_compte_display }}</td>
+            <td>{% if l.connecte %}<span class="etiquette ok">Connecté</span><div class="discret">{% if l.vu_il_y_a %}actif il y a {{ l.vu_il_y_a }} min{% else %}actif maintenant{% endif %}{% if l.sessions > 1 %} · {{ l.sessions }} appareils{% endif %}</div>
+                {% else %}<span class="etiquette">Hors ligne</span><div class="discret">{% if l.utilisateur.last_login %}dernière connexion le {{ l.utilisateur.last_login|date:"d/m à H:i" }}{% else %}jamais connecté{% endif %}</div>{% endif %}</td>
+            <td>{{ l.centre.nom|default:"—" }}</td>
+            <td>{% if l.connecte %}{{ l.appareil }}<div class="discret">{{ l.ip|default:"" }}</div>{% else %}—{% endif %}</td>
+            <td><a class="bouton petit" href="{% url 'comptes:profil' l.utilisateur.pk %}">{% icone "utilisateur" %}Profil</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="vide">{% if vue == 'connectes' %}Aucun compte connecté en ce moment.{% else %}Aucun compte ne correspond à cette recherche.{% endif %}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</section>
+</div>
+{% endblock %}

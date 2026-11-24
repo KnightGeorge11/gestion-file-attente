@@ -25,9 +25,19 @@ def navigation(request):
             "nb_notifications": nombre_notifications(utilisateur, centre),
             # Onglet « Demandes » : agents qui orientent les demandes « Autre » (24/11/2026).
             "peut_orienter": _peut_orienter(utilisateur, centre),
+            # Infirmerie en relais de l'accueil (24/11/2026) : bandeau d'information.
+            "relais_accueil_actif": _relais_accueil(utilisateur, centre),
+            "est_admin_plateforme": _est_admin_plateforme(utilisateur),
         }
     )
     return contexte
+
+
+def _relais_accueil(utilisateur, centre):
+    from comptes.permissions import affectation_active
+    from comptes.presence import relais_accueil
+
+    return relais_accueil(affectation_active(utilisateur, centre), centre)
 
 
 def _administre_bornes(utilisateur, centre):
@@ -43,3 +53,9 @@ def _peut_orienter(utilisateur, centre):
 
     accueil = Service.objects.filter(centre=centre, est_accueil=True).first()
     return a_droit(utilisateur, "circuit.orienter_demande", centre, accueil)
+
+
+def _est_admin_plateforme(utilisateur):
+    from centres.access import est_administrateur_central
+
+    return est_administrateur_central(utilisateur)

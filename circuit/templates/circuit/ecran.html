@@ -13,7 +13,7 @@
     </div>
 </header>
 {# La version permet au serveur de faire recharger une page ouverte avant une mise à jour. #}
-<div id="zone-appels" hx-get="{{ url_appels }}?v={{ version_ecrans }}" hx-trigger="load, every 3s" hx-swap="innerHTML"></div>
+<div id="zone-appels" hx-get="{{ url_appels }}?v={{ version_ecrans }}{% if affichage %}&affichage={{ affichage.pk }}{% endif %}" hx-trigger="load, every 3s" hx-swap="innerHTML"></div>
 <footer class="ecran-pied">
     <span>{% icone "info" %} Gardez votre ticket et surveillez cet écran : votre numéro s'affiche quand un service vous appelle.</span>
     <span>Merci de votre patience</span>

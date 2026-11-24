@@ -12,6 +12,11 @@
     <div class="accueil-admin-liens">
       <a class="lien-clair" href="{% url 'accueil' %}">{% icone "fleche-gauche" %}Retour à l'application</a>
       <a class="lien-clair" href="{% url 'circuit:ecran' %}" target="_blank" rel="noopener">{% icone "ecran" %}Écran principal</a>
+      {% if user.is_superuser or user.type_compte == "ADMIN" %}
+      {# Suivi des comptes (24/11/2026) : administrateur de la plateforme seulement. #}
+      <a class="lien-clair" href="{% url 'comptes:comptes' %}?vue=connectes">{% icone "utilisateur" %}Comptes connectés</a>
+      <a class="lien-clair" href="{% url 'comptes:comptes' %}?vue=tous">{% icone "groupe" %}Profils des comptes</a>
+      {% endif %}
     </div>
   </section>
 

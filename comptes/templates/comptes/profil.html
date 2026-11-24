@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% load interface %}
+{% block titre %}Profil · {{ u }}{% endblock %}
+{% block contenu %}
+<div class="entete-page">
+    <div>
+        <h1>{{ u }}</h1>
+        <p class="sous-titre">Identifiant {{ u.username }} · {{ u.get_type_compte_display }}{% if not u.is_active %} · <span class="texte-alerte">compte désactivé</span>{% endif %}</p>
+    </div>
+    <span class="ligne">
+        <a class="bouton" href="{% url 'comptes:comptes' %}">{% icone "fleche-gauche" %}Tous les comptes</a>
+        <a class="bouton principal" hx-boost="false" href="{% url 'admin:comptes_utilisateur_change' u.pk %}">{% icone "reglages" %}Modifier dans l'administration</a>
+    </span>
+</div>
+
+<div class="indicateurs">
+    <div class="indicateur {% if info %}ok{% endif %}"><span class="pictogramme">{% icone "utilisateur" %}</span><div><div class="valeur" style="font-size:1.1rem">{% if info %}Connecté{% else %}Hors ligne{% endif %}</div><div class="libelle">{% if info %}actif à {{ info.vu_a|time:"H:i" }}{% if centre_ouvert %} · {{ centre_ouvert.nom }}{% endif %}{% elif u.last_login %}dernière connexion le {{ u.last_login|date:"d/m/Y à H:i" }}{% else %}jamais connecté{% endif %}</div></div></div>
+    <div class="indicateur accent"><span class="pictogramme">{% icone "check-cercle" %}</span><div><div class="valeur">{{ prises_en_charge_jour }}</div><div class="libelle">patient{{ prises_en_charge_jour|pluralize }} pris en charge aujourd'hui</div></div></div>
+    <div class="indicateur"><span class="pictogramme">{% icone "appel" %}</span><div><div class="valeur">{{ appels_jour }}</div><div class="libelle">appel{{ appels_jour|pluralize }} aujourd'hui</div></div></div>
+    <div class="indicateur"><span class="pictogramme">{% icone "calendrier" %}</span><div><div class="valeur" style="font-size:1.1rem">{{ u.date_joined|date:"d/m/Y" }}</div><div class="libelle">compte créé</div></div></div>
+</div>
+
+<div class="grille">
+<section class="carte">
+    <div class="carte-entete"><h2><span class="titre-icone">{% icone "utilisateur" %}</span>Identité</h2></div>
+    <ul class="chronologie">
+        <li>Prénom <strong class="pousse">{{ u.first_name|default:"—" }}</strong></li>
+        <li>Nom <strong class="pousse">{{ u.last_name|default:"—" }}</strong></li>
+        <li>Courriel <strong class="pousse">{{ u.email|default:"—" }}</strong></li>
+        <li>Téléphone <strong class="pousse">{{ u.telephone|default:"—" }}</strong></li>
+        <li>Accès à l'administration <strong class="pousse">{% if u.is_superuser %}complet{% elif u.is_staff %}oui{% else %}non{% endif %}</strong></li>
+        {% if info %}<li>Appareil <strong class="pousse">{{ appareil }}{% if info.ip %} · {{ info.ip }}{% endif %}{% if info.sessions > 1 %} · {{ info.sessions }} appareils{% endif %}</strong></li>{% endif %}
+    </ul>
+</section>
+<section class="carte">
+    <div class="carte-entete"><h2><span class="titre-icone">{% icone "centre" %}</span>Affectations</h2></div>
+    <ul class="chronologie">
+    {% for a in affectations %}
+        <li style="display:block">
+            <div class="ligne"><strong>{{ a.centre.nom }}</strong><span class="etiquette {% if a.actif %}ok{% endif %} pousse">{% if a.actif %}Active{% else %}Inactive{% endif %}</span></div>
+            <div class="discret">Rôle : {% if a.groupe_id %}{{ a.groupe.name }}{% else %}{{ a.get_role_display }}{% endif %}
+                · Services : {% for s in a.services_autorises.all %}{{ s.service.nom }}{% if not forloop.last %}, {% endif %}{% empty %}tous{% endfor %}
+                {% if a.salle %} · Salle : {{ a.salle }}{% endif %}
+                {% with nb=a.permissions.all|length %}{% if nb %} · {{ nb }} droit{{ nb|pluralize }} en plus{% endif %}{% endwith %}</div>
+        </li>
+    {% empty %}<li class="vide">Aucune affectation.</li>{% endfor %}
+    </ul>
+</section>
+</div>
+
+<section class="carte sans-marge" style="margin-top:20px">
+    <div class="carte-entete" style="padding:16px 20px 0"><h2><span class="titre-icone">{% icone "historique" %}</span>Dernières actions enregistrées</h2></div>
+    <div class="tableau-defilant" style="margin-top:12px">
+    <table>
+        <thead><tr><th>Date</th><th>Action</th><th>Centre</th><th>Objet</th></tr></thead>
+        <tbody>
+        {% for j in journal %}
+        <tr><td class="discret">{{ j.date|date:"d/m/Y H:i" }}</td><td>{{ j.get_action_display }}</td><td>{{ j.centre.nom|default:"—" }}</td><td>{{ j.objet_libelle|default:"—" }}</td></tr>
+        {% empty %}<tr><td colspan="4" class="vide">Aucune action enregistrée.</td></tr>{% endfor %}
+        </tbody>
+    </table>
+    </div>
+</section>
+{% endblock %}

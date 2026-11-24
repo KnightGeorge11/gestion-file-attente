@@ -312,6 +312,8 @@ class EcranAffichageAdmin(CentreAdminMixin, admin.ModelAdmin):
     list_display = ("code", "libelle", "centre", "actif", "derniere_activite")
     list_filter = ("centre", "actif")
     readonly_fields = ("derniere_activite", "date_creation")
+    # Services affichés sur l'écran (décision du 24/11/2026).
+    filter_horizontal = ("services",)
     actions = ("regenerer_cle",)
 
     save_model = _sauver_ecran_avec_cle
@@ -327,7 +329,7 @@ class AppareilEcranAdmin(admin.ModelAdmin):
 
     list_display = ("__str__", "code", "adresse_ip", "centre", "en_ligne", "derniere_activite")
     list_filter = ("centre",)
-    fields = ("nom", "code", "centre", "adresse_ip", "navigateur", "date_creation", "derniere_activite")
+    fields = ("nom", "code", "centre", "affichage", "adresse_ip", "navigateur", "date_creation", "derniere_activite")
     readonly_fields = ("code", "adresse_ip", "navigateur", "date_creation", "derniere_activite")
 
     @admin.display(boolean=True, description="En ligne")

@@ -609,7 +609,17 @@ class EcranAffichage(ModeleCentre):
 
     code = models.CharField(max_length=30)
     libelle = models.CharField(max_length=100)
-    cle_hash = models.CharField(max_length=128, editable=False)
+    # Ancien mode à clé ; « ! » : réglage d'affichage créé depuis la page Écran, sans clé.
+    cle_hash = models.CharField(max_length=128, editable=False, default="!")
+    # Ce que l'écran affiche (décision du 24/11/2026) : l'administrateur choisit
+    # les services dont les appels s'affichent sur chaque écran.
+    services = models.ManyToManyField(
+        "centres.Service",
+        blank=True,
+        related_name="ecrans_affichage",
+        verbose_name="Services affichés",
+        help_text="Appels affichés sur cet écran. Aucun : tous les services affichés à l'écran principal.",
+    )
     nb_appels_affiches = models.PositiveSmallIntegerField(
         default=8,
         validators=[MinValueValidator(1)],
@@ -690,6 +700,11 @@ class AppareilEcran(models.Model):
     centre = models.ForeignKey(
         Centre, on_delete=models.SET_NULL, null=True, blank=True, related_name="appareils_ecran",
         help_text="Centre dont l'écran affiche les appels. Vide : écran libre, en attente.",
+    )
+    # Réglage d'affichage choisi par l'administrateur (services, nombre d'appels, voix).
+    affichage = models.ForeignKey(
+        EcranAffichage, on_delete=models.SET_NULL, null=True, blank=True, related_name="appareils",
+        help_text="Ce que cet écran affiche. Vide : tous les appels du centre.",
     )
     date_creation = models.DateTimeField(auto_now_add=True)
     derniere_activite = models.DateTimeField()
