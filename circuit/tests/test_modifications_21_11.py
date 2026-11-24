@@ -186,14 +186,16 @@ class ServicesParBorneTests(BaseVues):
         self.client.post(reverse("circuit:borne_emettre"), {"mode": "EXTERNE", "parcours": self.d.parcours["E"].pk})
         self.assertFalse(Ticket.objects.exists())                 # service non proposé : refusé
 
-    def test_seul_l_admin_de_la_plateforme_choisit_les_services(self):
+    def test_l_admin_du_centre_choisit_les_services_de_ses_bornes(self):
+        # Décision du 24/11/2026 (remplace celle du 21/11) : l'administrateur
+        # du centre choisit aussi les services, parmi ceux de ses centres.
         modele_admin = site._registry[Borne]
         requete = RequestFactory().get("/")
         requete.user = self.d.agent("admin_c", "Administrateur de centre")
-        self.assertIn("parcours", modele_admin.get_readonly_fields(requete))
-        requete.user = self.d.agent("super", "Accueil")
-        requete.user.is_superuser = True
         self.assertNotIn("parcours", modele_admin.get_readonly_fields(requete))
+        champ = modele_admin.formfield_for_manytomany(Borne._meta.get_field("parcours"), requete)
+        self.assertTrue(champ.queryset.filter(centre=self.d.centre).exists())
+        self.assertFalse(champ.queryset.exclude(centre=self.d.centre).exists())
 
 
 class AccueilDelivreLesTicketsTests(BaseVues):

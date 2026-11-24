@@ -206,13 +206,6 @@ class BorneAdmin(CentreAdminMixin, admin.ModelAdmin):
     # appareil par un administrateur connecté (page …/circuit/borne/).
     actions = ("activer", "desactiver")
 
-    def get_readonly_fields(self, request, obj=None):
-        champs = super().get_readonly_fields(request, obj)
-        if not est_administrateur_central(request.user):
-            # Seul l'administrateur de la plateforme choisit les services des bornes.
-            champs = (*champs, "parcours")
-        return champs
-
     # -- Activer / désactiver en un clic -----------------------------------
 
     def get_urls(self):

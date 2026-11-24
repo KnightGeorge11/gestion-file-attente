@@ -106,6 +106,13 @@ def bornes(request):
     liste = list(_bornes_administrees(request).order_by("libelle"))
     for borne in liste:
         borne.services = [p.libelle_borne for p in borne.parcours_proposes().order_by("ordre_affichage")]
+        # Choix des services proposés (décision du 24/11/2026).
+        choisis = {p.pk for p in borne.parcours.all()}
+        borne.choix_services = [
+            {"parcours": p, "coche": not choisis or p.pk in choisis}
+            for p in borne.parcours_possibles().order_by("ordre_affichage", "libelle_borne")
+        ]
+        borne.tous_les_services = not choisis
     appareil = _borne_de_l_appareil(request)
     return render(request, "circuit/bornes.html", {
         "page": "bornes",
@@ -131,6 +138,38 @@ def borne_basculer(request, borne_id):
     journaliser(JournalAudit.Action.MODIFICATION, request.user, objet=borne,
                 details={"actif": borne.actif}, request=request)
     messages.success(request, f"Borne « {borne.libelle} » {etat}.")
+    return redirect("circuit:bornes")
+
+
+@require_POST
+@centre_actif_requis
+def borne_services(request, borne_id):
+    """
+    Services proposés par une borne (décision du 24/11/2026) : l'administrateur
+    du centre coche les services affichés sur la borne. Tout cocher revient à
+    « tous les services du centre », y compris ceux ajoutés plus tard.
+    """
+    from audit.journal import journaliser
+    from audit.models import JournalAudit
+
+    borne = get_object_or_404(_bornes_administrees(request), pk=borne_id)
+    if not a_droit(request.user, "centres.change_borne", request.centre_actif):
+        raise PermissionDenied
+    possibles = list(borne.parcours_possibles())
+    demandes = {entier(v) for v in request.POST.getlist("parcours")}
+    choisis = [p for p in possibles if p.pk in demandes]
+    if not choisis:
+        messages.error(request, f"Borne « {borne.libelle} » : cochez au moins un service.")
+        return redirect("circuit:bornes")
+    if len(choisis) == len(possibles):
+        borne.parcours.clear()
+        libelle = "tous les services du centre"
+    else:
+        borne.parcours.set(choisis)
+        libelle = ", ".join(p.libelle_borne for p in choisis)
+    journaliser(JournalAudit.Action.MODIFICATION, request.user, objet=borne,
+                details={"services_proposes": [p.libelle_borne for p in choisis]}, request=request)
+    messages.success(request, f"Borne « {borne.libelle} » : {libelle}.")
     return redirect("circuit:bornes")
 
 

@@ -535,8 +535,8 @@ class Borne(ModeleCentre):
     )
 
     # Services proposés par cette borne (décision du 21/11/2026), choisis par
-    # l'administrateur de la plateforme. Aucun coché : tous les services
-    # visibles du centre.
+    # l'administrateur du centre depuis la page « Borne » ou l'administration
+    # (décision du 24/11/2026). Aucun coché : tous les services visibles du centre.
     parcours = models.ManyToManyField(
         "parcours.Parcours",
         blank=True,
@@ -580,14 +580,19 @@ class Borne(ModeleCentre):
         if self.imprimante_id and self.centre_id and self.imprimante.centre_id != self.centre_id:
             raise ValidationError({"imprimante": "L'imprimante doit appartenir au même centre que la borne."})
 
-    def parcours_proposes(self):
-        """Parcours affichés sur cette borne (tous ceux du centre si aucun n'est choisi)."""
+    def parcours_possibles(self):
+        """Services que cette borne peut proposer (ceux du centre, actifs et visibles à la borne)."""
         from parcours.models import Parcours
 
         tous = Parcours.objects.filter(centre_id=self.centre_id, actif=True, visible_borne=True)
         if not self.centre.accueil_delivre_tickets:
             # Borne en libre-service : jamais le médecin en chef (décision du 22/11/2026).
             tous = tous.filter(reserve_accueil=False)
+        return tous
+
+    def parcours_proposes(self):
+        """Parcours affichés sur cette borne (tous ceux du centre si aucun n'est choisi)."""
+        tous = self.parcours_possibles()
         if self.pk and self.parcours.exists():
             return tous.filter(pk__in=self.parcours.values("pk"))
         return tous

@@ -577,3 +577,42 @@ class ReponseDuMedecinEnChefTests(BaseVues):
         self.assertContains(page, "Envoyez-le maintenant")
         self.assertContains(page, "Patient attendu")
         self.assertEqual(self.client.get(reverse("circuit:badge_notifications")).content, b"")
+
+
+class ServicesDeLaBorneParLAdministrateurTests(BaseVues):
+    """Décision du 24/11/2026 : l'administrateur du centre choisit les services affichés sur la borne."""
+
+    def setUp(self):
+        super().setUp()
+        self.admin = self.d.agent("admin_centre", "Administrateur de centre")
+        self.admin.is_staff = True
+        self.admin.save(update_fields=["is_staff"])
+        self.borne = Borne.objects.create(centre=self.d.centre, code="B1", libelle="Tablette")
+        self.url = reverse("circuit:borne_services", args=[self.borne.pk])
+
+    def test_choix_des_services_puis_retour_a_tous(self):
+        self.connecter(self.admin, self.d.centre)
+        self.assertContains(self.client.get(reverse("circuit:bornes")), "Choisir les services affichés")
+        dentiste = self.d.parcours["D"]
+        self.client.post(self.url, {"parcours": [dentiste.pk]})
+        self.assertEqual(list(self.borne.parcours_proposes()), [dentiste])
+        tous = [p.pk for p in self.borne.parcours_possibles()]
+        self.client.post(self.url, {"parcours": tous})
+        self.assertFalse(self.borne.parcours.exists())          # tout coché : tous les services
+        self.assertEqual(self.borne.parcours_proposes().count(), len(tous))
+
+    def test_aucun_service_coche_refuse(self):
+        self.connecter(self.admin, self.d.centre)
+        self.client.post(self.url, {"parcours": [self.d.parcours["D"].pk]})
+        self.client.post(self.url, {})
+        self.assertEqual(list(self.borne.parcours.all()), [self.d.parcours["D"]])
+
+    def test_service_d_un_autre_centre_ignore(self):
+        self.connecter(self.admin, self.d.centre)
+        self.client.post(self.url, {"parcours": [self.b.parcours["D"].pk, self.d.parcours["M"].pk]})
+        self.assertEqual(list(self.borne.parcours.all()), [self.d.parcours["M"]])
+
+    def test_un_agent_ne_peut_pas_modifier(self):
+        self.connecter(self.accueil, self.d.centre)
+        self.assertEqual(self.client.post(self.url, {"parcours": [self.d.parcours["D"].pk]}).status_code, 403)
+        self.assertFalse(self.borne.parcours.exists())

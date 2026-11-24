@@ -34,6 +34,7 @@ urlpatterns = [
     path("ecran/connexion/", views.ecran_connexion, name="ecran_connexion"),
     path("bornes/", views.bornes, name="bornes"),
     path("bornes/<int:borne_id>/basculer/", views.borne_basculer, name="borne_basculer"),
+    path("bornes/<int:borne_id>/services/", views.borne_services, name="borne_services"),
     path("ecran/annonce/<int:appel_id>/", views_postes.ecran_annonce, name="ecran_annonce"),
     path("ecran/reseau/", views.ecrans_reseau, name="ecrans_reseau"),
     path("ecran/wifi/choisir/", views.ecran_wifi_choisir, name="ecran_wifi_choisir"),

@@ -29,7 +29,21 @@
                 </div>
             </div>
             <p class="discret">Code {{ b.code }} · {% if b.derniere_activite %}dernière activité le {{ b.derniere_activite|date:"d/m à H:i" }}{% else %}jamais utilisée{% endif %}</p>
-            <p class="discret">{% icone "services" %} {{ b.services|join:", "|default:"Aucun service proposé" }}</p>
+            <p class="discret">{% icone "services" %} {% if b.tous_les_services %}Tous les services : {% endif %}{{ b.services|join:", "|default:"Aucun service proposé" }}</p>
+            {% if peut_modifier %}
+            {# Services proposés par la borne, choisis par l'administrateur (décision du 24/11/2026). #}
+            <details>
+                <summary>{% icone "reglages" %}Choisir les services affichés</summary>
+                <form method="post" action="{% url 'circuit:borne_services' b.pk %}" style="margin-top:10px">
+                    {% csrf_token %}
+                    {% for c in b.choix_services %}
+                    <label class="case"><input type="checkbox" name="parcours" value="{{ c.parcours.pk }}" {% if c.coche %}checked{% endif %}> {% icone c.parcours|icone_service %} {{ c.parcours.libelle_borne }}</label>
+                    {% empty %}<p class="discret">Aucun service visible à la borne dans ce centre.</p>{% endfor %}
+                    <p class="discret" style="font-size:.82rem">Tout cocher : tous les services du centre, y compris ceux ajoutés plus tard.</p>
+                    {% if b.choix_services %}<button class="principal large">{% icone "check" %}Enregistrer les services</button>{% endif %}
+                </form>
+            </details>
+            {% endif %}
             <p class="discret">{% icone "imprimante" %} {% if b.imprimante %}{{ b.imprimante }}{% else %}Impression par le navigateur{% endif %}</p>
             <div class="ligne">
                 {# Borne ouverte dans un nouvel onglet (décision du 23/11/2026). #}
@@ -49,6 +63,6 @@
         <div class="attente-vide">{% icone "imprimante" %}<strong>Aucune borne dans ce centre</strong><span class="discret">Créez-la dans l'administration (Bornes), puis revenez ici pour l'activer.</span></div>
     {% endfor %}
     </div>
-    {% if user.is_staff %}<p class="discret" style="margin-bottom:0">Services proposés et imprimante de chaque borne : <a href="{% url 'admin:centres_borne_changelist' %}" hx-boost="false">administration des bornes</a>.</p>{% endif %}
+    {% if user.is_staff %}<p class="discret" style="margin-bottom:0">Imprimante de chaque borne : <a href="{% url 'admin:centres_borne_changelist' %}" hx-boost="false">administration des bornes</a>.</p>{% endif %}
 </section>
 {% endblock %}
