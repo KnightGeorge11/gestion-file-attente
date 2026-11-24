@@ -15,6 +15,7 @@ from circuit.services import ErreurCircuit
 from comptes.models import AffectationUtilisateur, Utilisateur
 
 from .base import activer_borne, LUNDI_MATIN, Donnees, a_heure
+from core.outils_tests import acces_administration_de_centre
 
 
 class BaseVues(TestCase):
@@ -367,6 +368,7 @@ class StatistiquesEtAuditTests(BaseVues):
         self.assertEqual(entree.details["apres"]["nombre_places"], 9)
 
 
+@acces_administration_de_centre
 class IsolationCompleteTests(BaseVues):
     """Un agent du centre B ne lit ni ne modifie rien du centre A."""
 
@@ -1066,6 +1068,7 @@ class InterfaceDynamiqueTests(BaseVues):
 
 
 @override_settings(RESEAU_LOCAL_UNIQUEMENT=True, BORNE_DELAI_MIN_SECONDES=0)
+@acces_administration_de_centre
 class ActivationBorneEnUnClicTests(BaseVues):
     """L'administrateur active ou désactive une borne en un clic (19/11/2026)."""
 
@@ -1130,6 +1133,7 @@ class ActivationBorneEnUnClicTests(BaseVues):
                 self.assertIn('hx-disinherit="hx-select hx-swap hx-target"', balise, url)
 
 
+@acces_administration_de_centre
 class DeuxTypesAdministrateurTests(BaseVues):
     """Décision du 19/11/2026 : administrateur de la plateforme et administrateur de centre."""
 

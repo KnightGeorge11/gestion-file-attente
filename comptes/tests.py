@@ -14,6 +14,7 @@ from centres.models import Centre, Service
 from comptes.management.commands.initialiser_roles import ROLES, initialiser_roles
 from comptes.models import AffectationService, AffectationUtilisateur, Utilisateur
 from comptes.permissions import a_droit, appel_limite_aux_autres
+from core.outils_tests import acces_administration_de_centre
 
 MDP = "mot-de-passe-1"
 
@@ -213,6 +214,7 @@ class MultiCentresTests(BaseComptes):
         self.assertEqual(reponse.status_code, 302)
 
 
+@acces_administration_de_centre
 class AdministrationTests(BaseComptes):
     """Un responsable ayant accès à l'administration reste limité à ses centres."""
 
@@ -264,6 +266,7 @@ class AdministrationTests(BaseComptes):
         self.assertEqual(reponse.status_code, 302)
 
 
+@acces_administration_de_centre
 class AdministrateurDeCentreSecuriteTests(BaseComptes):
     """
     Audit du 20/11/2026 : un administrateur de centre ne doit ni s'attribuer
@@ -396,6 +399,7 @@ def formulaire_comme_le_navigateur(reponse):
     return donnees
 
 
+@acces_administration_de_centre
 class AdministrateursDeCentreEntreEuxTests(BaseComptes):
     """
     Relecture du 23/11/2026 : enregistrer une fiche ne doit pas effacer le rôle
@@ -435,6 +439,7 @@ class AdministrateursDeCentreEntreEuxTests(BaseComptes):
         self.assertTrue(self.collegue.is_active)
 
 
+@acces_administration_de_centre
 class RelectureLot2AdministrationTests(BaseComptes):
     """Relecture du 23/11/2026, lot 2 : administration d'un administrateur de centre."""
 

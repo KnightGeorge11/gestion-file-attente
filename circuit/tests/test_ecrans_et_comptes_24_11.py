@@ -164,7 +164,11 @@ class ListesDeLAdministrationTests(BaseVues):
         admin_centre = self.d.agent("admin_centre", "Administrateur de centre")
         admin_centre.is_staff = True
         admin_centre.save(update_fields=["is_staff"])
-        for compte in (plateforme, admin_centre):
+        # Administrateur de centre : l'administration lui est fermée (24/11/2026).
+        self.client.force_login(admin_centre)
+        self.assertNotEqual(self.client.get(reverse("admin:index")).status_code, 200)
+        self.assertNotEqual(self.client.get(reverse("admin:centres_borne_changelist")).status_code, 200)
+        for compte in (plateforme,):
             self.client.force_login(compte)
             for modele, modele_admin in admin.site._registry.items():
                 if not modele_admin.has_view_or_change_permission(type("R", (), {"user": compte})()):

@@ -59,7 +59,7 @@ Utiliser le **centre 002** (le plus propre pour une démonstration).
 **Important** : une fenêtre de navigation privée perd la borne quand on la ferme. Utilisez une fenêtre normale (ou la tablette).
 
 Tous les comptes de test ont le mot de passe **1234** :
-`accueil1/2`, `infirmier1/2`, `medecin1/2`, `chef1` (le médecin en chef, un seul : demandes « Autre »), `dentiste1/2`, `echographie1/2`, `pharmacie1/2`, `direction1/2` (statistiques), `responsable1/2` (dérogations). `admin1/2` (administration du centre). L'accueil délivre les tickets et oriente les « Autre » ; les patients vont directement au premier service de leur parcours. Responsables, direction, médecin en chef et administrateurs n'appellent aucun patient.
+`accueil1/2`, `infirmier1/2`, `medecin1/2`, `chef1` (le médecin en chef, un seul : demandes « Autre »), `dentiste1/2`, `echographie1/2`, `pharmacie1/2`, `direction1/2` (statistiques), `responsable1/2` (dérogations). `admin1/2` (bornes, écrans et statistiques du centre ; l'administration Django est réservée à l'administrateur de la plateforme). L'accueil délivre les tickets et oriente les « Autre » ; les patients vont directement au premier service de leur parcours. Responsables, direction, médecin en chef et administrateurs n'appellent aucun patient.
 
 ---
 

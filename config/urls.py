@@ -11,6 +11,8 @@ admin.site.site_title = "Administration SMIE FUNTOA"
 # Même blocage après plusieurs échecs que la page de connexion.
 admin.site.login_form = AdminConnexionForm
 
+# Accès à l'administration : administrateur de la plateforme seulement (core/apps.py).
+
 urlpatterns = [
     path("", core_views.accueil, name="accueil"),
     path("connexion/", auth_views.LoginView.as_view(authentication_form=ConnexionForm), name="connexion"),

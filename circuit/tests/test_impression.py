@@ -20,6 +20,7 @@ from circuit.management.commands.imprimante_simulee import texte_lisible
 from circuit.models import Evenement, Ticket
 
 from .base import activer_borne, Donnees
+from core.outils_tests import acces_administration_de_centre
 
 
 class ImprimanteFactice:
@@ -62,6 +63,7 @@ def port_ferme():
 
 
 @override_settings(RESEAU_LOCAL_UNIQUEMENT=True, BORNE_DELAI_MIN_SECONDES=0, IMPRIMANTE_SIMULEE_AUTORISEE=True)
+@acces_administration_de_centre
 class ImpressionReseauTests(TestCase):
     def setUp(self):
         self.d = Donnees().construire()
