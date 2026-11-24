@@ -416,7 +416,8 @@ class BorneDansUnNouvelOngletTests(BaseVues):
         self.assertIn('target="_blank"', formulaire[:formulaire.index(">")])
         activer_borne(self.client, borne)
         page = self.client.get(reverse("circuit:bornes"))
-        self.assertContains(page, 'target="_blank" rel="noopener">Ouvrir la borne')
+        self.assertContains(page, 'target="_blank" rel="noopener" hx-boost="false" style="flex:1 1 100%">')
+        self.assertContains(page, "Ouvrir la borne</a>")
 
 
 class PharmacieActionPrincipaleTests(BaseVues):
@@ -616,3 +617,23 @@ class ServicesDeLaBorneParLAdministrateurTests(BaseVues):
         self.connecter(self.accueil, self.d.centre)
         self.assertEqual(self.client.post(self.url, {"parcours": [self.d.parcours["D"].pk]}).status_code, 403)
         self.assertFalse(self.borne.parcours.exists())
+
+
+class OuvrirLaBorneDeCetAppareilTests(BaseVues):
+    """24/11/2026 : sur l'appareil déjà borne, « Ouvrir la borne » ouvre un nouvel onglet, sans déconnexion."""
+
+    def test_ouvrir_la_borne_sans_etre_deconnecte(self):
+        admin = self.d.agent("admin_centre", "Administrateur de centre")
+        admin.is_staff = True
+        admin.save(update_fields=["is_staff"])
+        borne = Borne.objects.create(centre=self.d.centre, code="B1", libelle="Tablette")
+        activer_borne(self.client, borne)
+        self.connecter(admin, self.d.centre)
+        page = self.client.get(reverse("circuit:bornes"))
+        self.assertContains(page, "Cet appareil est la borne")
+        html = page.content.decode()
+        lien = html[html.rindex("<a", 0, html.index("Ouvrir la borne</a>")):]
+        self.assertIn('target="_blank"', lien[:lien.index(">")])
+        self.assertIn(reverse("circuit:borne"), lien[:lien.index(">")])
+        self.assertTemplateUsed(self.client.get(reverse("circuit:borne")), "circuit/borne.html")
+        self.assertEqual(self.client.get(reverse("circuit:bornes")).status_code, 200)   # toujours connecté

@@ -5,14 +5,16 @@
 <div class="entete-page">
     <div>
         <h1>Borne</h1>
-        <p class="sous-titre">Activez la borne sur l'appareil où vous êtes : tablette ou ordinateur de l'accueil · {{ centre_actif.nom }}</p>
+        <p class="sous-titre">Ouvrez, activez et réglez les bornes de {{ centre_actif.nom }}</p>
     </div>
 </div>
 
+{# Page simplifiée (24/11/2026) : la borne de cet appareil s'ouvre d'un clic dans un nouvel onglet. #}
 {% if borne_de_l_appareil %}
-<div class="encart">{% icone "info" %}<span>Cet appareil est déjà la borne <strong>{{ borne_de_l_appareil.libelle }}</strong>. <a href="{% url 'circuit:borne' %}" target="_blank" rel="noopener">Ouvrir la borne (nouvel onglet)</a></span></div>
+<div class="encart ok">{% icone "check-cercle" %}<span>Cet appareil est la borne <strong>{{ borne_de_l_appareil.libelle }}</strong>. Cliquez sur « Ouvrir la borne » : elle s'ouvre dans un nouvel onglet et vous restez connecté ici.</span></div>
+{% else %}
+<div class="encart">{% icone "info" %}<span><strong>Pour installer une borne :</strong> sur la tablette de la borne, connectez-vous, puis cliquez sur « Activer sur cet appareil ». La borne s'ouvre dans un nouvel onglet et reste activée, même après un redémarrage. Pour la sécurité, vous êtes ensuite déconnecté de cet appareil.</span></div>
 {% endif %}
-<div class="encart attention">{% icone "alerte" %}<span>« Activer sur cet appareil » ouvre la borne dans un <strong>nouvel onglet</strong> et transforme <strong>cet appareil</strong> en borne : vous êtes ensuite déconnecté (aussi dans cet onglet), et la borne reste activée, sans clé, même après un redémarrage. Faites-le sur la tablette de la borne, pas sur votre poste de travail.</span></div>
 
 <section class="carte">
     <div class="carte-entete"><h2><span class="titre-icone">{% icone "imprimante" %}</span>Bornes du centre</h2><span class="etiquette">{{ bornes|length }} borne{% if bornes|length > 1 %}s{% endif %}</span></div>
@@ -47,10 +49,16 @@
             <p class="discret">{% icone "imprimante" %} {% if b.imprimante %}{{ b.imprimante }}{% else %}Impression par le navigateur{% endif %}</p>
             <div class="ligne">
                 {# Borne ouverte dans un nouvel onglet (décision du 23/11/2026). #}
-                <form method="post" action="{% url 'circuit:borne' %}" hx-boost="false" target="_blank" style="flex:1 1 100%">
+                {% if b == borne_de_l_appareil %}
+                {# Même appareil : la borne s'ouvre dans un nouvel onglet, sans déconnexion (24/11/2026). #}
+                <a class="bouton principal large" href="{% url 'circuit:borne' %}" target="_blank" rel="noopener" hx-boost="false" style="flex:1 1 100%">{% icone "externe" %}Ouvrir la borne</a>
+                {% else %}
+                <form method="post" action="{% url 'circuit:borne' %}" hx-boost="false" target="_blank" style="flex:1 1 100%"
+                      onsubmit="return confirm('Faire de cet appareil la borne « {{ b.libelle|escapejs }} » ? Elle s'ouvrira dans un nouvel onglet et vous serez déconnecté de cet appareil.')">
                     {% csrf_token %}<input type="hidden" name="borne" value="{{ b.pk }}">
-                    <button class="principal large" {% if not b.actif or b == borne_de_l_appareil %}disabled{% endif %}>{% icone "check" %}Activer sur cet appareil</button>
+                    <button class="{% if not borne_de_l_appareil %}principal {% endif %}large" {% if not b.actif %}disabled title="Remettez d'abord la borne en service"{% endif %}>{% icone "check" %}Activer sur cet appareil</button>
                 </form>
+                {% endif %}
                 {% if peut_modifier %}
                 <form method="post" action="{% url 'circuit:borne_basculer' b.pk %}" style="flex:1 1 100%">
                     {% csrf_token %}
