@@ -17,7 +17,7 @@ Ce document distingue les **règles confirmées** dans Trello, les **paramètres
 | `parcours` | Parcours versionnés (M, D, I, E), quotas du dentiste |
 | `circuit` | Tickets, passages, files, appels, transferts, quotas réservés, mode Autre, événements ; interfaces agents, borne, écran |
 | `audit` | Journal d'audit (connexions, rôles, quotas, publications, désactivations, fusions, exports) |
-| `statistiques` | Tableau de bord de la direction, exports PDF et Excel |
+| `statistiques` | Tableau de bord de la direction (temps par service, évolution de l'attente, affluence par heure, demandes « Autre » et médecin en chef, quotas par période, agents), page « Aujourd'hui en direct », exports PDF et Excel |
 
 Le module `salles` n'a pas été créé : il reste optionnel et non validé (Trello).
 
@@ -205,7 +205,7 @@ Si l'imprimante ne répond pas, le ticket reste valable : la tablette affiche le
   - file d'un service toutes les 5 s, chiffres du service toutes les 10 s et juste après chaque action ;
   - liste des services toutes les 10 s ;
   - tickets du jour toutes les 15 s ;
-  - statistiques toutes les minutes ;
+  - statistiques toutes les minutes ; « Aujourd'hui en direct » toutes les 15 s ;
   - écran principal toutes les 3 s.
 - **Aucun rechargement de page** sur les pages des agents (`hx-boost`) : liens du menu, formulaires (centre, demandes, notifications, actions sur un ticket) et bouton « retour » du navigateur passent par HTMX ; seule la zone de la page change. Exceptions volontaires, chargées normalement : borne, écran principal, connexion, déconnexion, administration Django et exports PDF/Excel. Si la session a expiré ou si la réponse est une page d'erreur, la page est chargée normalement.
 - Pages aussi **actualisées automatiquement** : demandes « Autre » et notifications (toutes les 10 s), détail d'un ticket (10 s). L'actualisation attend que l'agent ait fini de saisir et ne referme pas un volet qu'il a ouvert.

@@ -12,6 +12,7 @@ from centres.decorators import centre_actif_requis
 from comptes.permissions import a_droit
 from core.timeutils import maintenant_centre
 
+from . import calculs
 from .calculs import calculer
 
 PERIODE_MAX_JOURS = 366
@@ -72,11 +73,30 @@ def _parametres(request):
 @centre_actif_requis
 def tableau(request):
     centres, libelle, du, au, reseau, peut_reseau = _parametres(request)
+    aujourd_hui = maintenant_centre(request.centre_actif).date()
+    fuseau = request.centre_actif.fuseau_horaire
+    stats = calculer(centres, du, au)
+    calculs_service = stats["par_service"]
     return render(
         request,
         "statistiques/tableau.html",
         {
-            "stats": calculer(centres, du, au),
+            "stats": stats,
+            # Pages du 24/11/2026 : affluence, évolution, demandes, quotas.
+            "affluence": calculs.affluence(centres, du, au, fuseau),
+            "evolution": calculs.evolution(centres, du, au),
+            "max_temps_service": max(
+                [l[c] or 0 for l in calculs_service for c in ("attente_moy", "prise_en_charge_moy")] or [0]
+            ),
+            "max_agent": max([l["prises_en_charge"] for l in stats["par_agent"]] or [0]),
+            "demandes": calculs.demandes(centres, du, au),
+            "quotas_periodes": calculs.quotas_par_periode(centres, du, au),
+            "periodes_rapides": [
+                ("Aujourd'hui", aujourd_hui, aujourd_hui),
+                ("7 jours", aujourd_hui - datetime.timedelta(days=6), aujourd_hui),
+                ("30 jours", aujourd_hui - datetime.timedelta(days=29), aujourd_hui),
+                ("90 jours", aujourd_hui - datetime.timedelta(days=89), aujourd_hui),
+            ],
             "libelle_centres": libelle,
             "du": du,
             "au": au,
@@ -87,7 +107,15 @@ def tableau(request):
     )
 
 
-def _lignes_export(stats):
+@centre_actif_requis
+def direct(request):
+    """Tableau du jour en direct (24/11/2026) : centre actif, rafraîchi toutes les 15 s."""
+    if not a_droit(request.user, "circuit.voir_statistiques", request.centre_actif):
+        raise PermissionDenied
+    return render(request, "statistiques/direct.html", {"direct": calculs.direct(request.centre_actif)})
+
+
+def _lignes_export(stats, demandes=None, quotas_periodes=None):
     """Sections (titre, en-têtes, lignes) communes aux exports."""
     return [
         ("Synthèse", ["Indicateur", "Valeur"], [
@@ -109,6 +137,14 @@ def _lignes_export(stats):
          [[l["service_origine"], l["transferts"]] for l in stats["transferts"]]),
         ("Par agent", ["Agent", "Service", "Prises en charge", "Durée moy. (min)"],
          [[l["agent"], l["service"], l["prises_en_charge"], l["prise_en_charge_moy"]] for l in stats["par_agent"]]),
+        *([("Demandes et médecin en chef",
+            ["Destinataire", "Reçues", "Sans réponse", "Délai moy. de réponse (min)"],
+            [[l["destinataire"], l["recues"], l["sans_reponse"], l["delai_moy"]] for l in demandes["par_destinataire"]])]
+          if demandes is not None else []),
+        *([("Quota dentiste par période",
+            ["Période", "Jours avec réservations", "Jours quota atteint", "Places occupées", "Places prévues", "Remplissage (%)"],
+            [[l["periode"], l["creneaux"], l["atteints"], l["occupees"], l["places"], l["taux"]] for l in quotas_periodes])]
+          if quotas_periodes is not None else []),
     ]
 
 
@@ -128,7 +164,7 @@ def export_excel(request):
     stats = calculer(centres, du, au)
     classeur = Workbook()
     classeur.remove(classeur.active)
-    for titre, entetes, lignes in _lignes_export(stats):
+    for titre, entetes, lignes in _lignes_export(stats, calculs.demandes(centres, du, au), calculs.quotas_par_periode(centres, du, au)):
         feuille = classeur.create_sheet(titre[:31])
         feuille.append([cellule_sure(f"{libelle} — du {du:%d/%m/%Y} au {au:%d/%m/%Y}")])
         feuille.append([])
@@ -174,7 +210,7 @@ def export_pdf(request):
         Paragraph(escape(f"{libelle} — du {du:%d/%m/%Y} au {au:%d/%m/%Y}"), styles["Normal"]),
         Spacer(1, 0.4 * cm),
     ]
-    for titre, entetes, lignes in _lignes_export(stats):
+    for titre, entetes, lignes in _lignes_export(stats, calculs.demandes(centres, du, au), calculs.quotas_par_periode(centres, du, au)):
         elements.append(Paragraph(escape(titre), styles["Heading2"]))
         donnees = [entetes] + [["" if v is None else str(v) for v in ligne] for ligne in lignes]
         if not lignes:

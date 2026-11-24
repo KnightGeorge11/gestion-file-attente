@@ -6,6 +6,7 @@ app_name = "statistiques"
 
 urlpatterns = [
     path("", views.tableau, name="tableau"),
+    path("direct/", views.direct, name="direct"),
     path("export.xlsx", views.export_excel, name="export_excel"),
     path("export.pdf", views.export_pdf, name="export_pdf"),
 ]

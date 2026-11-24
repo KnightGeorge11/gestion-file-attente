@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% load interface %}
+{% block titre %}Statistiques en direct{% endblock %}
+{% block contenu %}
+<div class="entete-page">
+    <div>
+        <h1>Aujourd'hui en direct</h1>
+        <p class="sous-titre">{{ centre_actif.nom }} · {{ direct.jour|date:"l d/m/Y" }}. L'état des files maintenant, sans donnée personnelle.</p>
+    </div>
+    <span class="ligne">
+        <span class="etiquette ok vivant">Mise à jour toutes les 15 s</span>
+        <a class="bouton" href="{% url 'statistiques:tableau' %}">{% icone "stats" %}Statistiques détaillées</a>
+    </span>
+</div>
+
+<div id="direct-contenu" hx-get="{{ request.get_full_path }}" hx-trigger="every 15s" hx-select="#direct-contenu" hx-swap="outerHTML" hx-disinherit="hx-select hx-swap hx-target">
+<div class="indicateurs">
+    <div class="indicateur"><span class="pictogramme">{% icone "tickets" %}</span><div><div class="valeur">{{ direct.tickets }}</div><div class="libelle">tickets aujourd'hui · {{ direct.termines }} terminé{{ direct.termines|pluralize }}</div></div></div>
+    <div class="indicateur accent"><span class="pictogramme">{% icone "groupe" %}</span><div><div class="valeur">{{ direct.en_attente }}</div><div class="libelle">en attente · {{ direct.en_cours }} en cours de prise en charge</div></div></div>
+    <div class="indicateur ok"><span class="pictogramme">{% icone "sablier" %}</span><div><div class="valeur">{{ direct.attente_moy|default:"—" }}{% if direct.attente_moy is not None %} <small>min</small>{% endif %}</div><div class="libelle">attente moyenne aujourd'hui</div></div></div>
+    <div class="indicateur attention"><span class="pictogramme">{% icone "horloge" %}</span><div><div class="valeur">{{ direct.plus_longue|default:"—" }}{% if direct.plus_longue is not None %} <small>min</small>{% endif %}</div><div class="libelle">attente la plus longue en ce moment</div></div></div>
+</div>
+
+<div class="grille">
+<section class="carte">
+    <div class="carte-entete"><h2><span class="titre-icone">{% icone "services" %}</span>Patients en attente par service</h2></div>
+    <ul class="chronologie">
+    {% for s in direct.services %}
+        <li style="display:block">
+            <div class="ligne"><span>{% icone s.service|icone_service %} {{ s.service.nom }}</span>
+                <span class="pousse discret">{% if s.en_cours %}{{ s.en_cours }} en cours · {% endif %}{% if s.plus_longue is not None %}<span class="{% if s.plus_longue >= 30 %}texte-alerte{% endif %}">depuis {{ s.plus_longue|floatformat:0 }} min</span> · {% endif %}</span>
+                <strong>{{ s.attente }}</strong></div>
+            <div class="jauge"><span style="width:{% if direct.max_attente %}{% widthratio s.attente direct.max_attente 100 %}{% else %}0{% endif %}%"></span></div>
+        </li>
+    {% empty %}<li class="vide">Aucun service actif.</li>{% endfor %}
+    </ul>
+</section>
+<section class="carte">
+    <div class="carte-entete"><h2><span class="titre-icone">{% icone "check-cercle" %}</span>Journée</h2></div>
+    <ul class="chronologie">
+        <li>Tickets encore ouverts <strong class="pousse">{{ direct.ouverts }}</strong></li>
+        <li>Tickets terminés <strong class="pousse">{{ direct.termines }}</strong></li>
+        <li>Prise en charge moyenne <strong class="pousse">{{ direct.prise_en_charge_moy|default:"—" }}{% if direct.prise_en_charge_moy is not None %} min{% endif %}</strong></li>
+        <li>Demandes transmises sans réponse <strong class="pousse {% if direct.sans_reponse %}texte-alerte{% endif %}">{{ direct.sans_reponse }}</strong></li>
+    </ul>
+</section>
+</div>
+</div>
+{% endblock %}

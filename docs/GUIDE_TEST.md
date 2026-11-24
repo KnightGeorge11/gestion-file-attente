@@ -82,7 +82,7 @@ Tous les comptes de test ont le mot de passe **1234** :
 
 **E. Deux agents en même temps** : `accueil1` et `accueil2` appellent chacun un ticket différent (2 agents minimum par service).
 
-**F. Statistiques** : `direction1` → *Statistiques* → export PDF ou Excel. Aucune donnée patient.
+**F. Statistiques** : `direction1` → *Statistiques* : choisir « 7 jours » ou « 30 jours » (courbe d'évolution, affluence par heure, demandes et médecin en chef, quotas par période) ; bouton « Aujourd'hui en direct » pendant la démonstration (patients en attente par service, attente la plus longue) ; export PDF ou Excel. Aucune donnée patient.
 
 **G. Médecin en chef** (décision du 23/11/2026) : comme la direction ou les RH. Borne → *Autre* → **Rencontrer le médecin en chef** → ticket **A00x** (la borne ne propose pas « Médecin en chef » comme service). Accueil : file « Demandes « Autre » » → appeler, prendre en charge → **Orienter la demande** vers `chef1` → **Terminer**. `chef1` → **Notifications** (pastille) → **Appeler le visiteur** (l'écran affiche A00x et « Médecin en chef ») → répondre. Depuis le médecin : `medecin1` appelle et prend en charge un patient M → en fin de parcours, saisir un **motif** → **Envoyer vers médecin en chef** (à côté de « Terminer sans pharmacie ») → `chef1` le reçoit dans ses Notifications, l'appelle à l'écran (« M00x · Médecin en chef ») et répond.
 

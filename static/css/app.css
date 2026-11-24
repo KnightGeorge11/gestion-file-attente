@@ -485,6 +485,34 @@ tr:first-child .rang { background: var(--accent); color: #fff; }
 .jauge { height: 6px; border-radius: 6px; background: var(--surface-3); overflow: hidden; margin-top: 6px; }
 .jauge span { display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, var(--primaire), #3b6fd0); transition: width .6s ease; }
 .jauge.accent span { background: linear-gradient(90deg, var(--accent), var(--accent-vif)); }
+.jauge.alerte span { background: var(--alerte); }
+
+/* Statistiques : graphiques (24/11/2026), sans bibliothèque externe */
+.texte-alerte { color: var(--alerte); font-weight: 600; }
+.periodes-rapides .bouton.actif { background: var(--primaire-clair); color: var(--primaire); border-color: var(--primaire); }
+.legende-graphique { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; font-size: .82rem; color: var(--discret); margin: 4px 0 10px; }
+.legende-graphique span { display: inline-flex; align-items: center; gap: 6px; }
+.legende-graphique .carre { display: inline-block; width: 11px; height: 11px; border-radius: 3px; background: var(--surface-3); }
+.legende-graphique .carre.primaire { background: var(--primaire); }
+.legende-graphique .carre.accent { background: var(--accent); }
+.legende-graphique .carre.clair { background: #c3d4f4; }
+.courbe { display: block; width: 100%; height: 170px; }
+.courbe .axe { stroke: var(--bordure-forte); stroke-width: 1; }
+.courbe .barre { fill: #c3d4f4; }
+.courbe .aire { fill: var(--primaire); opacity: .08; }
+.courbe .ligne-courbe { fill: none; stroke: var(--primaire); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.barre-temps { display: grid; grid-template-columns: minmax(0, 1fr) 48px; gap: 10px; align-items: center; }
+.barre-temps .jauge { margin-top: 4px; height: 8px; }
+.barre-temps .nombre { text-align: right; font-variant-numeric: tabular-nums; font-size: .88rem; }
+.carte-thermique { border-collapse: separate; border-spacing: 3px; font-size: .78rem; }
+.carte-thermique th { padding: 4px 6px; text-align: center; font-weight: 600; color: var(--discret); background: none; border: 0; }
+.carte-thermique tbody th { text-align: left; }
+.carte-thermique td { padding: 0; height: 30px; min-width: 34px; text-align: center; border-radius: 6px; border: 0; font-variant-numeric: tabular-nums; }
+.niveau-0 { background: var(--surface-2); color: var(--discret); }
+.niveau-1 { background: #dbe7fb; color: var(--marine-800); }
+.niveau-2 { background: #a9c3f2; color: var(--marine-900); }
+.niveau-3 { background: #5683d6; color: #fff; }
+.niveau-4 { background: var(--primaire-fonce); color: #fff; }
 
 /* Pages d'erreur */
 .page-erreur { min-height: 70vh; display: grid; place-items: center; text-align: center; }
