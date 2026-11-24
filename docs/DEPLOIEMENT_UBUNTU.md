@@ -162,6 +162,8 @@ sudo nginx -t && sudo systemctl reload nginx
 
 Gunicorn utilise des workers `gthread` : une imprimante éteinte (4 s d'attente) ne bloque pas les autres postes.
 
+Les workers partagent un cache dans des fichiers (comptes connectés pour le relais de l'accueil, verrous de la clôture automatique et de la recherche d'écrans) : rien à installer. Par défaut, il est dans le dossier temporaire du service (`PrivateTmp`), vidé à chaque redémarrage, ce qui est sans conséquence. Pour un autre dossier : `DJANGO_CACHE_DOSSIER` dans `.env`, dossier appartenant à `gfa`.
+
 ## 8. Pare-feu
 
 ```bash

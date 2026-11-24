@@ -157,6 +157,27 @@ if not DEBUG and not EN_TEST:
         "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
     }
 
+# Cache partagé par tous les processus Gunicorn (décision du 24/11/2026) : la
+# mémoire de chaque processus est séparée, si bien que les comptes connectés
+# (relais de l'accueil par l'infirmerie) et les verrous (clôture automatique,
+# une recherche d'écrans toutes les 10 s) ne valaient que pour un processus.
+# Cache dans des fichiers : rien à installer. Dossier réglable par
+# DJANGO_CACHE_DOSSIER ; par défaut un dossier temporaire du service
+# (PrivateTmp de systemd : commun aux processus du service, vidé au redémarrage).
+# Développement (runserver, un seul processus) et tests : cache en mémoire.
+if not DEBUG and not EN_TEST:
+    import tempfile
+
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
+            "LOCATION": os.getenv(
+                "DJANGO_CACHE_DOSSIER", os.path.join(tempfile.gettempdir(), "gestion_file_attente_cache")
+            ),
+            "OPTIONS": {"MAX_ENTRIES": 2000},
+        }
+    }
+
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
