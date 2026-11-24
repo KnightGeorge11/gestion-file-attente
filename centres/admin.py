@@ -1,4 +1,5 @@
 
+from django import forms
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
 from django.http import Http404, HttpResponseNotAllowed
@@ -364,12 +365,100 @@ class EcranConnecteAdmin(CentreAdminMixin, admin.ModelAdmin):
         return False
 
 
+class ImprimanteTicketForm(forms.ModelForm):
+    """Libellés lisibles (sans migration : seulement le formulaire)."""
+
+    class Meta:
+        model = ImprimanteTicket
+        fields = "__all__"
+        labels = {
+            "libelle": "Nom de l'imprimante",
+            "adresse_ip": "Adresse IP",
+            "port": "Port",
+            "largeur_caracteres": "Caractères par ligne",
+            "page_codes": "Jeu de caractères (accents)",
+            "actif": "En service",
+        }
+
+
 @admin.register(ImprimanteTicket)
 class ImprimanteTicketAdmin(CentreAdminMixin, admin.ModelAdmin):
-    list_display = ("libelle", "centre", "adresse_ip", "port", "largeur_caracteres", "page_codes", "actif")
+    """Imprimantes thermiques réseau des bornes (présentation revue le 24/11/2026)."""
+
+    form = ImprimanteTicketForm
+    change_list_template = "admin/centres/imprimanteticket/change_list.html"
+    list_display = ("nom", "centre", "adresse_reseau", "papier", "accents", "bornes_reliees", "etat", "bouton_test")
+    list_display_links = ("nom",)
     list_filter = ("centre", "actif")
+    search_fields = ("libelle", "adresse_ip")
     readonly_fields = ("date_creation",)
     actions = ("imprimer_test",)
+    fieldsets = (
+        ("Imprimante", {"fields": ("libelle", "centre", "actif")}),
+        ("Réseau", {
+            "fields": ("adresse_ip", "port"),
+            "description": "Imprimante thermique branchée au réseau du centre (câble ou Wi-Fi), avec une adresse IP fixe.",
+        }),
+        ("Papier et accents", {
+            "fields": ("largeur_caracteres", "page_codes"),
+            "description": "48 caractères pour du papier de 80 mm, 32 pour du 58 mm. En cas d'accents mal imprimés : « Sans accents ».",
+        }),
+        ("Suivi", {"fields": ("date_creation",), "classes": ("collapse",)}),
+    )
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("centre").prefetch_related("bornes")
+
+    @admin.display(description="Imprimante", ordering="libelle")
+    def nom(self, obj):
+        return obj.libelle
+
+    @admin.display(description="Adresse réseau", ordering="adresse_ip")
+    def adresse_reseau(self, obj):
+        return format_html("<code>{}:{}</code>", obj.adresse_ip, obj.port)
+
+    @admin.display(description="Papier", ordering="largeur_caracteres")
+    def papier(self, obj):
+        largeur = {48: "80 mm", 42: "80 mm", 32: "58 mm"}.get(obj.largeur_caracteres)
+        return f"{largeur} ({obj.largeur_caracteres} car.)" if largeur else f"{obj.largeur_caracteres} car."
+
+    @admin.display(description="Accents", ordering="page_codes")
+    def accents(self, obj):
+        return {"cp858": "Oui (avec €)", "cp850": "Oui", "ascii": "Sans accents"}.get(obj.page_codes, obj.page_codes)
+
+    @admin.display(description="Bornes reliées")
+    def bornes_reliees(self, obj):
+        bornes = [b.libelle for b in obj.bornes.all()]
+        return ", ".join(bornes) if bornes else format_html('<span class="discret-admin">{}</span>', "Aucune")
+
+    @admin.display(description="État", ordering="actif")
+    def etat(self, obj):
+        if obj.actif:
+            return format_html('<span class="pastille-etat ok">{}</span>', "En service")
+        return format_html('<span class="pastille-etat arret">{}</span>', "Hors service")
+
+    @admin.display(description="")
+    def bouton_test(self, obj):
+        return format_html(
+            '<button type="submit" class="button" formmethod="post" formaction="{}">{}</button>',
+            reverse("admin:centres_imprimanteticket_tester", args=[obj.pk]), "Imprimer un test",
+        )
+
+    def get_urls(self):
+        urls = [
+            path("<int:imprimante_id>/tester/", self.admin_site.admin_view(self.tester),
+                 name="centres_imprimanteticket_tester"),
+        ]
+        return urls + super().get_urls()
+
+    def tester(self, request, imprimante_id):
+        if request.method != "POST":
+            return HttpResponseNotAllowed(["POST"])
+        imprimante = self.get_object(request, str(imprimante_id))
+        if imprimante is None or not self.has_change_permission(request, imprimante):
+            raise PermissionDenied
+        self.imprimer_test(request, ImprimanteTicket.objects.filter(pk=imprimante.pk))
+        return redirect("admin:centres_imprimanteticket_changelist")
 
     @admin.action(description="Imprimer un ticket de test", permissions=["change"])
     def imprimer_test(self, request, queryset):

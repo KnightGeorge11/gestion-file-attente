@@ -64,6 +64,12 @@ class CentreAdminMixin:
 
     chemin_centre = "centre"
 
+
+    def changelist_view(self, request, extra_context=None):
+        # Titre simple au lieu de « Sélectionnez l'objet … à changer » (24/11/2026).
+        extra_context = {"title": self.model._meta.verbose_name_plural.capitalize(), **(extra_context or {})}
+        return super().changelist_view(request, extra_context)
+
     def centres_administres(self, request):
         if not hasattr(request, "_centres_administres"):
             request._centres_administres = {}

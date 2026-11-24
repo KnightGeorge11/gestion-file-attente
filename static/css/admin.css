@@ -168,6 +168,14 @@ fieldset.module { background: var(--body-bg); }
 }
 .submit-row a.deletelink { border-radius: 9px; padding: 9px 16px; }
 .object-tools a:link, .object-tools a:visited { border-radius: 999px; padding: 6px 14px; font-size: .76rem; }
+.object-tools a.addlink { padding-right: 32px; background-position: right 12px center; }
+/* Listes (24/11/2026) : états et informations secondaires lisibles. */
+.pastille-etat { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: .78rem; font-weight: 600; white-space: nowrap; }
+.pastille-etat.ok { background: #e9f8f1; color: #047857; }
+.pastille-etat.arret { background: #fdeeee; color: #c0262d; }
+.discret-admin { color: #5f6f86; }
+.aide-liste { margin: 0 0 16px; padding: 12px 16px; border-radius: 10px; background: #eaf1ff; color: #1d3f8a; font-size: .9rem; line-height: 1.5; }
+#result_list td button.button { padding: 5px 12px; font-size: .78rem; white-space: nowrap; }
 
 /* Champs */
 input[type=text], input[type=password], input[type=email], input[type=url], input[type=number], input[type=tel],

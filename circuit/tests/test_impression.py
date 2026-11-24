@@ -248,3 +248,13 @@ class ImpressionReseauTests(TestCase):
         self.client.post(reverse("admin:centres_imprimanteticket_changelist"),
                          {"action": "imprimer_test", "_selected_action": [self.imprimante.pk]})
         self.assertEqual(len(self.imprimante_reelle.attendre(2)), 2)
+        # Liste revue le 24/11/2026 : titre simple, colonnes lisibles, bouton de test par ligne (POST).
+        liste = self.client.get(reverse("admin:centres_imprimanteticket_changelist"))
+        self.assertContains(liste, "<h1>Imprimantes de tickets</h1>", html=True)
+        self.assertNotContains(liste, "Sélectionnez")
+        self.assertContains(liste, "Adresse réseau")
+        url_test = reverse("admin:centres_imprimanteticket_tester", args=[self.imprimante.pk])
+        self.assertContains(liste, f'formaction="{url_test}"')
+        self.assertEqual(self.client.get(url_test).status_code, 405)          # jamais par un simple lien
+        self.client.post(url_test)
+        self.assertEqual(len(self.imprimante_reelle.attendre(3)), 3)
