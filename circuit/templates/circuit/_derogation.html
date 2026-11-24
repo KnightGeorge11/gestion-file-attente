@@ -13,9 +13,10 @@
         {% if derogation_autorisee %}
         <p class="etiquette ok" style="margin:6px 0 0;white-space:normal">Dérogation autorisée par {{ derogation_autorisee.agent }} : {{ derogation_autorisee.details.motif }}. Vous pouvez valider le ticket.</p>
         {% elif peut_deroger %}
-        <label for="derogation-quota"><input id="derogation-quota" type="checkbox" name="derogation" value="1"> Dérogation exceptionnelle (au-delà du quota)</label>
-        <label for="motif-derogation">Motif de la dérogation (obligatoire)</label>
+        <label for="derogation-quota"><input id="derogation-quota" type="checkbox" name="derogation" value="1"> Accepter quand même ce patient (quota dépassé)</label>
+        <label for="motif-derogation">Raison (obligatoire)</label>
         <input id="motif-derogation" name="motif_derogation" maxlength="500">
+        <p class="discret" style="margin:6px 0 0">Cochez la case et indiquez la raison, puis validez le ticket.</p>
         {% else %}
         <p class="discret" style="margin:6px 0 0">Seuls l'accueil et les responsables peuvent accorder une dérogation, depuis la page du ticket (<a href="{% url 'circuit:ticket' ticket.pk %}">{{ ticket.numero }}</a>). Sinon, annulez le ticket.</p>
         {% endif %}

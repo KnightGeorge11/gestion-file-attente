@@ -170,7 +170,7 @@ class DureesDesPassagesTests(BaseVues):
             self.assertContains(page, "7 min")
             self.connecter(infirmier, self.d.centre)
             panneau = self.client.get(reverse("circuit:guichet", args=[self.d.svc["INF"].pk]))
-            self.assertContains(panneau, "Passages précédents")
+            self.assertContains(panneau, "Services déjà vus aujourd'hui")
             self.assertContains(panneau, "7 min")
 
 

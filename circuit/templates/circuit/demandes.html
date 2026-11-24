@@ -31,15 +31,16 @@
         <summary>{% icone "envoyer" %}Transmettre la demande</summary>
         <form method="post">
             {% csrf_token %}<input type="hidden" name="demande" value="{{ d.pk }}">
-            <label for="destinataire-{{ d.pk }}">Personne précise</label>
+            <p class="discret" style="margin:8px 0 0">Choisissez une personne <strong>ou</strong> un service, pas les deux.</p>
+            <label for="destinataire-{{ d.pk }}">Envoyer à une personne</label>
             <select id="destinataire-{{ d.pk }}" name="destinataire"><option value="">—</option>
                 {% for p in personnes %}<option value="{{ p.pk }}">{{ p }}</option>{% endfor %}</select>
-            <label for="service-{{ d.pk }}">ou service (agent désigné)</label>
+            <label for="service-{{ d.pk }}">… ou à un service</label>
             <select id="service-{{ d.pk }}" name="service"><option value="">—</option>
-                {% for s in services_centre %}<option value="{{ s.pk }}">{{ s.nom }}{% if s.destinataire_demandes %} → {{ s.destinataire_demandes }}{% else %} (aucun agent désigné){% endif %}</option>{% endfor %}</select>
+                {% for s in services_centre %}<option value="{{ s.pk }}" {% if not s.destinataire_demandes %}disabled{% endif %}>{{ s.nom }}{% if s.destinataire_demandes %} → {{ s.destinataire_demandes }}{% else %} (aucun agent désigné){% endif %}</option>{% endfor %}</select>
             <label for="message-{{ d.pk }}">Message (facultatif)</label>
             <input id="message-{{ d.pk }}" name="message" maxlength="500">
-            <p style="margin-top:12px"><button class="principal large">{% icone "envoyer" %}Transmettre la notification</button></p>
+            <p style="margin-top:12px"><button class="principal large">{% icone "envoyer" %}Transmettre la demande</button></p>
         </form>
     </details>
     {% endif %}

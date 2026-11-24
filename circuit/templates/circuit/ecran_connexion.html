@@ -33,7 +33,9 @@
     <p class="ligne" style="margin-top:var(--espace-4)"><button type="button" onclick="document.body.dispatchEvent(new Event('rechercher-reseau'))">{% icone "recherche" %}Relancer la recherche sur le Wi-Fi</button></p>
 </section>
 
-<div class="grille-guichet" style="margin-top:var(--espace-5)">
+<details style="margin-top:var(--espace-5)">
+<summary>{% icone "reglages" %}Options avancées (TV Cast, Miracast, démarrage automatique)</summary>
+<div class="grille-guichet" style="margin-top:var(--espace-4)">
     <section class="carte">
         <div class="carte-entete"><h2><span class="titre-icone">{% icone "envoyer" %}</span>Autres façons de diffuser</h2></div>
         <p class="discret">Le Bluetooth ne transporte pas l'image : un écran sans fil se connecte par le <strong>Wi-Fi</strong>.</p>
@@ -51,6 +53,7 @@
         <p class="discret" style="margin-bottom:0">Adresse de l'écran des appels : <code>{{ adresse_ecran }}</code></p>
     </section>
 </div>
+</details>
 {% endblock %}
 {% block scripts %}
 <script>

@@ -217,7 +217,8 @@ class ImpressionReseauTests(TestCase):
         self.assertContains(self.client.get(reverse("circuit:borne")), "Imprimante indisponible")
         self.borne.imprimante = None
         self.borne.save()
-        self.assertContains(self.client.get(reverse("circuit:borne")), "Impression par la tablette")
+        # Impression par la tablette : rien de technique n'est montré au patient (24/11/2026).
+        self.assertNotContains(self.client.get(reverse("circuit:borne")), "Impression par la tablette")
 
     def test_accents_et_pages_de_codes(self):
         self._prendre_ticket()

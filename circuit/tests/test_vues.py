@@ -198,7 +198,7 @@ class InterfaceServiceTests(BaseVues):
             page = self.client.get(reverse("circuit:guichet", args=[acc]))
             self.assertContains(page, "Quota atteint")
             # Décision du 20/11/2026 : l'accueil peut déroger en validant, avec un motif.
-            self.assertContains(page, "Dérogation exceptionnelle (au-delà du quota)")
+            self.assertContains(page, "Accepter quand même ce patient (quota dépassé)")
             # Sans dérogation cochée : refus.
             reponse = self.client.post(reverse("circuit:guichet_action", args=[acc, "terminer"]),
                                        {"entree": entree.pk}, follow=True)
@@ -895,7 +895,7 @@ class AucuneInformationPatientTests(BaseVues):
                 services.appeler(self.d.file("ACC"), responsable)
             self.connecter(responsable, self.d.centre)
             self.assertContains(self.client.get(reverse("circuit:ticket", args=[ticket.pk])),
-                                "Autoriser une dérogation au quota")
+                                "Accepter ce patient malgré le quota atteint")
             self.client.post(reverse("circuit:ticket_action", args=[ticket.pk, "deroger"]), {"motif": "Urgence"})
             # L'agent d'accueil voit l'autorisation et valide le ticket.
             services.appeler(self.d.file("ACC"), self.accueil)

@@ -5,11 +5,7 @@
 <div class="entete-page">
     <div>
         <h1>Services</h1>
-        <p class="sous-titre">Choisissez votre poste de travail · {{ centre_actif.nom }}</p>
-    </div>
-    <div class="ligne">
-        {% if voit_tickets %}<a class="bouton" href="{% url 'circuit:tickets' %}">{% icone "tickets" %}Tickets du jour</a>{% endif %}
-        <a class="bouton" href="{% url 'circuit:notifications' %}">{% icone "cloche" %}Mes notifications</a>
+        <p class="sous-titre">Cliquez sur votre service pour appeler vos patients · {{ centre_actif.nom }}</p>
     </div>
 </div>
 
@@ -19,7 +15,6 @@
     <div class="indicateurs">
         <div class="indicateur"><span class="pictogramme">{% icone "groupe" %}</span><div><div class="valeur">{{ total_attente }}</div><div class="libelle">patients en attente</div></div></div>
         <div class="indicateur accent"><span class="pictogramme">{% icone "services" %}</span><div><div class="valeur">{{ services|length }}</div><div class="libelle">service{{ services|length|pluralize }} accessible{{ services|length|pluralize }}</div></div></div>
-        <div class="indicateur ok"><span class="pictogramme">{% icone "horloge" %}</span><div><div class="valeur" data-horloge="minutes" data-fuseau="{{ centre_actif.fuseau_horaire }}">{% now "H:i" %}</div><div class="libelle">heure du centre</div></div></div>
     </div>
     {% endif %}
     <div class="tuiles" data-suivi="services">
@@ -44,7 +39,7 @@
             </div>
         </a>
         {% empty %}
-        <div class="carte vide">Aucun service ne vous est attribué dans ce centre.</div>
+        <div class="carte vide">Aucun service ne vous est attribué dans ce centre.<br><a href="{% url 'centres:selection' %}">Changer de centre</a> ou demandez à l'administrateur du centre de vous affecter à un service.</div>
         {% endfor %}
     </div>
 </div>

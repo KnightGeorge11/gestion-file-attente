@@ -637,3 +637,36 @@ class OuvrirLaBorneDeCetAppareilTests(BaseVues):
         self.assertIn(reverse("circuit:borne"), lien[:lien.index(">")])
         self.assertTemplateUsed(self.client.get(reverse("circuit:borne")), "circuit/borne.html")
         self.assertEqual(self.client.get(reverse("circuit:bornes")).status_code, 200)   # toujours connecté
+
+
+class ErgonomieDu24_11Tests(BaseVues):
+    """Revue d'ergonomie du 24/11/2026."""
+
+    def test_onglet_demandes_pour_l_accueil_seulement(self):
+        self.connecter(self.accueil, self.d.centre)
+        self.assertContains(self.client.get(reverse("circuit:guichets")), reverse("circuit:demandes"))
+        self.connecter(self.medecin, self.d.centre)
+        self.assertNotContains(self.client.get(reverse("circuit:guichets")), reverse("circuit:demandes"))
+
+    def test_borne_message_simple_pour_le_patient(self):
+        borne = Borne.objects.create(centre=self.d.centre, code="B1", libelle="Tablette")
+        activer_borne(self.client, borne)
+        reponse = self.client.post(reverse("circuit:borne_emettre"), {"mode": "INCONNU"}, follow=True)
+        self.assertContains(reponse, "pas disponible pour le moment. Merci de vous présenter à l")
+        self.assertNotContains(reponse, "Mode inconnu")
+
+    def test_appel_depuis_les_notifications_annonce_la_salle(self):
+        from circuit.models import Appel, MotifDemande, Ticket
+        from comptes.permissions import affectation_active
+
+        directeur = self.d.agent("directeur", "Direction")
+        affectation = affectation_active(directeur, self.d.centre)
+        affectation.salle = "Bureau 3"
+        affectation.save(update_fields=["salle"])
+        motif = MotifDemande.objects.filter(centre=self.d.centre).first()
+        ticket = services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE, motif=motif)
+        notification = services.transmettre_demande(ticket.demande, self.accueil, destinataire=directeur)
+        self.connecter(directeur, self.d.centre, salle_indiquee=False)
+        self.assertContains(self.client.get(reverse("circuit:notifications")), 'value="Bureau 3"')
+        self.client.post(reverse("circuit:notification_appeler", args=[notification.pk]), {"poste": ""})
+        self.assertEqual(Appel.objects.get(ticket=ticket, agent=directeur).poste, "Bureau 3")

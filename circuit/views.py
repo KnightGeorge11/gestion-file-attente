@@ -648,7 +648,7 @@ def guichet_action(request, service_id, action):
                 pk=entier(request.POST.get("passage")),
             )
             services.reintegrer(passage, agent)
-            messages.success(request, f"Ticket {passage.ticket.numero} réintégré en fin de file.")
+            messages.success(request, f"Ticket {passage.ticket.numero} remis dans la file.")
         else:
             raise PermissionDenied
     except ErreurCircuit as erreur:
@@ -811,6 +811,7 @@ def demandes(request):
         request,
         "circuit/demandes.html",
         {
+            "page": "demandes",
             "demandes": liste,
             "personnes": personnes,
             "services_centre": Service.objects.filter(centre=centre, actif=True).order_by("ordre"),
@@ -875,6 +876,7 @@ def notifications(request):
         {
             "notifications": mes_notifications,
             "envoyes": envoyes,
+            "salle_agent": getattr(affectation_active(request.user, centre), "salle", "") or "",
             "statuts": ReponseNotification.Statut.choices,
             "aujourd_hui": maintenant_centre(centre).date(),
         },
@@ -888,8 +890,12 @@ def notification_appeler(request, notification_id):
     notification = get_object_or_404(
         Notification.objects.filter(centre=request.centre_actif, destinataire=request.user), pk=notification_id
     )
+    poste = request.POST.get("poste", "").strip()
+    if not poste:
+        # Comme au guichet : la salle indiquée par l'agent est annoncée (24/11/2026).
+        poste = getattr(affectation_active(request.user, request.centre_actif), "salle", "") or ""
     try:
-        appel = services.appeler_visiteur(notification, request.user, request.POST.get("poste", ""))
+        appel = services.appeler_visiteur(notification, request.user, poste)
         messages.success(request, f"{appel.numero_ticket} appelé à l'écran : « {appel.nom_service} ».")
     except ErreurCircuit as erreur:
         messages.error(request, " ".join(erreur.messages))

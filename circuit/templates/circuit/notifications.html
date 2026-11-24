@@ -46,7 +46,7 @@
     {% with dernier=n.dernier_appel %}
     <form method="post" action="{% url 'circuit:notification_appeler' n.pk %}" class="appel-suivant" style="margin:10px 0 4px">
         {% csrf_token %}
-        <input name="poste" maxlength="50" placeholder="Bureau / salle (facultatif)" aria-label="Bureau ou salle">
+        <input name="poste" maxlength="50" value="{{ salle_agent }}" placeholder="Salle (facultatif)" aria-label="Salle">
         <button class="accent">{% icone "appel" %}Appeler {% if n.du_medecin %}le patient{% else %}le visiteur{% endif %} à l'écran</button>
     </form>
     {% if dernier %}<p class="discret">{% icone "historique" %} Dernier appel à {{ dernier.date|time:"H:i:s" }} · « {{ dernier.nom_service }}{% if dernier.poste %} · {{ dernier.poste }}{% endif %} »</p>{% endif %}
@@ -64,7 +64,7 @@
     {% endif %}
 </section>
 {% empty %}
-{% if not envoyes %}<div class="carte vide">{% icone "cloche" %} Aucune notification.</div>{% endif %}
+{% if not envoyes %}<div class="carte vide">{% icone "cloche" %} Aucune notification. Les demandes qui vous sont transmises apparaîtront ici.</div>{% endif %}
 {% endfor %}
 </div>
 </div>

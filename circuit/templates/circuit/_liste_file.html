@@ -21,7 +21,7 @@
     {% for entree in attente %}
         <tr data-id="{{ entree.pk }}">
             <td><span class="rang">{{ forloop.counter }}</span><span class="numero">{{ entree.passage.ticket.numero }}</span>
-                {% if entree.reintegration %}<span class="etiquette attention">réintégré</span>{% endif %}
+                {% if entree.reintegration %}<span class="etiquette attention">revenu</span>{% endif %}
                 {% if entree.passage.origine == "TRANSFERT" %}<span class="etiquette info">transfert</span>
                 {% if entree.passage.transfert_recu.motif %}<div class="discret" style="white-space:normal">{% icone "message" %} {{ entree.passage.transfert_recu.motif }}</div>{% endif %}{% endif %}</td>
             <td class="discret">{{ entree.passage.ticket.parcours.libelle_borne|default:"Autre" }}</td>
@@ -38,7 +38,7 @@
                     {% if service.appel_oral_autorise and forloop.first or service.appel_oral_autorise and not file.ordre_strict %}
                     <form hx-post="{% url 'circuit:guichet_action' service.pk 'prendre' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'prendre' %}">
                         {% csrf_token %}<input type="hidden" name="entree" value="{{ entree.pk }}"><input type="hidden" name="file" value="{{ file.pk }}"><input type="hidden" name="oral" value="1">
-                        <button class="petit principal" title="Appel oral : prise en charge directe">{% icone "son" %}Appel oral</button>
+                        <button class="petit" title="Le patient est déjà devant vous : prise en charge directe, sans appel à l'écran">{% icone "son" %}Déjà devant moi</button>
                     </form>
                     {% endif %}
                 {% endif %}{% endif %}
@@ -67,7 +67,7 @@
         {% if peut_reintegrer %}
         <form hx-post="{% url 'circuit:guichet_action' service.pk 'reintegrer' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'reintegrer' %}" style="margin-left:auto">
             {% csrf_token %}<input type="hidden" name="passage" value="{{ p.pk }}"><input type="hidden" name="file" value="{{ file.pk }}">
-            <button class="petit">{% icone "rappel" %}Réintégrer</button>
+            <button class="petit" title="Le patient est revenu : il repasse dans la file">{% icone "rappel" %}Remettre dans la file</button>
         </form>
         {% endif %}
     </li>

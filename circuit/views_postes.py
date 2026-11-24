@@ -12,6 +12,7 @@ local, jamais par Internet. La sécurité n'intervient pas.
 """
 
 import base64
+import logging
 from datetime import timedelta
 from types import SimpleNamespace
 
@@ -55,6 +56,8 @@ SESSION_ECRAN = "ecran_id"
 # Une borne ou un écran reste activé (session renouvelée à chaque usage) :
 # le formulaire d'activation ne doit pas réapparaître devant les patients.
 DUREE_SESSION_POSTE = 365 * 24 * 3600
+
+journal = logging.getLogger(__name__)
 
 
 def _reseau_local(request):
@@ -270,7 +273,9 @@ def borne_emettre(request):
         try:
             ticket = services.emettre_ticket(centre, mode, parcours=parcours, borne=poste, motif=motif)
         except ErreurCircuit as erreur:
-            messages.error(request, " ".join(erreur.messages))
+            # Le patient lit un message simple ; le détail technique va dans le journal.
+            journal.warning("Borne %s : ticket refusé (%s)", poste.pk, " ".join(erreur.messages))
+            messages.error(request, "Ce service n'est pas disponible pour le moment. Merci de vous présenter à l'accueil.")
             return redirect("circuit:borne")
     # Option A : le serveur imprime directement sur l'imprimante réseau de la
     # borne (après l'enregistrement du ticket, qui reste valable même si

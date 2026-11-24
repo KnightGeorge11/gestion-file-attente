@@ -26,6 +26,7 @@
     <nav class="menu" aria-label="Navigation principale">
         <a href="{% url 'circuit:guichets' %}" class="{% if page == 'guichets' or page == 'guichet' %}actif{% endif %}">{% icone "services" %}Services</a>
         {% if voit_tickets %}<a href="{% url 'circuit:tickets' %}" class="{% if page == 'tickets' or page == 'ticket' %}actif{% endif %}">{% icone "tickets" %}Tickets</a>{% endif %}
+        {% if peut_orienter %}<a href="{% url 'circuit:demandes' %}" class="{% if page == 'demandes' %}actif{% endif %}">{% icone "autre" %}Demandes</a>{% endif %}
         {% if peut_statistiques %}<a href="{% url 'statistiques:tableau' %}" class="{% if espace == 'statistiques' %}actif{% endif %}">{% icone "stats" %}Statistiques</a>{% endif %}
         <a href="{% url 'circuit:notifications' %}" class="{% if page == 'notifications' %}actif{% endif %}">{% icone "cloche" %}Notifications<span hx-get="{% url 'circuit:badge_notifications' %}" hx-trigger="every 15s" hx-swap="innerHTML">{% if nb_notifications %}<span class="pastille">{{ nb_notifications }}</span>{% endif %}</span></a>
         {# Écran de la salle : détection des écrans physiques reliés à l'ordinateur (décision du 21/11/2026). #}

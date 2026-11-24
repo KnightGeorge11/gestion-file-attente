@@ -7,12 +7,12 @@
     <div class="carte">
         <div class="marque-carte"><span class="titre-icone">{% icone "centre" %}</span>Salle de consultation</div>
         <h1>Indiquer votre salle</h1>
-        <p class="discret">Centre actuel : <strong>{{ centre_actif.nom }}</strong>. À chaque appel, l'écran de la salle d'attente annonce le numéro, le service et votre salle : « M 0 0 1, Médecin, 1 ».</p>
+        <p class="discret">Centre actuel : <strong>{{ centre_actif.nom }}</strong>. À chaque appel, l'écran de la salle d'attente annonce le numéro, le service et votre salle : « M 0 0 1, Médecin, Salle 1 ». Écrivez la salle comme elle doit être lue : « Salle 1 », « Bureau 3 ».</p>
         {% if erreur %}<div class="encart attention">{% icone "alerte" %}<span>{{ erreur }}</span></div>{% endif %}
         <form method="post">
             {% csrf_token %}<input type="hidden" name="next" value="{{ suite }}">
-            <label for="salle">Numéro de salle</label>
-            <input id="salle" name="salle" maxlength="50" value="{{ salle }}" placeholder="ex. 1" {% if obligatoire %}required{% endif %} autofocus>
+            <label for="salle">Votre salle</label>
+            <input id="salle" name="salle" maxlength="50" value="{{ salle }}" placeholder="ex. Salle 1" {% if obligatoire %}required{% endif %} autofocus>
             <p style="margin-top:18px"><button class="principal grand large" type="submit">Valider la salle</button></p>
         </form>
         <p class="discret" style="margin-bottom:0">Vous pourrez la changer à tout moment depuis votre poste.</p>

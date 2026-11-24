@@ -66,6 +66,8 @@
 
   /** Les messages Django de la page deviennent des notifications. */
   function messagesEnToasts(racine) {
+    // Borne : le patient lit le message en grand dans la page (24/11/2026).
+    if (document.body.classList.contains("borne")) { return; }
     var listes = (racine || document).querySelectorAll("ul.messages[data-toasts]");
     listes.forEach(function (liste) {
       liste.querySelectorAll("li").forEach(function (li) {

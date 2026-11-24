@@ -19,14 +19,14 @@
 <div id="zone-ticket" hx-get="{{ request.get_full_path }}" hx-trigger="every 10s [pasDeSaisie()]" hx-select="#zone-ticket" hx-swap="outerHTML" hx-disinherit="hx-select hx-swap hx-target">
 <div class="indicateurs">
     <div class="indicateur"><span class="pictogramme">{% icone "tickets" %}</span><div><div class="valeur" style="font-size:1.1rem">{{ ticket.get_mode_display }}</div><div class="libelle">mode</div></div></div>
-    <div class="indicateur accent"><span class="pictogramme">{% icone ticket.parcours|icone_service %}</span><div><div class="valeur" style="font-size:1.1rem">{% if ticket.parcours %}{{ ticket.parcours.libelle_borne }}{% else %}{{ ticket.demande.motif|default:"Autre" }}{% endif %}</div><div class="libelle">{% if ticket.parcours %}parcours (v{{ ticket.parcours_version.numero }}){% else %}demande{% endif %}</div></div></div>
+    <div class="indicateur accent"><span class="pictogramme">{% icone ticket.parcours|icone_service %}</span><div><div class="valeur" style="font-size:1.1rem">{% if ticket.parcours %}{{ ticket.parcours.libelle_borne }}{% else %}{{ ticket.demande.motif|default:"Autre" }}{% endif %}</div><div class="libelle">{% if ticket.parcours %}parcours{% else %}demande{% endif %}</div></div></div>
     <div class="indicateur"><span class="pictogramme">{% icone "horloge" %}</span><div><div class="valeur">{{ ticket.date_emission|time:"H:i:s" }}</div><div class="libelle">émission</div></div></div>
     <div class="indicateur ok"><span class="pictogramme">{% icone "sablier" %}</span><div><div class="valeur">{% if ticket.date_fin %}{{ ticket.duree_totale|duree }}{% else %}<span data-depuis="{{ ticket.date_emission|date:'c' }}">—</span>{% endif %}</div><div class="libelle">{% if ticket.date_fin %}durée totale (fin à {{ ticket.date_fin|time:"H:i" }}){% else %}depuis l'émission{% endif %}</div></div></div>
 </div>
 
 <div class="grille-guichet">
 <section class="carte">
-    <div class="carte-entete"><h2><span class="titre-icone">{% icone "transfert" %}</span>Passages</h2></div>
+    <div class="carte-entete"><h2><span class="titre-icone">{% icone "transfert" %}</span>Services parcourus</h2></div>
     <div class="tableau-defilant">
     <table>
         <thead><tr><th>Service</th><th>Arrivée</th><th>Attente</th><th>Prise en charge</th><th>Durée du passage</th><th>Statut</th></tr></thead>
@@ -64,11 +64,11 @@
     {% endif %}
     {% if derogation_autorisee %}<div class="encart ok" style="margin-top:12px">{% icone "bouclier" %}<span>Dérogation au quota autorisée par {{ derogation_autorisee.agent }} à {{ derogation_autorisee.date|time:"H:i" }} : {{ derogation_autorisee.details.motif }}</span></div>{% endif %}
     {% if peut_autoriser_derogation %}
-    <details><summary>{% icone "bouclier" %}Autoriser une dérogation au quota</summary>
+    <details><summary>{% icone "bouclier" %}Accepter ce patient malgré le quota atteint</summary>
         <form method="post" action="{% url 'circuit:ticket_action' ticket.pk 'deroger' %}">{% csrf_token %}
             <p class="discret">L'accueil pourra ensuite valider ce ticket même si le quota est atteint. Vous n'appelez pas le patient.</p>
             <label for="motif-derogation">Motif obligatoire</label><input id="motif-derogation" name="motif" required maxlength="500">
-            <p style="margin-top:10px"><button class="principal">Autoriser la dérogation</button></p>
+            <p style="margin-top:10px"><button class="principal">Accepter ce patient</button></p>
         </form>
     </details>
     {% endif %}
