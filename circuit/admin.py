@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from core.admin import CentreAdminMixin
+from core.admin import CentreAdminMixin, etat_actif
 
 from .models import (
     Appel,
@@ -17,12 +17,21 @@ from .models import (
 
 @admin.register(MotifDemande)
 class MotifDemandeAdmin(CentreAdminMixin, admin.ModelAdmin):
-    list_display = ("libelle", "centre", "ordre", "actif")
+    aide_liste = ("Motifs proposés à la borne pour le mode « Autre » (rendez-vous, cotisation, rencontrer la direction…). "
+                  "L'accueil oriente ensuite chaque demande vers une personne ou un service.")
+    list_display = ("libelle", "centre", "ordre", "etat")
     list_filter = ("centre", "actif")
+    search_fields = ("libelle",)
+
+    @admin.display(description="État", ordering="actif")
+    def etat(self, obj):
+        return etat_actif(obj.actif, "Proposé", "Retiré")
 
 
 class LectureSeuleAdmin(CentreAdminMixin, admin.ModelAdmin):
     """Données opérationnelles : consultation seulement (modifiées par le moteur)."""
+
+    aide_liste = "Consultation seulement : ces données sont enregistrées automatiquement par la plateforme."
 
     def has_add_permission(self, request):
         return False

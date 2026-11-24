@@ -1,12 +1,16 @@
 from django.contrib import admin
 
 from centres.access import est_administrateur_central
+from core.admin import ListeLisibleMixin
 
 from .models import JournalAudit
 
 
 @admin.register(JournalAudit)
-class JournalAuditAdmin(admin.ModelAdmin):
+class JournalAuditAdmin(ListeLisibleMixin, admin.ModelAdmin):
+    aide_liste = ("Journal de sécurité de la plateforme : connexions, changements de droits, de quotas, exports… "
+                  "Il ne peut être ni modifié ni effacé.")
+
     list_display = ("date", "action", "utilisateur", "identifiant_saisi", "centre", "objet_libelle", "adresse_ip")
     list_filter = ("action", "centre")
     search_fields = ("objet_libelle", "identifiant_saisi", "utilisateur__username")

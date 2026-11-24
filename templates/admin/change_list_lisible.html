@@ -1,0 +1,6 @@
+{% extends "admin/change_list.html" %}
+{# Listes de l'administration : phrase d'aide en tête (24/11/2026). #}
+{% block result_list %}
+{% if aide_liste %}<p class="aide-liste">{{ aide_liste }}</p>{% endif %}
+{{ block.super }}
+{% endblock %}

@@ -152,3 +152,25 @@ class InfirmerieEnRelaisDeLAccueilTests(BaseVues):
         self.assertNotContains(self.client.get(reverse("circuit:guichets")), "Aucun agent d'accueil n'est connecté")
         self.assertEqual(self.client.get(reverse("circuit:guichet", args=[self.d.svc["ACC"].pk])).status_code, 403)
         self.assertEqual(self.client.get(reverse("circuit:demandes")).status_code, 403)
+
+
+class ListesDeLAdministrationTests(BaseVues):
+    """24/11/2026 : toutes les listes de l'administration s'ouvrent, avec un titre simple et des filtres lisibles."""
+
+    def test_toutes_les_listes_s_ouvrent(self):
+        from django.contrib import admin
+
+        plateforme = Utilisateur.objects.create_superuser(username="super", password="x")
+        admin_centre = self.d.agent("admin_centre", "Administrateur de centre")
+        admin_centre.is_staff = True
+        admin_centre.save(update_fields=["is_staff"])
+        for compte in (plateforme, admin_centre):
+            self.client.force_login(compte)
+            for modele, modele_admin in admin.site._registry.items():
+                if not modele_admin.has_view_or_change_permission(type("R", (), {"user": compte})()):
+                    continue
+                url = reverse(f"admin:{modele._meta.app_label}_{modele._meta.model_name}_changelist")
+                page = self.client.get(url)
+                self.assertEqual(page.status_code, 200, url)
+                self.assertNotContains(page, "Sélectionnez l", msg_prefix=url)
+                self.assertNotContains(page, "Par par defaut", msg_prefix=url)

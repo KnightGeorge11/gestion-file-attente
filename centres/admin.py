@@ -9,7 +9,7 @@ from django.utils.html import format_html
 from django.utils.http import url_has_allowed_host_and_scheme
 
 from centres.access import est_administrateur_central
-from core.admin import CentreAdminMixin
+from core.admin import CentreAdminMixin, ListeLisibleMixin, etat_actif, oui_non, pastille
 
 from .models import (
     AppareilEcran, Borne, Centre, EcranAffichage, EcranConnecte, FileAttente, HoraireService, ImprimanteTicket, Service,
@@ -17,7 +17,9 @@ from .models import (
 
 
 @admin.register(Centre)
-class CentreAdmin(admin.ModelAdmin):
+class CentreAdmin(ListeLisibleMixin, admin.ModelAdmin):
+    aide_liste = "Les centres de santé de la plateforme. Un centre hors service n'émet plus de tickets et n'est plus proposé aux agents."
+
     # Réservé à l'administrateur de la plateforme (audit du 20/11/2026).
     def has_module_permission(self, request):
         return est_administrateur_central(request.user)
@@ -34,13 +36,23 @@ class CentreAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         return est_administrateur_central(request.user)
 
-    list_display = (
-        "code",
-        "nom",
-        "prochain_numero_patient",
-        "fuseau_horaire",
-        "actif",
-    )
+    list_display = ("nom", "code", "nb_services", "fuseau_horaire", "etat")
+    list_display_links = ("nom",)
+
+    def get_queryset(self, request):
+        from django.db.models import Count, Q
+
+        return super().get_queryset(request).annotate(
+            nombre_services=Count("services", filter=Q(services__actif=True))
+        )
+
+    @admin.display(description="Services actifs", ordering="nombre_services")
+    def nb_services(self, obj):
+        return obj.nombre_services
+
+    @admin.display(description="État", ordering="actif")
+    def etat(self, obj):
+        return etat_actif(obj.actif)
 
     list_filter = (
         "actif",
@@ -108,15 +120,39 @@ class FileAttenteInline(admin.TabularInline):
 
 @admin.register(Service)
 class ServiceAdmin(CentreAdminMixin, admin.ModelAdmin):
-    list_display = (
-        "nom",
-        "code",
-        "centre",
-        "ordre",
-        "actif",
-        "suspendu",
-        "afficher_ecran_principal",
-    )
+    aide_liste = ("Services du centre (accueil, soins, pharmacie). « Suspendu » : le service ne reçoit plus de "
+                  "nouveaux patients pour le moment. L'ordre est celui des tuiles de la page Services.")
+    list_display = ("nom", "centre", "type_service", "ordre", "a_l_ecran", "nb_files", "etat")
+    list_display_links = ("nom",)
+
+    def get_queryset(self, request):
+        from django.db.models import Count, Q
+
+        return super().get_queryset(request).annotate(nombre_files=Count("files", filter=Q(files__actif=True)))
+
+    @admin.display(description="Type")
+    def type_service(self, obj):
+        if obj.est_accueil:
+            return pastille("Accueil", "info")
+        if obj.est_pharmacie:
+            return pastille("Pharmacie", "info")
+        return "Soins"
+
+    @admin.display(description="Appels à l'écran", ordering="afficher_ecran_principal")
+    def a_l_ecran(self, obj):
+        return oui_non(obj.afficher_ecran_principal)
+
+    @admin.display(description="Files", ordering="nombre_files")
+    def nb_files(self, obj):
+        return obj.nombre_files
+
+    @admin.display(description="État", ordering="actif")
+    def etat(self, obj):
+        if not obj.actif:
+            return pastille("Désactivé", "arret")
+        if obj.suspendu:
+            return pastille("Suspendu", "attention")
+        return pastille("En service", "ok")
 
     list_filter = (
         "centre",
@@ -144,17 +180,36 @@ class ServiceAdmin(CentreAdminMixin, admin.ModelAdmin):
 
 @admin.register(FileAttente)
 class FileAttenteAdmin(CentreAdminMixin, admin.ModelAdmin):
-    list_display = (
-        "nom",
-        "service",
-        "centre",
-        "par_defaut",
-        "nb_appels_avant_absence",
-        "delai_entre_appels_secondes",
-        "nb_appels_simultanes",
-        "ordre_strict",
-        "actif",
-    )
+    aide_liste = ("Files d'attente de chaque service. Un patient est marqué absent après le nombre d'appels indiqué, "
+                  "espacés du délai entre deux appels. « Ordre » : strict = seul le premier patient peut être appelé.")
+    list_display = ("nom", "service", "centre", "principale", "absence_apres", "delai", "agents_en_parallele",
+                    "ordre", "etat")
+    list_display_links = ("nom",)
+
+    @admin.display(description="File principale", ordering="par_defaut")
+    def principale(self, obj):
+        return oui_non(obj.par_defaut)
+
+    @admin.display(description="Absent après", ordering="nb_appels_avant_absence")
+    def absence_apres(self, obj):
+        return f"{obj.nb_appels_avant_absence} appels"
+
+    @admin.display(description="Délai entre appels", ordering="delai_entre_appels_secondes")
+    def delai(self, obj):
+        secondes = obj.delai_entre_appels_secondes
+        return f"{secondes // 60} min {secondes % 60:02d} s" if secondes >= 60 else f"{secondes} s"
+
+    @admin.display(description="Appels en parallèle", ordering="nb_appels_simultanes")
+    def agents_en_parallele(self, obj):
+        return obj.nb_appels_simultanes
+
+    @admin.display(description="Ordre", ordering="ordre_strict")
+    def ordre(self, obj):
+        return "Strict" if obj.ordre_strict else "Libre"
+
+    @admin.display(description="État", ordering="actif")
+    def etat(self, obj):
+        return etat_actif(obj.actif)
 
     list_filter = (
         "centre",
@@ -176,14 +231,20 @@ class FileAttenteAdmin(CentreAdminMixin, admin.ModelAdmin):
 
 @admin.register(Borne)
 class BorneAdmin(CentreAdminMixin, admin.ModelAdmin):
-    list_display = (
-        "code",
-        "libelle",
-        "centre",
-        "imprimante",
-        "etat_et_bascule",
-        "derniere_activite",
-    )
+    aide_liste = ("Bornes où les patients prennent leur ticket. Activez une borne sur sa tablette depuis l'onglet "
+                  "« Borne » de l'application ; vous y choisissez aussi les services affichés.")
+    list_display = ("libelle", "code", "centre", "services_proposes", "imprimante_ou_navigateur",
+                    "etat_et_bascule", "derniere_activite")
+    list_display_links = ("libelle",)
+
+    @admin.display(description="Services proposés")
+    def services_proposes(self, obj):
+        choisis = [p.libelle_borne for p in obj.parcours.all()]
+        return ", ".join(choisis) if choisis else pastille("Tous", "neutre")
+
+    @admin.display(description="Impression", ordering="imprimante__libelle")
+    def imprimante_ou_navigateur(self, obj):
+        return obj.imprimante.libelle if obj.imprimante_id else pastille("Par la tablette", "neutre")
 
     list_filter = (
         "centre",
@@ -310,9 +371,34 @@ def _regenerer_cle_ecrans(self, request, queryset):
 
 @admin.register(EcranAffichage)
 class EcranAffichageAdmin(CentreAdminMixin, admin.ModelAdmin):
-    list_display = ("code", "libelle", "centre", "actif", "derniere_activite")
+    aide_liste = ("Ce que les écrans affichent : services dont les appels s'affichent, nombre d'appels, voix. "
+                  "Choisissez l'affichage de chaque écran depuis la page « Écran » de l'application.")
+    list_display = ("libelle", "centre", "services_affiches", "nb_appels_affiches", "voix", "ecrans_relies", "etat",
+                    "derniere_activite")
+    list_display_links = ("libelle",)
     list_filter = ("centre", "actif")
+    search_fields = ("libelle", "code")
     readonly_fields = ("derniere_activite", "date_creation")
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).prefetch_related("services", "appareils")
+
+    @admin.display(description="Services affichés")
+    def services_affiches(self, obj):
+        noms = [s.nom for s in obj.services.all()]
+        return ", ".join(noms) if noms else pastille("Tous", "neutre")
+
+    @admin.display(description="Voix", ordering="annonce_vocale")
+    def voix(self, obj):
+        return oui_non(obj.annonce_vocale)
+
+    @admin.display(description="TV Wi-Fi reliées")
+    def ecrans_relies(self, obj):
+        return len(obj.appareils.all())
+
+    @admin.display(description="État", ordering="actif")
+    def etat(self, obj):
+        return etat_actif(obj.actif, "Utilisé", "Retiré")
     # Services affichés sur l'écran (décision du 24/11/2026).
     filter_horizontal = ("services",)
     actions = ("regenerer_cle",)
@@ -325,17 +411,23 @@ class EcranAffichageAdmin(CentreAdminMixin, admin.ModelAdmin):
 
 
 @admin.register(AppareilEcran)
-class AppareilEcranAdmin(admin.ModelAdmin):
+class AppareilEcranAdmin(ListeLisibleMixin, admin.ModelAdmin):
+    aide_liste = ("TV qui ont ouvert une fois l'adresse …/tv/. Choisissez ce qu'elles affichent depuis la page "
+                  "« Écran » de l'application.")
+
     """Écrans Wi-Fi (TV qui ont ouvert …/tv/) : on peut les nommer ou les retirer ; réservé à la plateforme."""
 
-    list_display = ("__str__", "code", "adresse_ip", "centre", "en_ligne", "derniere_activite")
+    list_display = ("__str__", "code", "centre", "affichage", "adresse_ip", "etat", "derniere_activite")
     list_filter = ("centre",)
+    search_fields = ("nom", "code", "adresse_ip")
     fields = ("nom", "code", "centre", "affichage", "adresse_ip", "navigateur", "date_creation", "derniere_activite")
     readonly_fields = ("code", "adresse_ip", "navigateur", "date_creation", "derniere_activite")
 
-    @admin.display(boolean=True, description="En ligne")
-    def en_ligne(self, obj):
-        return obj.en_ligne
+    @admin.display(description="État")
+    def etat(self, obj):
+        if not obj.centre_id:
+            return pastille("Libre", "neutre")
+        return pastille("En ligne", "ok") if obj.en_ligne else pastille("Hors ligne", "arret")
 
     def has_add_permission(self, request):
         return False
@@ -352,14 +444,16 @@ class AppareilEcranAdmin(admin.ModelAdmin):
 class EcranConnecteAdmin(CentreAdminMixin, admin.ModelAdmin):
     """Appareils qui affichent les appels, repérés automatiquement (on peut seulement les nommer)."""
 
-    list_display = ("__str__", "adresse_ip", "centre", "en_ligne", "derniere_activite")
+    aide_liste = "Appareils du réseau qui affichent l'écran des appels (repérés automatiquement). Donnez-leur un nom pour les reconnaître."
+    list_display = ("__str__", "adresse_ip", "centre", "etat", "derniere_activite")
+    search_fields = ("nom", "adresse_ip")
     list_filter = ("centre",)
     fields = ("centre", "nom", "adresse_ip", "navigateur", "premiere_activite", "derniere_activite")
     readonly_fields = ("centre", "adresse_ip", "navigateur", "premiere_activite", "derniere_activite")
 
-    @admin.display(boolean=True, description="En ligne")
-    def en_ligne(self, obj):
-        return obj.en_ligne
+    @admin.display(description="État")
+    def etat(self, obj):
+        return pastille("En ligne", "ok") if obj.en_ligne else pastille("Hors ligne", "arret")
 
     def has_add_permission(self, request):
         return False
@@ -386,7 +480,9 @@ class ImprimanteTicketAdmin(CentreAdminMixin, admin.ModelAdmin):
     """Imprimantes thermiques réseau des bornes (présentation revue le 24/11/2026)."""
 
     form = ImprimanteTicketForm
-    change_list_template = "admin/centres/imprimanteticket/change_list.html"
+    aide_liste = ("Imprimantes thermiques branchées au réseau du centre. Chaque borne imprime ses tickets sur "
+                  "l'imprimante choisie dans sa fiche (Bornes). « Imprimer un test » vérifie qu'une imprimante "
+                  "répond ; une borne sans imprimante imprime par la tablette.")
     list_display = ("nom", "centre", "adresse_reseau", "papier", "accents", "bornes_reliees", "etat", "bouton_test")
     list_display_links = ("nom",)
     list_filter = ("centre", "actif")
@@ -433,9 +529,7 @@ class ImprimanteTicketAdmin(CentreAdminMixin, admin.ModelAdmin):
 
     @admin.display(description="État", ordering="actif")
     def etat(self, obj):
-        if obj.actif:
-            return format_html('<span class="pastille-etat ok">{}</span>', "En service")
-        return format_html('<span class="pastille-etat arret">{}</span>', "Hors service")
+        return etat_actif(obj.actif)
 
     @admin.display(description="")
     def bouton_test(self, obj):

@@ -1,7 +1,7 @@
 from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
 
-from core.admin import CentreAdminMixin
+from core.admin import CentreAdminMixin, etat_actif, oui_non, pastille
 
 from .models import (
     EtapeParcours,
@@ -15,17 +15,26 @@ from .quotas import enregistrer_quota, supprimer_quota
 
 @admin.register(Parcours)
 class ParcoursAdmin(CentreAdminMixin, admin.ModelAdmin):
-    list_display = (
-        "prefixe",
-        "libelle_borne",
-        "centre",
-        "ordre_affichage",
-        "visible_borne",
-        "reserve_accueil",
-        "soumis_quota",
-        "actif",
-        "version_en_vigueur",
-    )
+    aide_liste = ("Parcours proposés aux patients (Médecin, Dentiste…) : le préfixe des tickets, l'ordre à la borne "
+                  "et les étapes (dans la version publiée). Pour changer les étapes : action « Créer un brouillon », "
+                  "puis publier la nouvelle version.")
+    list_display = ("libelle_borne", "prefixe", "centre", "ordre_affichage", "a_la_borne", "quota",
+                    "version_en_vigueur", "etat")
+    list_display_links = ("libelle_borne",)
+
+    @admin.display(description="À la borne", ordering="visible_borne")
+    def a_la_borne(self, obj):
+        if not obj.visible_borne:
+            return pastille("Non", "neutre")
+        return pastille("Accueil seulement", "attention") if obj.reserve_accueil else pastille("Oui", "ok")
+
+    @admin.display(description="Quota", ordering="soumis_quota")
+    def quota(self, obj):
+        return oui_non(obj.soumis_quota)
+
+    @admin.display(description="État", ordering="actif")
+    def etat(self, obj):
+        return etat_actif(obj.actif)
 
     list_filter = ("centre", "visible_borne", "soumis_quota", "actif")
     search_fields = ("code", "libelle_borne")
@@ -68,13 +77,14 @@ class EtapeParcoursInline(admin.TabularInline):
 class ParcoursVersionAdmin(CentreAdminMixin, admin.ModelAdmin):
     chemin_centre = "parcours__centre"
 
-    list_display = (
-        "parcours",
-        "numero",
-        "statut",
-        "date_publication",
-        "publiee_par",
-    )
+    aide_liste = ("Versions des parcours : une version publiée ne change plus (les tickets déjà émis la gardent). "
+                  "On modifie un brouillon, puis on le publie.")
+    list_display = ("parcours", "numero", "etat", "date_publication", "publiee_par")
+
+    @admin.display(description="Statut", ordering="statut")
+    def etat(self, obj):
+        genre = {"PUBLIEE": "ok", "BROUILLON": "attention"}.get(obj.statut, "neutre")
+        return pastille(obj.get_statut_display(), genre)
 
     list_filter = ("statut", "parcours__centre")
     list_select_related = ("parcours", "parcours__centre", "publiee_par")
@@ -117,14 +127,14 @@ class ParcoursVersionAdmin(CentreAdminMixin, admin.ModelAdmin):
 class QuotaParcoursAdmin(CentreAdminMixin, admin.ModelAdmin):
     chemin_centre = "parcours__centre"
 
-    list_display = (
-        "parcours",
-        "jour_semaine",
-        "periode",
-        "nombre_places",
-        "date_debut",
-        "date_fin",
-    )
+    aide_liste = ("Nombre de places par jour et par période (matin, après-midi), pour les parcours soumis à quota "
+                  "(dentiste). Chaque changement est enregistré dans « Modifications de quotas ».")
+    list_display = ("parcours", "jour_semaine", "periode", "nombre_places", "validite")
+
+    @admin.display(description="Valable", ordering="date_debut")
+    def validite(self, obj):
+        debut = obj.date_debut.strftime("%d/%m/%Y")
+        return f"du {debut} au {obj.date_fin.strftime('%d/%m/%Y')}" if obj.date_fin else f"depuis le {debut}"
 
     list_filter = ("parcours", "jour_semaine", "periode")
     list_select_related = ("parcours", "parcours__centre")
@@ -144,6 +154,7 @@ class QuotaParcoursAdmin(CentreAdminMixin, admin.ModelAdmin):
 class ModificationQuotaAdmin(CentreAdminMixin, admin.ModelAdmin):
     chemin_centre = "parcours__centre"
 
+    aide_liste = "Historique des changements de quotas : qui, quand, valeurs avant et après."
     list_display = ("date", "parcours", "action", "auteur")
     list_filter = ("action", "parcours")
     list_select_related = ("parcours", "parcours__centre", "auteur")

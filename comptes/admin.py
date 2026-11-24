@@ -5,7 +5,10 @@ from django.contrib.auth.models import Group, Permission
 from django.db.models import Q
 
 from centres.access import est_administrateur_central
-from core.admin import CentreAdminMixin, centres_administres
+from django.urls import reverse
+from django.utils.html import format_html
+
+from core.admin import CentreAdminMixin, ListeLisibleMixin, centres_administres, etat_actif, pastille
 
 from .models import (
     Utilisateur,
@@ -132,15 +135,42 @@ class AffectationUtilisateurInline(admin.TabularInline):
 
 
 @admin.register(Utilisateur)
-class UtilisateurAdmin(UserAdmin):
-    list_display = (
-        "username",
-        "first_name",
-        "last_name",
-        "email",
-        "type_compte",
-        "is_active",
-    )
+class UtilisateurAdmin(ListeLisibleMixin, UserAdmin):
+    aide_liste = ("Comptes du personnel : chacun se connecte avec son compte. Le rôle et les services se règlent dans "
+                  "l'affectation du compte à un centre (en bas de la fiche). Un compte quitté est désactivé, jamais supprimé.")
+    list_display = ("nom_complet", "username", "type_compte", "roles", "connexion", "etat")
+    list_display_links = ("nom_complet", "username")
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).prefetch_related("affectations__groupe", "affectations__centre")
+
+    @admin.display(description="Nom", ordering="last_name")
+    def nom_complet(self, obj):
+        return obj.get_full_name() or "—"
+
+    @admin.display(description="Rôle (centre)")
+    def roles(self, obj):
+        roles = [
+            f"{a.groupe.name if a.groupe_id else a.get_role_display()} ({a.centre.code})"
+            for a in obj.affectations.all() if a.actif
+        ]
+        return ", ".join(roles) or "—"
+
+    @admin.display(description="Connexion")
+    def connexion(self, obj):
+        from .presence import utilisateurs_connectes
+
+        if obj.pk in utilisateurs_connectes():
+            texte = pastille("Connecté", "ok")
+        elif obj.last_login:
+            texte = format_html('<span class="discret-admin">{}</span>', obj.last_login.strftime("%d/%m/%Y"))
+        else:
+            texte = format_html('<span class="discret-admin">{}</span>', "jamais")
+        return texte
+
+    @admin.display(description="État", ordering="is_active")
+    def etat(self, obj):
+        return etat_actif(obj.is_active, "Actif", "Désactivé")
 
     list_filter = (
         "type_compte",
@@ -226,13 +256,22 @@ class AffectationUtilisateurAdmin(CentreAdminMixin, admin.ModelAdmin):
     inlines = (AffectationServiceInline,)
     filter_horizontal = ("permissions",)
 
-    list_display = (
-        "utilisateur",
-        "centre",
-        "groupe",
-        "role",
-        "actif",
-    )
+    aide_liste = ("Une affectation donne à un compte un rôle dans un centre (Accueil, Infirmerie, Médecin…), "
+                  "pour tous les services ou seulement certains. La salle indiquée est annoncée à l'écran.")
+    list_display = ("utilisateur", "centre", "role_du_compte", "services", "salle", "etat")
+
+    @admin.display(description="Rôle", ordering="groupe__name")
+    def role_du_compte(self, obj):
+        return obj.groupe.name if obj.groupe_id else obj.get_role_display()
+
+    @admin.display(description="Services")
+    def services(self, obj):
+        noms = [s.service.nom for s in obj.services_autorises.all()]
+        return ", ".join(noms) if noms else pastille("Tous", "neutre")
+
+    @admin.display(description="État", ordering="actif")
+    def etat(self, obj):
+        return etat_actif(obj.actif, "Active", "Inactive")
 
     list_filter = (
         "centre",
@@ -299,7 +338,9 @@ admin.site.unregister(Group)
 
 
 @admin.register(Group)
-class RoleAdmin(GroupAdmin):
+class RoleAdmin(ListeLisibleMixin, GroupAdmin):
+    aide_liste = "Rôles (groupes de droits) : ce que chaque rôle peut faire. Réservé à l'administrateur de la plateforme."
+
     def _central(self, request):
         return est_administrateur_central(request.user)
 
