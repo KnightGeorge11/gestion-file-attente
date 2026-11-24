@@ -174,3 +174,17 @@ class ListesDeLAdministrationTests(BaseVues):
                 self.assertEqual(page.status_code, 200, url)
                 self.assertNotContains(page, "Sélectionnez l", msg_prefix=url)
                 self.assertNotContains(page, "Par par defaut", msg_prefix=url)
+
+
+class OngletAdministrationTests(BaseVues):
+    """24/11/2026 : l'onglet « Administration » est réservé à l'administrateur de la plateforme."""
+
+    def test_onglet_administration(self):
+        admin_centre = self.d.agent("admin_centre", "Administrateur de centre")
+        admin_centre.is_staff = True
+        admin_centre.save(update_fields=["is_staff"])
+        self.connecter(admin_centre, self.d.centre, salle_indiquee=False)
+        self.assertNotContains(self.client.get(reverse("circuit:guichets")), reverse("admin:index"))
+        plateforme = Utilisateur.objects.create_superuser(username="super", password="x")
+        self.connecter(plateforme, self.d.centre, salle_indiquee=False)
+        self.assertContains(self.client.get(reverse("circuit:guichets")), reverse("admin:index"))

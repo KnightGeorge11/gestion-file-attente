@@ -71,6 +71,6 @@
         <div class="attente-vide">{% icone "imprimante" %}<strong>Aucune borne dans ce centre</strong><span class="discret">Créez-la dans l'administration (Bornes), puis revenez ici pour l'activer.</span></div>
     {% endfor %}
     </div>
-    {% if user.is_staff %}<p class="discret" style="margin-bottom:0">Imprimante de chaque borne : <a href="{% url 'admin:centres_borne_changelist' %}" hx-boost="false">administration des bornes</a>.</p>{% endif %}
+    {% if est_admin_plateforme %}<p class="discret" style="margin-bottom:0">Imprimante de chaque borne : <a href="{% url 'admin:centres_borne_changelist' %}" hx-boost="false">administration des bornes</a>.</p>{% endif %}
 </section>
 {% endblock %}
