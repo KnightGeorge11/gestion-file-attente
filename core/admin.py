@@ -123,6 +123,20 @@ def _filtre_titre(titre):
     return fabrique
 
 
+class FormulaireSimpleMixin:
+    """
+    Formulaires de l'administration simplifiés (27/11/2026 : « trop de trucs ») :
+    les choix multiples (services, permissions…) en cases à cocher au lieu des
+    deux grandes listes « disponibles / choisis ».
+    """
+
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        from django import forms
+
+        kwargs.setdefault("widget", forms.CheckboxSelectMultiple)
+        return super().formfield_for_manytomany(db_field, request, **kwargs)
+
+
 class ListeLisibleMixin:
     """
     Listes de l'administration plus lisibles (24/11/2026) : titre simple
@@ -149,7 +163,7 @@ class ListeLisibleMixin:
         return super().changelist_view(request, extra_context)
 
 
-class CentreAdminMixin(ListeLisibleMixin):
+class CentreAdminMixin(FormulaireSimpleMixin, ListeLisibleMixin):
     """
     Isolation par centre dans l'administration Django : un compte qui n'est
     pas administrateur central ne voit et ne modifie que les données des

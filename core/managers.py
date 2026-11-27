@@ -28,15 +28,6 @@ class CentreQuerySet(models.QuerySet):
 
         return self.pour_centre(centre_actif)
 
-    def pour_centres_autorises(self, utilisateur):
-        """Retourne les données des centres accessibles à l'utilisateur."""
-        if not utilisateur or not utilisateur.is_authenticated:
-            return self.none()
-
-        from centres.access import centres_autorises
-
-        return self.filter(centre__in=centres_autorises(utilisateur))
-
 
 class CentreManager(models.Manager.from_queryset(CentreQuerySet)):
     """Manager commun aux modèles liés à un centre."""

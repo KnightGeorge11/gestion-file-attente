@@ -128,10 +128,10 @@
             {% if peut_appeler and not autre_service and not appel_autres_seulement %}
             <form hx-post="{% url 'circuit:guichet_action' service.pk 'appeler' %}" hx-target="#zone-guichet" method="post" action="{% url 'circuit:guichet_action' service.pk 'appeler' %}" class="appel-suivant">
                 {% csrf_token %}<input type="hidden" name="file" value="{{ file.pk }}">
-                <input name="poste" maxlength="50" value="{{ salle_agent }}" placeholder="Salle (facultatif)" aria-label="Salle">
+                {% if avec_salle %}<input name="poste" maxlength="50" value="{{ salle_agent }}" placeholder="Salle (facultatif)" aria-label="Salle">{% endif %}
                 <button class="principal grand">{% icone "appel" %}Appeler le suivant</button>
             </form>
-            <p class="discret ligne">{% icone "centre" %}{% if salle_agent %}Votre salle : <strong>{{ salle_agent }}</strong>, annoncée à vos appels ·{% else %}Aucune salle annoncée ·{% endif %} <a href="{% url 'circuit:ma_salle' %}?next={% filter urlencode %}{% url 'circuit:guichet' service.pk %}?file={{ file.pk }}{% endfilter %}">{% if salle_agent %}changer{% else %}indiquer ma salle{% endif %}</a></p>
+            {% if avec_salle %}<p class="discret ligne">{% icone "centre" %}{% if salle_agent %}Votre salle : <strong>{{ salle_agent }}</strong>, annoncée à vos appels ·{% else %}Aucune salle annoncée ·{% endif %} <a href="{% url 'circuit:ma_salle' %}?next={% filter urlencode %}{% url 'circuit:guichet' service.pk %}?file={{ file.pk }}{% endfilter %}">{% if salle_agent %}changer{% else %}indiquer ma salle{% endif %}</a></p>{% endif %}
             {% endif %}
         {% endif %}
 

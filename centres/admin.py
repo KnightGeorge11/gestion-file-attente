@@ -73,24 +73,26 @@ class CentreAdmin(ListeLisibleMixin, admin.ModelAdmin):
 
     fieldsets = (
         (None, {
-            "fields": ("code", "nom", "adresse", "fuseau_horaire", "actif"),
+            "fields": ("nom", "code", "adresse", "actif"),
         }),
-        ("Paramètres de fonctionnement", {
+        ("Fonctionnement", {
             "fields": (
                 "accueil_delivre_tickets",
                 "heure_coupure_matin",
                 "heure_cloture_tickets",
+            ),
+        }),
+        ("Avancé", {
+            "fields": (
+                "fuseau_horaire",
                 "max_reintegrations",
                 "max_tickets_ouverts_par_patient",
                 "duree_affichage_appel_secondes",
-            ),
-        }),
-        ("Informations", {
-            "fields": (
                 "prochain_numero_patient",
                 "date_creation",
                 "date_modification",
             ),
+            "classes": ("collapse",),
         }),
     )
 
@@ -192,7 +194,16 @@ class ServiceAdmin(CentreAdminMixin, admin.ModelAdmin):
     # Médecin en chef : plus un service (décision du 23/11/2026), mais une
     # personne qui reçoit les demandes « Autre » comme la direction. La case
     # « Peut envoyer au médecin en chef » (les médecins) reste utilisée.
-    exclude = ("est_medecin_chef",)
+    # Formulaire simplifié (27/11/2026) : nom, ordre, en service ou en pause ;
+    # le rôle particulier du service (accueil, pharmacie…) est replié.
+    fieldsets = (
+        (None, {"fields": ("centre", "nom", "code", "ordre", "actif")}),
+        ("Pause", {"fields": ("suspendu", "motif_suspension"),
+                   "description": "Service en pause : il ne reçoit plus de nouveaux patients pour le moment."}),
+        ("Avancé", {"fields": ("destinataire_demandes", "afficher_ecran_principal", "envoie_medecin_chef",
+                               "accepte_transferts", "appel_oral_autorise", "est_accueil", "est_pharmacie"),
+                    "classes": ("collapse",)}),
+    )
 
     inlines = (HoraireServiceInline, FileAttenteInline)
 
@@ -247,6 +258,14 @@ class FileAttenteAdmin(CentreAdminMixin, admin.ModelAdmin):
 
     readonly_fields = ("date_creation", "date_modification")
 
+    fieldsets = (
+        (None, {"fields": ("service", "nom", "actif")}),
+        ("Appels", {"fields": ("nb_appels_avant_absence", "delai_entre_appels_secondes", "nb_appels_simultanes",
+                               "ordre_strict")}),
+        ("Avancé", {"fields": ("centre", "code", "par_defaut", "date_creation", "date_modification"),
+                    "classes": ("collapse",)}),
+    )
+
 
 @admin.register(Borne)
 class BorneAdmin(CentreAdminMixin, admin.ModelAdmin):
@@ -283,8 +302,13 @@ class BorneAdmin(CentreAdminMixin, admin.ModelAdmin):
         "date_creation",
     )
 
-    # Services proposés par la borne (décision du 21/11/2026).
-    filter_horizontal = ("parcours",)
+    # Formulaire simplifié (27/11/2026) ; services proposés en cases à cocher.
+    fieldsets = (
+        (None, {"fields": ("centre", "libelle", "imprimante", "actif")}),
+        ("Services proposés", {"fields": ("parcours",),
+                               "description": "Aucun coché : tous les services de la borne du centre."}),
+        ("Avancé", {"fields": ("code", "derniere_activite", "date_creation"), "classes": ("collapse",)}),
+    )
 
     # Plus de clé (décision du 21/11/2026) : la borne est activée sur son
     # appareil par un administrateur connecté (page …/circuit/borne/).
@@ -421,8 +445,11 @@ class EcranAffichageAdmin(CentreAdminMixin, admin.ModelAdmin):
     @admin.display(description="État", ordering="actif")
     def etat(self, obj):
         return etat_actif(obj.actif, "Utilisé", "Retiré")
-    # Services affichés sur l'écran (décision du 24/11/2026).
-    filter_horizontal = ("services",)
+    # Formulaire simplifié (27/11/2026) ; services en cases à cocher.
+    fieldsets = (
+        (None, {"fields": ("centre", "libelle", "services", "nb_appels_affiches", "annonce_vocale", "actif")}),
+        ("Avancé", {"fields": ("code", "derniere_activite", "date_creation"), "classes": ("collapse",)}),
+    )
     actions = ("regenerer_cle",)
 
     save_model = _sauver_ecran_avec_cle

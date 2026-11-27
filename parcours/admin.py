@@ -39,6 +39,12 @@ class ParcoursAdmin(CentreAdminMixin, admin.ModelAdmin):
 
     list_filter = ("centre", "visible_borne", "soumis_quota", "actif")
     search_fields = ("code", "libelle_borne")
+    fieldsets = (
+        (None, {"fields": ("centre", "libelle_borne", "prefixe", "visible_borne", "actif")}),
+        ("Places limitées", {"fields": ("soumis_quota",),
+                             "description": "Pour le dentiste : nombre de patients par demi-journée (onglet Réglages)."}),
+        ("Avancé", {"fields": ("code", "ordre_affichage", "reserve_accueil"), "classes": ("collapse",)}),
+    )
     list_select_related = ("centre",)
     actions = ("creer_brouillon",)
 

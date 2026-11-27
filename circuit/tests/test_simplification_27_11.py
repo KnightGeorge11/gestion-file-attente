@@ -265,3 +265,73 @@ class ServiceNonPublieTests(BaseVues):
         admin = self.d.agent("admin_c", "Administrateur de centre")
         self.connecter(admin, self.d.centre)
         self.assertContains(self.client.get(reverse("circuit:bornes")), "chemin pas encore publié")
+
+
+class FormulairesAdministrationSimplesTests(BaseVues):
+    """27/11/2026 : formulaires de l'administration simplifiés (l'essentiel visible, le reste replié)."""
+
+    def test_tous_les_formulaires_s_ouvrent(self):
+        from django.contrib import admin as admin_django
+
+        from centres.models import Borne, EcranAffichage
+        from comptes.models import AffectationUtilisateur
+
+        plateforme = Utilisateur.objects.create_superuser("plateforme", password="mot-de-passe-1")
+        self.client.force_login(plateforme)
+        Borne.objects.create(centre=self.d.centre, code="B1", libelle="Tablette")
+        EcranAffichage.objects.create(centre=self.d.centre, code="E1", libelle="TV")
+        for modele, model_admin in admin_django.site._registry.items():
+            nom = f"admin:{modele._meta.app_label}_{modele._meta.model_name}"
+            objet = modele.objects.first()
+            if model_admin.has_add_permission(self._requete(plateforme)):
+                self.assertEqual(self.client.get(reverse(f"{nom}_add")).status_code, 200, nom)
+            if objet is not None:
+                self.assertEqual(self.client.get(reverse(f"{nom}_change", args=[objet.pk])).status_code, 200, nom)
+
+        affectation = AffectationUtilisateur.objects.filter(centre=self.d.centre).first()
+        page = self.client.get(reverse("admin:comptes_affectationutilisateur_change", args=[affectation.pk]))
+        self.assertNotContains(page, "Can add log entry")              # plus la liste technique de Django
+        self.assertNotContains(page, 'name="role"')                    # plus l'ancien champ Agent / Responsable
+        self.assertContains(page, "Avancé : droits en plus du rôle")
+        self.assertContains(page, 'type="checkbox" name="permissions"')
+
+    def _requete(self, utilisateur):
+        from django.test import RequestFactory
+
+        requete = RequestFactory().get("/")
+        requete.user = utilisateur
+        return requete
+
+
+class SallesMedecinsSeulementTests(BaseVues):
+    """27/11/2026 : la salle ne concerne que les médecins."""
+
+    def test_pas_de_salle_hors_medecins(self):
+        affectation = AffectationUtilisateur.objects.get(utilisateur=self.accueil, centre=self.d.centre)
+        affectation.salle = "Bureau 2"
+        affectation.save()
+        affectation.refresh_from_db()
+        self.assertEqual(affectation.salle, "")
+        medecin = AffectationUtilisateur.objects.get(utilisateur=self.medecin, centre=self.d.centre)
+        medecin.salle = "Salle 1"
+        medecin.save()
+        medecin.refresh_from_db()
+        self.assertEqual(medecin.salle, "Salle 1")
+
+    def test_guichet_et_ma_salle(self):
+        self.connecter(self.accueil, self.d.centre)
+        page = self.client.get(reverse("circuit:guichet", args=[self.d.svc["ACC"].pk]))
+        self.assertNotContains(page, 'name="poste"')
+        self.assertNotContains(page, "indiquer ma salle")
+        self.assertRedirects(self.client.get(reverse("circuit:ma_salle")), reverse("circuit:guichets"),
+                             fetch_redirect_response=False)
+        # Un poste envoyé quand même n'est pas annoncé.
+        ticket = self.d.ticket("M")
+        self.client.post(reverse("circuit:guichet_action", args=[self.d.svc["ACC"].pk, "appeler"]),
+                         {"poste": "Bureau 2"})
+        from circuit.models import Appel
+
+        self.assertEqual(Appel.objects.filter(ticket=ticket).latest("date").poste, "")
+        self.connecter(self.medecin, self.d.centre)
+        page = self.client.get(reverse("circuit:guichet", args=[self.d.svc["MED"].pk]))
+        self.assertContains(page, 'name="poste"')

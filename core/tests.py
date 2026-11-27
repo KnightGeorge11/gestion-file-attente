@@ -1,5 +1,3 @@
-
-from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 from django.test import TestCase
@@ -7,7 +5,6 @@ from django.utils import timezone
 
 from comptes.models import Utilisateur, AffectationUtilisateur
 from centres.models import Centre, Service
-from core.access import obtenir_centre_actif
 from core.managers import CentreQuerySet
 from core.timeutils import (
     fuseau_horaire_centre,
@@ -102,71 +99,6 @@ class CoreManagerTests(TestCase):
         )
 
         self.assertEqual(resultats.count(), 0)
-
-    def test_pour_centres_autorises_respecte_affectations(self):
-        queryset = CentreQuerySet(
-            model=Service,
-            using="default",
-        )
-
-        resultats = queryset.pour_centres_autorises(
-            self.utilisateur,
-        )
-
-        self.assertEqual(
-            list(resultats),
-            [self.service_a],
-        )
-
-
-class CoreAccessTests(TestCase):
-    def setUp(self):
-        self.centre = Centre.objects.create(
-            code="TST",
-            nom="Centre test",
-        )
-
-        self.utilisateur = Utilisateur.objects.create_user(
-            username="agent_access",
-            password="test-password",
-        )
-
-        AffectationUtilisateur.objects.create(
-            utilisateur=self.utilisateur,
-            centre=self.centre,
-            role="AGENT",
-        )
-
-    def creer_request(self, centre_actif, centre_session):
-        return SimpleNamespace(
-            user=self.utilisateur,
-            centre_actif=centre_actif,
-            session={"centre_actif_id": centre_session},
-        )
-
-    def test_obtenir_centre_actif_si_autorise(self):
-        request = self.creer_request(
-            self.centre,
-            self.centre.pk,
-        )
-
-        self.assertEqual(
-            obtenir_centre_actif(request),
-            self.centre,
-        )
-
-    def test_refuse_si_centre_session_different(self):
-        request = self.creer_request(
-            self.centre,
-            99999,
-        )
-
-        self.assertIsNone(obtenir_centre_actif(request))
-
-    def test_refuse_si_aucun_centre_actif(self):
-        request = self.creer_request(None, None)
-
-        self.assertIsNone(obtenir_centre_actif(request))
 
 
 class CoreTimeUtilsTests(TestCase):

@@ -655,7 +655,8 @@ class ErgonomieDu24_11Tests(BaseVues):
         self.assertContains(reponse, "pas disponible pour le moment. Merci de vous présenter à l")
         self.assertNotContains(reponse, "Mode inconnu")
 
-    def test_appel_depuis_les_notifications_annonce_la_salle(self):
+    def test_appel_depuis_les_notifications_sans_salle_hors_medecins(self):
+        # Depuis le 27/11/2026, seule la salle d'un médecin est annoncée.
         from circuit.models import Appel, MotifDemande, Ticket
         from comptes.permissions import affectation_active
 
@@ -667,6 +668,6 @@ class ErgonomieDu24_11Tests(BaseVues):
         ticket = services.emettre_ticket(self.d.centre, Ticket.Mode.AUTRE, motif=motif)
         notification = services.transmettre_demande(ticket.demande, self.accueil, destinataire=directeur)
         self.connecter(directeur, self.d.centre, salle_indiquee=False)
-        self.assertContains(self.client.get(reverse("circuit:notifications")), 'value="Bureau 3"')
-        self.client.post(reverse("circuit:notification_appeler", args=[notification.pk]), {"poste": ""})
-        self.assertEqual(Appel.objects.get(ticket=ticket, agent=directeur).poste, "Bureau 3")
+        self.assertNotContains(self.client.get(reverse("circuit:notifications")), 'name="poste"')
+        self.client.post(reverse("circuit:notification_appeler", args=[notification.pk]), {"poste": "Bureau 3"})
+        self.assertEqual(Appel.objects.get(ticket=ticket, agent=directeur).poste, "")

@@ -4,6 +4,15 @@ from django.db import models
 from django.core.exceptions import ValidationError
 
 
+# Seuls les médecins reçoivent dans une salle annoncée à l'écran (« M 0 0 1,
+# Médecin, Salle 1 ») ; aucun autre rôle n'a de salle (décision du 27/11/2026).
+ROLES_AVEC_SALLE = ("Médecin",)
+
+
+def a_une_salle(affectation):
+    return bool(affectation is not None and affectation.groupe_id and affectation.groupe.name in ROLES_AVEC_SALLE)
+
+
 class Utilisateur(AbstractUser):
     """
     Compte utilisateur du personnel de SMIE FUNTOA.
@@ -144,6 +153,14 @@ class AffectationUtilisateur(models.Model):
                 name="unique_affectation_utilisateur_centre",
             ),
         ]
+
+    def save(self, *args, **kwargs):
+        # Pas de salle hors des médecins (27/11/2026) : elle serait annoncée à l'écran.
+        if self.salle and not a_une_salle(self):
+            self.salle = ""
+            if kwargs.get("update_fields") is not None and "salle" not in kwargs["update_fields"]:
+                kwargs["update_fields"] = list(kwargs["update_fields"]) + ["salle"]
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.utilisateur} - {self.centre} ({self.get_role_display()})"

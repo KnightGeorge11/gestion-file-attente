@@ -19,7 +19,7 @@ from centres.decorators import centre_actif_requis
 from centres.models import Service
 from comptes.access import utilisateur_peut_acceder_service
 from comptes.models import Utilisateur
-from comptes.gestion import ROLES_AVEC_SALLE  # médecins seulement
+from comptes.models import ROLES_AVEC_SALLE, a_une_salle  # salle : médecins seulement
 from comptes.permissions import a_droit, affectation_active, appel_limite_aux_autres, voit_autres_seulement
 from core.access import objet_du_centre
 from core.timeutils import maintenant_centre
@@ -519,6 +519,9 @@ def ma_salle(request):
     affectation = affectation_active(request.user, request.centre_actif)
     if affectation is None:
         raise PermissionDenied
+    if not a_une_salle(affectation):
+        # « Votre salle » : médecins seulement (27/11/2026).
+        return redirect("circuit:guichets")
     suite = request.GET.get("next") or request.POST.get("next") or reverse("circuit:guichets")
     if not url_has_allowed_host_and_scheme(suite, allowed_hosts={request.get_host()}):
         suite = reverse("circuit:guichets")
@@ -642,6 +645,8 @@ def _contexte_guichet(request, service, file):
         "peut_orienter": a_droit(agent, "circuit.orienter_demande", request.centre_actif, service),
         # Administrateur, responsables, direction : tickets « Autre » seulement.
         "appel_autres_seulement": appel_limite_aux_autres(agent, request.centre_actif),
+        # Salle : médecins seulement (27/11/2026) ; les autres n'en voient rien.
+        "avec_salle": a_une_salle(affectation_active(agent, request.centre_actif)),
         "salle_agent": getattr(affectation_active(agent, request.centre_actif), "salle", ""),
         "maintenant": timezone.now(),
         "indicateurs": _indicateurs_service(service, file, agent, jour),
@@ -796,11 +801,12 @@ def guichet_action(request, service_id, action):
             entree = None
             if request.POST.get("entree"):
                 entree = _entree_de_la_file(request, file)
-            # Salle indiquée par l'agent à sa connexion, sauf s'il en précise une autre.
-            poste = request.POST.get("poste", "").strip()
-            if not poste:
-                affectation = affectation_active(agent, request.centre_actif)
-                poste = affectation.salle if affectation is not None else ""
+            # Salle indiquée par le médecin à sa connexion, sauf s'il en précise une autre ;
+            # aucune salle pour les autres rôles (27/11/2026).
+            affectation = affectation_active(agent, request.centre_actif)
+            poste = request.POST.get("poste", "").strip()[:50] or (affectation.salle if affectation else "")
+            if not a_une_salle(affectation):
+                poste = ""
             appel = services.appeler(file, agent, entree=entree, poste=poste)
             messages.success(request, f"Ticket {appel.numero_ticket} appelé.")
         elif action == "rappeler":
@@ -1084,6 +1090,7 @@ def notifications(request):
         {
             "notifications": mes_notifications,
             "envoyes": envoyes,
+            "avec_salle": a_une_salle(affectation_active(request.user, centre)),
             "salle_agent": getattr(affectation_active(request.user, centre), "salle", "") or "",
             "statuts": ReponseNotification.Statut.choices,
             "aujourd_hui": maintenant_centre(centre).date(),
@@ -1098,10 +1105,11 @@ def notification_appeler(request, notification_id):
     notification = get_object_or_404(
         Notification.objects.filter(centre=request.centre_actif, destinataire=request.user), pk=notification_id
     )
-    poste = request.POST.get("poste", "").strip()
-    if not poste:
-        # Comme au guichet : la salle indiquée par l'agent est annoncée (24/11/2026).
-        poste = getattr(affectation_active(request.user, request.centre_actif), "salle", "") or ""
+    # Comme au guichet : la salle du médecin est annoncée ; aucune pour les autres rôles (27/11/2026).
+    affectation = affectation_active(request.user, request.centre_actif)
+    poste = request.POST.get("poste", "").strip()[:50] or (getattr(affectation, "salle", "") or "")
+    if not a_une_salle(affectation):
+        poste = ""
     try:
         appel = services.appeler_visiteur(notification, request.user, poste)
         messages.success(request, f"{appel.numero_ticket} appelé à l'écran : « {appel.nom_service} ».")

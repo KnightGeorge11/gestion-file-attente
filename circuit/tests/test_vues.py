@@ -135,7 +135,7 @@ class InterfaceServiceTests(BaseVues):
         self.client.post(reverse("circuit:guichet_action", args=[acc, "appeler"]), {"poste": "Guichet 1"})
         entree = self.d.entree(ticket)
         self.assertEqual(entree.agent, self.accueil)
-        self.assertEqual(Appel.objects.get().poste, "Guichet 1")
+        self.assertEqual(Appel.objects.get().poste, "")          # pas de salle hors des médecins (27/11/2026)
         self.client.post(reverse("circuit:guichet_action", args=[acc, "prendre"]), {"entree": entree.pk})
 
         # Aucune identification : l'accueil valide le ticket et l'oriente.
@@ -986,10 +986,10 @@ class ScenarioTabletteAccueilServiceTests(BaseVues):
         self.assertContains(page, "1 en attente")
         self.client.post(reverse("circuit:guichet_action", args=[ech, "appeler"]), {"poste": "Salle 1"})
         appel = Appel.objects.get(service__code="ECH")
-        self.assertEqual((appel.numero_ticket, appel.poste, appel.agent), ("E001", "Salle 1", echographe))
+        self.assertEqual((appel.numero_ticket, appel.poste, appel.agent), ("E001", "", echographe))  # salle : médecins seulement
         ecran = self.client.get(reverse("circuit:ecran_appels"))
         self.assertContains(ecran, "E001")
-        self.assertContains(ecran, "Salle 1")
+        self.assertNotContains(ecran, "Salle 1")
         ticket.refresh_from_db()
         self.assertIsNone(ticket.patient)
 
@@ -1204,7 +1204,8 @@ class AppelVisiteurDepuisNotificationsTests(BaseVues):
         self.assertEqual(self.client.get(url).status_code, 405)
         page = self.client.post(url, {"poste": "Bureau 1"}, follow=True)
         self.assertContains(page, f"{ticket.numero} appelé à l")
-        self.assertTrue(Appel.objects.filter(ticket=ticket, agent=directeur, poste="Bureau 1").exists())
+        # Pas de salle hors des médecins (27/11/2026).
+        self.assertTrue(Appel.objects.filter(ticket=ticket, agent=directeur, poste="").exists())
         # Un autre agent ne peut pas utiliser cette notification.
         self.connecter(self.medecin, self.d.centre)
         self.assertEqual(self.client.post(url).status_code, 404)

@@ -96,7 +96,10 @@ class AffectationServiceInline(admin.TabularInline):
 class AffectationUtilisateurInline(admin.TabularInline):
     model = AffectationUtilisateur
     extra = 0
-    fields = ("centre", "groupe", "role", "actif")
+    # Plus l'ancien champ « Role » (Agent / Responsable) : le rôle est le groupe (27/11/2026).
+    fields = ("centre", "groupe", "actif")
+    verbose_name = "Rôle dans un centre"
+    verbose_name_plural = "Rôles dans les centres"
 
     def get_queryset(self, request):
         queryset = super().get_queryset(request)
@@ -176,28 +179,20 @@ class UtilisateurAdmin(ListeLisibleMixin, UserAdmin):
         "is_superuser",
     )
 
-    fieldsets = UserAdmin.fieldsets + (
-        (
-            "Informations professionnelles",
-            {
-                "fields": (
-                    "type_compte",
-                    "telephone",
-                )
-            },
-        ),
+    # Fiche simplifiée (27/11/2026) : l'essentiel d'abord, le technique replié.
+    # Le rôle dans chaque centre se règle en bas (« Rôles dans les centres »).
+    fieldsets = (
+        (None, {"fields": ("username", "password")}),
+        ("Identité", {"fields": ("first_name", "last_name", "telephone", "email")}),
+        ("Accès", {"fields": ("type_compte", "is_active"),
+                   "description": "Un compte quitté est désactivé (case « Actif » décochée), jamais supprimé."}),
+        ("Avancé (plateforme)", {"fields": ("is_staff", "is_superuser", "groups", "user_permissions",
+                                            "last_login", "date_joined"), "classes": ("collapse",)}),
     )
 
-    add_fieldsets = UserAdmin.add_fieldsets + (
-        (
-            "Informations professionnelles",
-            {
-                "fields": (
-                    "type_compte",
-                    "telephone",
-                )
-            },
-        ),
+    add_fieldsets = (
+        (None, {"classes": ("wide",), "fields": ("username", "password1", "password2")}),
+        ("Identité", {"fields": ("first_name", "last_name", "telephone", "type_compte")}),
     )
 
     inlines = (AffectationUtilisateurInline,)
@@ -252,11 +247,19 @@ class UtilisateurAdmin(ListeLisibleMixin, UserAdmin):
 @admin.register(AffectationUtilisateur)
 class AffectationUtilisateurAdmin(CentreAdminMixin, admin.ModelAdmin):
     inlines = (AffectationServiceInline,)
-    filter_horizontal = ("permissions",)
+    # Formulaire simplifié (27/11/2026) : le compte, le centre, le rôle et la
+    # salle ; les droits en plus du rôle sont repliés (rarement utiles).
+    fieldsets = (
+        (None, {"fields": ("utilisateur", "centre", "groupe", "actif")}),
+        ("Salle (médecins seulement)", {"fields": ("salle",),
+                                        "description": "Ignorée pour les autres rôles. Annoncée à l'écran (« Salle 1 »)."}),
+        ("Avancé : droits en plus du rôle", {"fields": ("permissions",), "classes": ("collapse",),
+                                             "description": "Rarement utile : le rôle donne déjà les droits."}),
+    )
 
     aide_liste = ("Une affectation donne à un compte un rôle dans un centre (Accueil, Infirmerie, Médecin…), "
-                  "pour tous les services ou seulement certains. La salle indiquée est annoncée à l'écran.")
-    list_display = ("utilisateur", "centre", "role_du_compte", "services", "salle", "etat")
+                  "pour tous les services ou seulement certains. La salle (médecins seulement) est annoncée à l'écran.")
+    list_display = ("utilisateur", "centre", "role_du_compte", "services", "etat")
 
     @admin.display(description="Rôle", ordering="groupe__name")
     def role_du_compte(self, obj):
@@ -274,7 +277,6 @@ class AffectationUtilisateurAdmin(CentreAdminMixin, admin.ModelAdmin):
     list_filter = (
         "centre",
         "groupe",
-        "role",
         "actif",
     )
 
@@ -309,12 +311,20 @@ class AffectationUtilisateurAdmin(CentreAdminMixin, admin.ModelAdmin):
                 ).exclude(pk=request.user.pk).distinct()
             elif db_field.name == "groupe":
                 champ.queryset = roles_metier()
+        return self.formfield_for_foreignkey_libelles(champ, db_field)
+
+    def formfield_for_foreignkey_libelles(self, champ, db_field):
+        if db_field.name == "groupe":
+            champ.label = "Rôle"
         return champ
 
     def formfield_for_manytomany(self, db_field, request, **kwargs):
         champ = super().formfield_for_manytomany(db_field, request, **kwargs)
-        if db_field.name == "permissions" and not est_administrateur_central(request.user):
-            champ.queryset = permissions_metier()
+        if db_field.name == "permissions":
+            # Droits métier seulement, en français (plus la liste technique de Django).
+            champ.queryset = permissions_metier().order_by("name")
+            champ.label_from_instance = lambda permission: permission.name
+            champ.label = "Droits en plus"
         return champ
 
     search_fields = (

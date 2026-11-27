@@ -310,3 +310,29 @@
   });
 })();
 
+// Menu « Gestion » (27/11/2026) : se ferme en cliquant ailleurs, avec Échap ou après un choix.
+document.addEventListener("click", function (evenement) {
+    document.querySelectorAll(".menu-gestion[open]").forEach(function (menu) {
+        if (!menu.contains(evenement.target) || evenement.target.closest(".menu-deroulant a")) { menu.open = false; }
+    });
+});
+document.addEventListener("keydown", function (evenement) {
+    if (evenement.key === "Escape") {
+        document.querySelectorAll(".menu-gestion[open]").forEach(function (menu) { menu.open = false; });
+    }
+});
+
+// Bouton « Retour » (27/11/2026) : page précédente de la plateforme ; ouverte dans un
+// nouvel onglet (rien avant), il mène à l'accueil. La navigation HTMX (hx-boost) ne met
+// pas à jour l'adresse d'origine, mais l'historique, si.
+document.addEventListener("click", function (evenement) {
+    const lien = evenement.target.closest("[data-retour]");
+    if (!lien) { return; }
+    let memeSite = false;
+    try { memeSite = Boolean(document.referrer) && new URL(document.referrer).origin === location.origin; } catch (e) { memeSite = false; }
+    const parHtmx = Boolean(window.history.state && window.history.state.htmx);
+    if (window.history.length > 1 && (memeSite || parHtmx)) {
+        evenement.preventDefault();
+        window.history.back();
+    }
+});

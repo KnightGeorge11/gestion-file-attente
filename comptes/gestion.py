@@ -31,8 +31,7 @@ SERVICE_DU_ROLE = {
     "Échographie": lambda s: s.code.upper() == "ECH" or s.nom.lower() == "échographie",
 }
 ROLES_AVEC_SERVICE = set(SERVICE_DU_ROLE)
-# Seuls les médecins reçoivent dans une salle annoncée à l'écran (décision du 21/11/2026).
-ROLES_AVEC_SALLE = ("Médecin",)
+from .models import ROLES_AVEC_SALLE  # noqa: E402,F401  (médecins seulement)
 
 # Lettres et chiffres faciles à lire et à dicter (ni 0/O, ni 1/l/I).
 _ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"

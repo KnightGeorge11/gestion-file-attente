@@ -163,15 +163,55 @@ header.barre .discret-bouton:hover { background: rgba(255, 255, 255, .1); color:
 
 /* 4. Mise en page ========================================================== */
 main { max-width: 1360px; margin: 0 auto; padding: var(--espace-6) var(--espace-6) 48px; }
-.fil-navigation { margin: calc(-1 * var(--espace-3)) 0 var(--espace-4); font-size: .86rem; }
+.navigation-page { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: calc(-1 * var(--espace-3)) 0 var(--espace-4); }
+.fil-navigation { font-size: .86rem; }
 .fil-navigation ol { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; list-style: none; margin: 0; padding: 0; }
 .fil-navigation li { display: inline-flex; align-items: center; gap: 4px; color: var(--discret); }
 .fil-navigation li + li::before { content: "›"; margin: 0 4px; color: var(--discret); }
 .fil-navigation a { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 8px; color: var(--primaire); font-weight: 600; text-decoration: none; }
 .fil-navigation a:hover { background: var(--primaire-clair); }
 .fil-navigation [aria-current] { color: var(--texte-2); font-weight: 600; padding: 3px 4px; }
-.menu-separateur { width: 1px; align-self: stretch; margin: 6px 6px; background: rgba(255, 255, 255, .18); flex: none; }
-@media print { .fil-navigation { display: none; } }
+@media print { .navigation-page { display: none; } }
+/* Menu « Gestion » de la barre (27/11/2026) */
+details.menu-gestion { position: relative; margin: 0; border: 0; border-radius: 0; background: none; }
+details.menu-gestion > .menu-deroulant { padding: 6px; }
+details.menu-gestion > summary::after { content: none; }
+.menu-gestion > summary {
+  list-style: none; cursor: pointer; position: relative; color: rgba(255, 255, 255, .72); padding: 8px 12px;
+  border-radius: var(--rayon-petit); font-weight: 550; font-size: .9rem; display: inline-flex; align-items: center; gap: 7px;
+  transition: background var(--transition), color var(--transition); white-space: nowrap;
+}
+.menu-gestion > summary::-webkit-details-marker { display: none; }
+.menu-gestion > summary .ic:last-child { width: 14px; height: 14px; transition: transform var(--transition); }
+.menu-gestion[open] > summary .ic:last-child { transform: rotate(180deg); }
+.menu-gestion > summary:hover, .menu-gestion[open] > summary { background: rgba(255, 255, 255, .08); color: #fff; }
+.menu-gestion.actif > summary { background: rgba(255, 255, 255, .12); color: #fff; }
+details.menu-gestion.actif > summary::after {
+  content: ""; position: absolute; left: 12px; right: 12px; bottom: -9px; width: auto; height: 3px; margin: 0;
+  border: 0; border-radius: 3px 3px 0 0; background: var(--accent-vif); transform: none;
+}
+.menu-deroulant {
+  position: absolute; top: calc(100% + 10px); left: 0; z-index: 40; min-width: 260px; padding: 6px;
+  background: #fff; border-radius: 14px; box-shadow: 0 18px 40px rgba(6, 20, 48, .28); border: 1px solid var(--bordure);
+  display: grid; gap: 2px;
+}
+nav.menu .menu-deroulant a { color: var(--marine-900); padding: 9px 12px; border-radius: 10px; align-items: flex-start; }
+nav.menu .menu-deroulant a .ic { margin-top: 2px; color: var(--primaire); }
+nav.menu .menu-deroulant a span { display: flex; flex-direction: column; }
+nav.menu .menu-deroulant a small { color: var(--discret); font-weight: 500; font-size: .76rem; }
+nav.menu .menu-deroulant a:hover { background: var(--primaire-clair); color: var(--marine-900); }
+nav.menu .menu-deroulant a.actif { background: var(--primaire-clair); color: var(--primaire); }
+nav.menu .menu-deroulant a.actif::after { display: none; }
+@media (max-width: 960px) {
+  /* Petit écran : la barre défile ; le menu s'ouvre sur place, dans la ligne. */
+  .menu-gestion { display: flex; }
+  .menu-gestion[open] { flex: none; }
+  .menu-deroulant, details.menu-gestion > .menu-deroulant { position: static; display: flex; min-width: 0; padding: 0; background: none; box-shadow: none; border: 0; }
+  nav.menu .menu-deroulant a { color: rgba(255, 255, 255, .85); white-space: nowrap; align-items: center; }
+  nav.menu .menu-deroulant a small { display: none; }
+  nav.menu .menu-deroulant a .ic { color: inherit; margin: 0; }
+  nav.menu .menu-deroulant a:hover, nav.menu .menu-deroulant a.actif { background: rgba(255, 255, 255, .12); color: #fff; }
+}
 .entete-page { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; margin-bottom: var(--espace-5); }
 .entete-page h1 { margin: 0; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .entete-page .sous-titre { margin: 4px 0 0; color: var(--discret); font-size: .92rem; }
