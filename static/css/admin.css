@@ -135,6 +135,8 @@ fieldset.module { background: var(--body-bg); }
 .raccourci-icone { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; flex: none; background: linear-gradient(135deg, #e8effc, #dff3f6); color: #1546a0; }
 .raccourci-ajout { margin-left: auto; width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: #e9f8f1; color: #047857; font-weight: 800; }
 .dashboard .module table th { width: auto; }
+.titre-section-admin span { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.section-admin-repliee > summary { cursor: pointer; list-style: revert; margin-bottom: 12px; }
 #recent-actions-module { border-radius: var(--admin-rayon); }
 
 /* Icônes partagées avec l'application */

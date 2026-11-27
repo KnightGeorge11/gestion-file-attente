@@ -309,3 +309,4 @@
     setInterval(majDurees, 1000);
   });
 })();
+

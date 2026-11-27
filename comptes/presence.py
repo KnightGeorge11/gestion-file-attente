@@ -106,6 +106,18 @@ def oublier_presence(**kwargs):
     cache.delete(CLE_CACHE)
 
 
+def deconnecter_partout(utilisateur):
+    """Compte désactivé : ses sessions ouvertes sont fermées sur tous les appareils."""
+    identifiant = str(utilisateur.pk)
+    for session in Session.objects.filter(expire_date__gt=timezone.now()).iterator():
+        try:
+            if session.get_decoded().get("_auth_user_id") == identifiant:
+                session.delete()
+        except Exception:  # noqa: BLE001 - session illisible : ignorée
+            continue
+    cache.delete(CLE_CACHE)
+
+
 ROLE_ACCUEIL = "Accueil"
 ROLE_RELAIS_ACCUEIL = "Infirmerie"
 

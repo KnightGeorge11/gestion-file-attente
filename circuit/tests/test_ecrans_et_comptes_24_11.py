@@ -118,12 +118,16 @@ class ComptesConnectesEtProfilsTests(BaseVues):
         self.assertContains(profil, "Connecté")
         self.assertContains(profil, self.d.centre.nom)
 
-    def test_reserve_a_l_administrateur_de_la_plateforme(self):
+    def test_reserve_aux_administrateurs(self):
+        self.client.force_login(self.accueil)
+        self.assertEqual(self.client.get(reverse("comptes:comptes")).status_code, 403)
+        self.assertEqual(self.client.get(reverse("comptes:profil", args=[self.medecin.pk])).status_code, 403)
+        # Depuis le 27/11/2026, l'administrateur de centre gère le personnel de son centre seulement.
         admin_centre = self.d.agent("admin_c", "Administrateur de centre")
-        for utilisateur in (self.accueil, admin_centre):
-            self.client.force_login(utilisateur)
-            self.assertEqual(self.client.get(reverse("comptes:comptes")).status_code, 403)
-            self.assertEqual(self.client.get(reverse("comptes:profil", args=[self.medecin.pk])).status_code, 403)
+        self.connecter(admin_centre, self.d.centre)
+        self.assertEqual(self.client.get(reverse("comptes:comptes")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("comptes:profil", args=[self.medecin.pk])).status_code, 200)
+        self.assertEqual(self.client.get(reverse("comptes:profil", args=[self.agent_b.pk])).status_code, 404)
 
 
 class InfirmerieEnRelaisDeLAccueilTests(BaseVues):

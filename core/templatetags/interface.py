@@ -72,3 +72,49 @@ def icone_service(objet):
         if mot in nom:
             return nom_icone
     return "service"
+
+
+# Accueil de l'administration rangé par tâche (décision du 27/11/2026 : « trop
+# de choses, on s'y perd »). (nom du modèle, libellé simple, à quoi ça sert, icône)
+SECTIONS_ADMIN = (
+    ("Le plus courant", "Aussi faisable dans l'application : onglets Comptes, Borne et Écran.", (
+        ("Utilisateur", "Comptes du personnel", "Créer, modifier, désactiver un compte", "groupe"),
+        ("Borne", "Bornes", "Tablettes où les patients prennent leur ticket", "tickets"),
+        ("Parcours", "Services de la borne", "Boutons de la borne et chemin du patient", "transfert"),
+        ("EcranAffichage", "Écrans de la salle", "Ce que chaque TV affiche", "ecran"),
+        ("ImprimanteTicket", "Imprimantes", "Imprimantes de tickets des bornes", "imprimante"),
+    )),
+    ("Réglages du centre", "À régler une fois, à l'installation d'un centre.", (
+        ("Centre", "Centres", "Nom, horaires de clôture, fonctionnement", "centre"),
+        ("Service", "Services", "Accueil, soins, pharmacie ; horaires d'ouverture", "services"),
+        ("FileAttente", "Files d'attente", "Absences, délais, agents en parallèle", "sablier"),
+        ("QuotaParcours", "Places du dentiste", "Nombre de places par matinée / après-midi", "calendrier"),
+        ("MotifDemande", "Motifs « Autre »", "Rendez-vous, cotisation, direction…", "message"),
+        ("AffectationUtilisateur", "Rôles des comptes par centre", "Détail des affectations (avancé)", "utilisateur"),
+        ("Group", "Rôles et droits", "Ce que chaque rôle peut faire (avancé)", "bouclier"),
+    )),
+)
+SECTION_HISTORIQUE = ("Consultation et historique", "Enregistré automatiquement : rien à saisir ici.")
+
+
+@register.simple_tag
+def sections_admin(app_list):
+    """Sections de l'accueil de l'administration, avec seulement les modules autorisés."""
+    modeles = {m["object_name"]: m for app in app_list for m in app["models"]}
+    sections, ranges = [], set()
+    for titre, aide, entrees in SECTIONS_ADMIN:
+        liens = []
+        for nom, libelle, description, icone in entrees:
+            if nom in modeles:
+                liens.append({"modele": modeles[nom], "libelle": libelle, "description": description, "icone": icone})
+                ranges.add(nom)
+        if liens:
+            sections.append({"titre": titre, "aide": aide, "liens": liens})
+    reste = [
+        {"modele": m, "libelle": m["name"], "description": "", "icone": "historique"}
+        for nom, m in modeles.items() if nom not in ranges
+    ]
+    if reste:
+        sections.append({"titre": SECTION_HISTORIQUE[0], "aide": SECTION_HISTORIQUE[1], "liens": reste,
+                         "replie": True})
+    return sections

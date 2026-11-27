@@ -15,11 +15,12 @@ from .quotas import enregistrer_quota, supprimer_quota
 
 @admin.register(Parcours)
 class ParcoursAdmin(CentreAdminMixin, admin.ModelAdmin):
-    aide_liste = ("Parcours proposés aux patients (Médecin, Dentiste…) : le préfixe des tickets, l'ordre à la borne "
-                  "et les étapes (dans la version publiée). Pour changer les étapes : action « Créer un brouillon », "
-                  "puis publier la nouvelle version.")
-    list_display = ("libelle_borne", "prefixe", "centre", "ordre_affichage", "a_la_borne", "quota",
-                    "version_en_vigueur", "etat")
+    aide_liste = ("Un parcours = un bouton de la borne (Médecin, Dentiste…) : la lettre des tickets (M 001) et le "
+                  "chemin du patient (Accueil → Infirmerie → Médecin). Pour ajouter un service à la borne ou l'en "
+                  "retirer, le plus simple est l'onglet « Borne » de l'application. Ici : réglages avancés (ordre, "
+                  "places limitées du dentiste, changement du chemin par « Créer un brouillon », puis publication).")
+    list_display = ("libelle_borne", "prefixe", "centre", "chemin", "ordre_affichage", "a_la_borne", "quota",
+                    "etat")
     list_display_links = ("libelle_borne",)
 
     @admin.display(description="À la borne", ordering="visible_borne")
@@ -41,10 +42,11 @@ class ParcoursAdmin(CentreAdminMixin, admin.ModelAdmin):
     list_select_related = ("centre",)
     actions = ("creer_brouillon",)
 
-    @admin.display(description="Version publiée")
-    def version_en_vigueur(self, obj):
-        version = obj.version_publiee()
-        return f"v{version.numero}" if version else "—"
+    @admin.display(description="Chemin du patient")
+    def chemin(self, obj):
+        from .simple import circuit
+
+        return circuit(obj) or "— (pas encore publié)"
 
     @admin.action(description="Créer un brouillon (nouvelle version)", permissions=["change"])
     def creer_brouillon(self, request, queryset):

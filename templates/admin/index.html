@@ -7,7 +7,7 @@
     <div>
       <p class="surtitre">Administration</p>
       <h1>Bonjour {{ user.get_full_name|default:user.username }}</h1>
-      <p>Paramétrez les centres, les services, les postes (bornes, écrans, imprimantes), les parcours et les comptes du personnel.</p>
+      <p>Le plus courant se fait aussi dans l'application, plus simplement : onglets Comptes, Borne et Écran. Ici : les réglages complets.</p>
     </div>
     <div class="accueil-admin-liens">
       <a class="lien-clair" href="{% url 'accueil' %}">{% icone "fleche-gauche" %}Retour à l'application</a>
@@ -20,24 +20,21 @@
     </div>
   </section>
 
-  <h2 class="titre-section-admin">Accès rapides</h2>
+  {# Rangé par tâche (27/11/2026) : le plus courant d'abord, l'historique replié. #}
+  {% sections_admin app_list as sections %}
+  {% for section in sections %}
+  {% if section.replie %}<details class="section-admin-repliee"><summary class="titre-section-admin">{{ section.titre }} <span>· {{ section.aide }}</span></summary>
+  {% else %}<h2 class="titre-section-admin">{{ section.titre }} <span>· {{ section.aide }}</span></h2>{% endif %}
   <div class="raccourcis-admin">
-    {% for app in app_list %}{% for model in app.models %}
-      {% with cle="|"|add:model.object_name|add:"|" %}
-      {% if cle in "|Borne|ImprimanteTicket|EcranAffichage|Service|Parcours|QuotaParcours|MotifDemande|Utilisateur|AffectationUtilisateur|JournalAudit|" %}
-      <a class="raccourci-admin" href="{{ model.admin_url }}">
-        <span class="raccourci-icone">{% if model.object_name == "Borne" %}{% icone "tickets" %}{% elif model.object_name == "ImprimanteTicket" %}{% icone "imprimante" %}{% elif model.object_name == "EcranAffichage" %}{% icone "ecran" %}{% elif model.object_name == "Service" %}{% icone "services" %}{% elif model.object_name == "Parcours" %}{% icone "transfert" %}{% elif model.object_name == "QuotaParcours" %}{% icone "calendrier" %}{% elif model.object_name == "MotifDemande" %}{% icone "message" %}{% elif model.object_name == "JournalAudit" %}{% icone "bouclier" %}{% else %}{% icone "groupe" %}{% endif %}</span>
-        <span><strong>{{ model.name }}</strong><small>{{ app.name }}</small></span>
-        {% if model.add_url %}<span class="raccourci-ajout" title="Ajouter">+</span>{% endif %}
-      </a>
-      {% endif %}
-      {% endwith %}
-    {% endfor %}{% endfor %}
+    {% for l in section.liens %}
+    <a class="raccourci-admin" href="{{ l.modele.admin_url }}">
+      <span class="raccourci-icone">{% icone l.icone %}</span>
+      <span><strong>{{ l.libelle }}</strong>{% if l.description %}<small>{{ l.description }}</small>{% endif %}</span>
+      {% if l.modele.add_url and not section.replie %}<span class="raccourci-ajout" title="Ajouter">+</span>{% endif %}
+    </a>
+    {% endfor %}
   </div>
-
-  <h2 class="titre-section-admin">Tous les modules</h2>
-  <div class="modules-admin">
-  {% include "admin/app_list.html" with app_list=app_list show_changelinks=True %}
-  </div>
+  {% if section.replie %}</details>{% endif %}
+  {% endfor %}
 </div>
 {% endblock %}

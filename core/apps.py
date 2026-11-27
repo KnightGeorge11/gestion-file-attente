@@ -14,6 +14,8 @@ class CoreConfig(AppConfig):
         # du 24/11/2026) : l'administrateur de centre n'y entre plus, même en
         # tapant l'adresse ; il garde ses pages de l'application (Borne, Écran…).
         admin.site.has_permission = lambda request: acces_administration(request)
+        # Pas de menu latéral listant les 24 modules (27/11/2026) : l'accueil est rangé par tâche.
+        admin.site.enable_nav_sidebar = False
 
 
 def acces_administration(request):

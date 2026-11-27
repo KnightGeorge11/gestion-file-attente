@@ -19,6 +19,7 @@ from centres.decorators import centre_actif_requis
 from centres.models import Service
 from comptes.access import utilisateur_peut_acceder_service
 from comptes.models import Utilisateur
+from comptes.gestion import ROLES_AVEC_SALLE  # médecins seulement
 from comptes.permissions import a_droit, affectation_active, appel_limite_aux_autres, voit_autres_seulement
 from core.access import objet_du_centre
 from core.timeutils import maintenant_centre
@@ -114,12 +115,92 @@ def bornes(request):
         ]
         borne.tous_les_services = not choisis
     appareil = _borne_de_l_appareil(request)
+    from parcours.models import Parcours
+    from parcours.simple import circuit, lettre_proposee, service_infirmerie
+
+    # Services proposés à la borne, avec le chemin du patient (décision du 27/11/2026).
+    services_borne = []
+    for parcours in Parcours.objects.filter(centre=request.centre_actif, actif=True).order_by(
+            "ordre_affichage", "libelle_borne"):
+        services_borne.append({"parcours": parcours, "circuit": circuit(parcours)})
     return render(request, "circuit/bornes.html", {
         "page": "bornes",
         "bornes": liste,
         "borne_de_l_appareil": next((b for b in liste if b.pk == appareil), None),
         "peut_modifier": a_droit(request.user, "centres.change_borne", request.centre_actif),
+        "services_borne": services_borne,
+        "a_une_infirmerie": service_infirmerie(request.centre_actif) is not None,
+        "lettre_exemple": lettre_proposee(request.centre_actif, "K"),
     })
+
+
+def _exiger_reglage_borne(request):
+    _bornes_administrees(request)          # refus si l'utilisateur n'administre pas les bornes du centre
+    if not a_droit(request.user, "centres.change_borne", request.centre_actif):
+        raise PermissionDenied
+
+
+@require_POST
+@centre_actif_requis
+def borne_ajouter(request):
+    """Nouvelle borne en un clic : un nom suffit, sans passer par l'administration (27/11/2026)."""
+    from centres.models import Borne
+
+    _exiger_reglage_borne(request)
+    libelle = " ".join(request.POST.get("libelle", "").split())[:100]
+    if not libelle:
+        messages.error(request, "Donnez un nom à la borne (ex. Tablette de l'accueil).")
+        return redirect("circuit:bornes")
+    codes = set(Borne.objects.filter(centre=request.centre_actif).values_list("code", flat=True))
+    rang = 1
+    while f"B{rang}" in codes:
+        rang += 1
+    Borne.objects.create(centre=request.centre_actif, code=f"B{rang}", libelle=libelle)
+    messages.success(request, f"Borne « {libelle} » ajoutée. Sur sa tablette, cliquez sur « Activer sur cet appareil ».")
+    return redirect("circuit:bornes")
+
+
+@require_POST
+@centre_actif_requis
+def borne_service_ajouter(request):
+    """Ajouter un service à la borne en une étape : nom, lettre, passage par l'infirmerie (27/11/2026)."""
+    from django.core.exceptions import ValidationError
+
+    from parcours.simple import ajouter_service_borne, circuit
+
+    _exiger_reglage_borne(request)
+    try:
+        parcours = ajouter_service_borne(
+            request.centre_actif, request.POST.get("nom", ""), request.POST.get("lettre", ""),
+            request.POST.get("par_infirmerie") == "1", request.user,
+        )
+    except ValidationError as erreur:
+        messages.error(request, " ".join(erreur.messages))
+        return redirect("circuit:bornes")
+    messages.success(
+        request,
+        f"« {parcours.libelle_borne} » est proposé à la borne (tickets {parcours.prefixe} 001) : "
+        f"{circuit(parcours)}. Créez maintenant les comptes de ce service (onglet Comptes).",
+    )
+    return redirect("circuit:bornes")
+
+
+@require_POST
+@centre_actif_requis
+def borne_service_basculer(request, parcours_id):
+    """Retirer un service de la borne, ou l'y remettre (rien n'est supprimé)."""
+    from parcours.models import Parcours
+
+    _exiger_reglage_borne(request)
+    parcours = get_object_or_404(Parcours.objects.filter(centre=request.centre_actif, actif=True), pk=parcours_id)
+    parcours.visible_borne = not parcours.visible_borne
+    parcours.save(update_fields=["visible_borne", "date_modification"])
+    if parcours.visible_borne:
+        messages.success(request, f"« {parcours.libelle_borne} » est de nouveau proposé à la borne.")
+    else:
+        messages.success(request, f"« {parcours.libelle_borne} » n'est plus proposé à la borne. "
+                                  "Les patients déjà enregistrés continuent leur parcours.")
+    return redirect("circuit:bornes")
 
 
 @require_POST
@@ -383,7 +464,6 @@ def _affichage_choisi(request, centre):
 
 
 SESSION_SALLE = "salle_indiquee"
-ROLES_AVEC_SALLE = ("Médecin",)
 
 
 def _salle_a_indiquer(request):

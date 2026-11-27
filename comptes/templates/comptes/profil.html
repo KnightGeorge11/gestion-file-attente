@@ -8,10 +8,29 @@
         <p class="sous-titre">Identifiant {{ u.username }} · {{ u.get_type_compte_display }}{% if not u.is_active %} · <span class="texte-alerte">compte désactivé</span>{% endif %}</p>
     </div>
     <span class="ligne">
-        <a class="bouton" href="{% url 'comptes:comptes' %}">{% icone "fleche-gauche" %}Tous les comptes</a>
-        <a class="bouton principal" hx-boost="false" href="{% url 'admin:comptes_utilisateur_change' u.pk %}">{% icone "reglages" %}Modifier dans l'administration</a>
+        <a class="bouton" href="{% url 'comptes:comptes' %}?vue=tous">{% icone "fleche-gauche" %}Tous les comptes</a>
+        {% if modifiable %}<a class="bouton principal" href="{% url 'comptes:modifier' u.pk %}">{% icone "reglages" %}Modifier</a>{% endif %}
     </span>
 </div>
+
+{% if modifiable %}
+{# Actions courantes sans passer par l'administration (décision du 27/11/2026). #}
+<div class="carte compacte ligne" style="margin-bottom:20px;flex-wrap:wrap">
+    <form method="post" action="{% url 'comptes:action' u.pk 'mot_de_passe' %}" onsubmit="return confirm('Créer un nouveau mot de passe pour {{ u|escapejs }} ? L\'ancien ne fonctionnera plus.')">
+        {% csrf_token %}<button>{% icone "cle" %}Nouveau mot de passe</button>
+    </form>
+    {% if u.is_active %}
+    <form method="post" action="{% url 'comptes:action' u.pk 'desactiver' %}" onsubmit="return confirm('Désactiver le compte de {{ u|escapejs }} ? Il ne pourra plus se connecter ; son historique est gardé.')">
+        {% csrf_token %}<button class="danger">{% icone "croix" %}Désactiver le compte</button>
+    </form>
+    {% else %}
+    <form method="post" action="{% url 'comptes:action' u.pk 'reactiver' %}">
+        {% csrf_token %}<button>{% icone "check-cercle" %}Réactiver le compte</button>
+    </form>
+    {% endif %}
+    {% if plateforme %}<a class="bouton pousse" hx-boost="false" href="{% url 'admin:comptes_utilisateur_change' u.pk %}">{% icone "reglages" %}Réglages avancés (administration)</a>{% endif %}
+</div>
+{% endif %}
 
 <div class="indicateurs">
     <div class="indicateur {% if info %}ok{% endif %}"><span class="pictogramme">{% icone "utilisateur" %}</span><div><div class="valeur" style="font-size:1.1rem">{% if info %}Connecté{% else %}Hors ligne{% endif %}</div><div class="libelle">{% if info %}actif à {{ info.vu_a|time:"H:i" }}{% if centre_ouvert %} · {{ centre_ouvert.nom }}{% endif %}{% elif u.last_login %}dernière connexion le {{ u.last_login|date:"d/m/Y à H:i" }}{% else %}jamais connecté{% endif %}</div></div></div>

@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% load interface %}
+{% block titre %}{{ titre }}{% endblock %}
+{% block contenu %}
+{# Comptes en une page (décision du 27/11/2026) : pas besoin de l'administration. #}
+<div class="entete-page">
+    <div>
+        <h1>{{ titre }}</h1>
+        <p class="sous-titre">{{ centre_actif.nom }}{% if not compte %} · {% if liste %}une personne par ligne, même rôle et même service pour toutes{% else %}remplissez le nom et le rôle : le reste est proposé automatiquement{% endif %}{% endif %}</p>
+    </div>
+    <span class="ligne">
+        {% if compte %}<a class="bouton" href="{% url 'comptes:profil' compte.pk %}">{% icone "fleche-gauche" %}Retour au profil</a>
+        {% else %}<a class="bouton" href="{% url 'comptes:comptes' %}?vue=tous">{% icone "fleche-gauche" %}Tous les comptes</a>
+        {% if liste %}<a class="bouton" href="{% url 'comptes:nouveau' %}">{% icone "utilisateur" %}Un seul compte</a>
+        {% else %}<a class="bouton" href="{% url 'comptes:plusieurs' %}">{% icone "groupe" %}Plusieurs comptes d'un coup</a>{% endif %}{% endif %}
+    </span>
+</div>
+
+<form method="post" class="carte" style="max-width:720px">
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="encart attention">{% icone "alerte" %}<span>{{ form.non_field_errors|join:" " }}</span></div>{% endif %}
+
+    {% if form.noms %}
+    <label for="{{ form.noms.id_for_label }}">{{ form.noms.label }}</label>
+    <textarea id="{{ form.noms.id_for_label }}" name="noms" rows="8" placeholder="Jean Rakoto&#10;Marie Rasoa&#10;Hery Andriamanana" required autofocus>{{ form.noms.value|default:"" }}</textarea>
+    <p class="discret" style="margin:4px 0 0">{{ form.noms.help_text }}</p>
+    {% for e in form.noms.errors %}<p class="texte-alerte">{{ e }}</p>{% endfor %}
+    {% endif %}
+
+    {% if form.nom %}
+    <div class="grille" style="gap:0 var(--espace-4)">
+        <div>
+            <label for="{{ form.prenom.id_for_label }}">Prénom</label>
+            <input id="{{ form.prenom.id_for_label }}" name="prenom" maxlength="150" value="{{ form.prenom.value|default:'' }}" placeholder="ex. Jean" {% if not compte %}autofocus{% endif %}>
+        </div>
+        <div>
+            <label for="{{ form.nom.id_for_label }}">Nom</label>
+            <input id="{{ form.nom.id_for_label }}" name="nom" maxlength="150" value="{{ form.nom.value|default:'' }}" placeholder="ex. Rakoto" {% if not compte %}required{% endif %}>
+            {% for e in form.nom.errors %}<p class="texte-alerte">{{ e }}</p>{% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <label for="{{ form.role.id_for_label }}">Rôle</label>
+    <select id="{{ form.role.id_for_label }}" name="role" required>
+        {% for valeur, libelle in form.role.field.choices %}<option value="{{ valeur }}" {% if form.role.value|stringformat:"s" == valeur|stringformat:"s" %}selected{% endif %}>{{ libelle }}</option>{% endfor %}
+    </select>
+    {% for e in form.role.errors %}<p class="texte-alerte">{{ e }}</p>{% endfor %}
+
+    <p style="margin:var(--espace-3) 0 6px;font-weight:600;font-size:.86rem;color:var(--texte-2)">Service</p>
+    <div class="ligne" style="flex-wrap:wrap;gap:4px 16px">
+    {% for valeur, libelle in form.services.field.choices %}
+        <label class="case" style="margin:0"><input type="checkbox" name="services" value="{{ valeur }}" {% if valeur in form.services.value or valeur|stringformat:"s" in form.services.value %}checked{% endif %}> {{ libelle }}</label>
+    {% endfor %}
+    </div>
+    <p class="discret" style="margin:4px 0 0">Coché automatiquement selon le rôle. Aucun service coché : tous les services du centre (direction, responsables).</p>
+    {% for e in form.services.errors %}<p class="texte-alerte">{{ e }}</p>{% endfor %}
+
+    {# Salle : médecins seulement (annoncée à l'écran : « M 0 0 1, Médecin, Salle 1 »). #}
+    <div id="champ-salle">
+    <label for="{{ form.salle.id_for_label }}">Salle du médecin <span class="discret">(facultatif, annoncée à l'écran : « Salle 1 »)</span></label>
+    <input id="{{ form.salle.id_for_label }}" name="salle" maxlength="50" value="{{ form.salle.value|default:'' }}" placeholder="ex. Salle 1">
+    </div>
+
+    {% if form.identifiant %}
+    <details style="margin-top:var(--espace-4)" {% if form.identifiant.errors or form.mot_de_passe.errors %}open{% endif %}>
+        <summary>{% icone "cle" %}Identifiant et mot de passe (facultatif)</summary>
+        <label for="{{ form.identifiant.id_for_label }}">Identifiant de connexion</label>
+        <input id="{{ form.identifiant.id_for_label }}" name="identifiant" maxlength="150" value="{{ form.identifiant.value|default:'' }}" placeholder="laisser vide : prénom.nom" autocomplete="off">
+        {% for e in form.identifiant.errors %}<p class="texte-alerte">{{ e }}</p>{% endfor %}
+        <label for="{{ form.mot_de_passe.id_for_label }}">Mot de passe</label>
+        <input id="{{ form.mot_de_passe.id_for_label }}" type="password" name="mot_de_passe" value="{{ form.mot_de_passe.value|default:'' }}" placeholder="laisser vide : créé automatiquement" autocomplete="new-password">
+        {% for e in form.mot_de_passe.errors %}<p class="texte-alerte">{{ e }}</p>{% endfor %}
+        <p class="discret" style="margin:4px 0 0">Laissés vides, ils sont créés et affichés une seule fois, à noter ou imprimer pour la personne.</p>
+    </details>
+    {% endif %}
+
+    <p style="margin:var(--espace-5) 0 0"><button class="principal grand large">{% icone "check" %}{% if compte %}Enregistrer{% elif liste %}Créer les comptes{% else %}Créer le compte{% endif %}</button></p>
+</form>
+{{ roles_services|json_script:"roles-services" }}
+{{ roles_salle|json_script:"roles-salle" }}
+<script>
+// Le service du rôle est coché tout seul (Médecin → Médecin, Accueil → Accueil…).
+(function () {
+    const role = document.getElementById("{{ form.role.id_for_label }}");
+    const correspondances = JSON.parse(document.getElementById("roles-services").textContent);
+    const rolesSalle = JSON.parse(document.getElementById("roles-salle").textContent).map(String);
+    const salle = document.getElementById("champ-salle");
+    function afficherSalle() { salle.hidden = rolesSalle.indexOf(String(role.value)) === -1; }
+    afficherSalle();
+    role.addEventListener("change", function () {
+        afficherSalle();
+        const service = correspondances[role.value];
+        if (!service) { return; }
+        document.querySelectorAll('input[name="services"]').forEach(function (c) { c.checked = String(c.value) === String(service); });
+    });
+})();
+</script>
+{% endblock %}

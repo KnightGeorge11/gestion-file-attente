@@ -5,9 +5,14 @@
 <div class="entete-page">
     <div>
         <h1>Comptes</h1>
-        <p class="sous-titre">Qui est connecté maintenant, et le profil de chaque compte. Un compte est connecté s'il a une page de la plateforme ouverte (activité depuis moins de {{ minutes_presence }} min).</p>
+        <p class="sous-titre">{% if not plateforme %}Personnel de {{ centre_actif.nom }}. {% endif %}Créez les comptes, voyez qui est connecté et le profil de chacun. Un compte est connecté s'il a une page de la plateforme ouverte (activité depuis moins de {{ minutes_presence }} min).</p>
     </div>
-    <span class="etiquette ok vivant">Mise à jour toutes les 30 s</span>
+    {% if peut_creer %}
+    <span class="ligne">
+        <a class="bouton" href="{% url 'comptes:plusieurs' %}">{% icone "groupe" %}Plusieurs comptes</a>
+        <a class="bouton principal" href="{% url 'comptes:nouveau' %}">{% icone "utilisateur" %}Nouveau compte</a>
+    </span>
+    {% endif %}
 </div>
 
 <form method="get" class="carte compacte barre-filtres" style="margin-bottom:20px">

@@ -6,7 +6,9 @@ def navigation(request):
         return {}
 
     centre = getattr(request, "centre_actif", None)
-    contexte = {"centre_actif": centre}
+    from .navigation import fil_de_navigation
+
+    contexte = {"centre_actif": centre, "fil_navigation": fil_de_navigation(request)}
 
     if centre is None:
         return contexte
@@ -36,6 +38,8 @@ def _menus(utilisateur, centre, a_droit, nombre_notifications, services_operatio
             # Infirmerie en relais de l'accueil (24/11/2026) : bandeau d'information.
             "relais_accueil_actif": _relais_accueil(utilisateur, centre),
             "est_admin_plateforme": _est_admin_plateforme(utilisateur),
+            # Onglet « Comptes » pour l'administrateur de centre (27/11/2026).
+            "peut_gerer_comptes": _peut_gerer_comptes(utilisateur, centre),
         }
     )
 
@@ -60,6 +64,12 @@ def _peut_orienter(utilisateur, centre):
 
     accueil = Service.objects.filter(centre=centre, est_accueil=True).first()
     return a_droit(utilisateur, "circuit.orienter_demande", centre, accueil)
+
+
+def _peut_gerer_comptes(utilisateur, centre):
+    from comptes.gestion import peut_gerer_comptes
+
+    return peut_gerer_comptes(utilisateur, centre)
 
 
 def _est_admin_plateforme(utilisateur):

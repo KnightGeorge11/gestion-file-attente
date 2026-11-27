@@ -16,7 +16,51 @@
 <div class="encart">{% icone "info" %}<span><strong>Pour installer une borne :</strong> sur la tablette de la borne, connectez-vous, puis cliquez sur « Activer sur cet appareil ». La borne s'ouvre dans un nouvel onglet et reste activée, même après un redémarrage. Pour la sécurité, vous êtes ensuite déconnecté de cet appareil.</span></div>
 {% endif %}
 
+{# Services de la borne en une page (décision du 27/11/2026) : plus besoin des parcours de l'administration. #}
 <section class="carte">
+    <div class="carte-entete"><h2><span class="titre-icone">{% icone "services" %}</span>Services proposés à la borne</h2><span class="etiquette">{{ services_borne|length }}</span></div>
+    <p class="discret">Chaque bouton de la borne donne un ticket avec sa lettre (M 001…) et un chemin : le patient passe d'abord par l'accueil, puis par les services indiqués.</p>
+    <div class="tableau-defilant">
+    <table>
+        <thead><tr><th>À la borne</th><th>Lettre</th><th>Chemin du patient</th><th></th></tr></thead>
+        <tbody>
+        {% for s in services_borne %}
+        <tr>
+            <td><strong>{% icone s.parcours|icone_service %} {{ s.parcours.libelle_borne }}</strong>{% if s.parcours.soumis_quota %} <span class="etiquette">places limitées</span>{% endif %}</td>
+            <td><strong>{{ s.parcours.prefixe }}</strong></td>
+            <td>{{ s.circuit|default:"—" }}</td>
+            <td style="text-align:right">
+                {% if peut_modifier %}
+                <form method="post" action="{% url 'circuit:borne_service_basculer' s.parcours.pk %}" style="display:inline">
+                    {% csrf_token %}
+                    {% if s.parcours.visible_borne %}<button class="petit">{% icone "croix" %}Retirer de la borne</button>
+                    {% else %}<button class="petit principal">{% icone "check" %}Remettre à la borne</button>{% endif %}
+                </form>
+                {% elif not s.parcours.visible_borne %}<span class="etiquette">retiré</span>{% endif %}
+            </td>
+        </tr>
+        {% empty %}<tr><td colspan="4" class="vide">Aucun service proposé à la borne.</td></tr>{% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% if peut_modifier %}
+    <details style="margin-top:var(--espace-4)" {% if not services_borne %}open{% endif %}>
+        <summary>{% icone "services" %}Ajouter un service à la borne</summary>
+        <form method="post" action="{% url 'circuit:borne_service_ajouter' %}" style="max-width:560px">
+            {% csrf_token %}
+            <label for="nouveau-service">Nom du service</label>
+            <input id="nouveau-service" name="nom" maxlength="100" placeholder="ex. Kinésithérapie" required>
+            <label for="nouvelle-lettre">Lettre des tickets <span class="discret">(facultatif : choisie automatiquement)</span></label>
+            <input id="nouvelle-lettre" name="lettre" maxlength="1" pattern="[A-Za-z]" placeholder="ex. {{ lettre_exemple|default:'K' }}" style="width:90px;min-width:0;text-transform:uppercase">
+            {% if a_une_infirmerie %}<label class="case"><input type="checkbox" name="par_infirmerie" value="1"> Le patient passe d'abord par l'infirmerie (constantes)</label>{% endif %}
+            <p class="discret">Chemin créé : Accueil → {% if a_une_infirmerie %}(Infirmerie →) {% endif %}nouveau service. Le service et sa file d'attente sont créés ; ensuite, créez les comptes de ses agents dans l'onglet Comptes.</p>
+            <button class="principal">{% icone "check" %}Ajouter à la borne</button>
+        </form>
+    </details>
+    {% endif %}
+</section>
+
+<section class="carte" style="margin-top:var(--espace-5)">
     <div class="carte-entete"><h2><span class="titre-icone">{% icone "imprimante" %}</span>Bornes du centre</h2><span class="etiquette">{{ bornes|length }} borne{% if bornes|length > 1 %}s{% endif %}</span></div>
     <div class="tuiles">
     {% for b in bornes %}
@@ -68,9 +112,20 @@
             </div>
         </div>
     {% empty %}
-        <div class="attente-vide">{% icone "imprimante" %}<strong>Aucune borne dans ce centre</strong><span class="discret">Créez-la dans l'administration (Bornes), puis revenez ici pour l'activer.</span></div>
+        <div class="attente-vide">{% icone "imprimante" %}<strong>Aucune borne dans ce centre</strong><span class="discret">Ajoutez-la ci-dessous, puis activez-la sur sa tablette.</span></div>
     {% endfor %}
     </div>
+    {% if peut_modifier %}
+    <details style="margin-top:var(--espace-4)" {% if not bornes %}open{% endif %}>
+        <summary>{% icone "imprimante" %}Ajouter une borne</summary>
+        <form method="post" action="{% url 'circuit:borne_ajouter' %}" class="ligne" style="margin-top:10px;align-items:flex-end;max-width:560px">
+            {% csrf_token %}
+            <div style="flex:1"><label for="nouvelle-borne">Nom de la borne</label>
+            <input id="nouvelle-borne" name="libelle" maxlength="100" placeholder="ex. Tablette de l'accueil" required></div>
+            <button class="principal">{% icone "check" %}Ajouter</button>
+        </form>
+    </details>
+    {% endif %}
     {% if est_admin_plateforme %}<p class="discret" style="margin-bottom:0">Imprimante de chaque borne : <a href="{% url 'admin:centres_borne_changelist' %}" hx-boost="false">administration des bornes</a>.</p>{% endif %}
 </section>
 {% endblock %}

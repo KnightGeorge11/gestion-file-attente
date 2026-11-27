@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% load interface %}
+{% block titre %}{% if nouveau_mot_de_passe %}Nouveau mot de passe{% else %}Compte{{ crees|pluralize }} créé{{ crees|pluralize }}{% endif %}{% endblock %}
+{% block contenu %}
+<div class="entete-page">
+    <div>
+        <h1>{% if nouveau_mot_de_passe %}Nouveau mot de passe{% else %}{{ crees|length }} compte{{ crees|pluralize }} créé{{ crees|pluralize }}{% endif %}</h1>
+        <p class="sous-titre">{{ centre_actif.nom }}</p>
+    </div>
+    <span class="ligne">
+        <button type="button" onclick="window.print()">{% icone "imprimante" %}Imprimer</button>
+        <a class="bouton" href="{% url 'comptes:comptes' %}?vue=tous">{% icone "groupe" %}Tous les comptes</a>
+        {% if not nouveau_mot_de_passe %}<a class="bouton principal" href="{% url 'comptes:nouveau' %}">{% icone "utilisateur" %}Créer un autre compte</a>{% endif %}
+    </span>
+</div>
+
+<div class="encart attention">{% icone "alerte" %}<span><strong>Notez ou imprimez ces mots de passe maintenant :</strong> ils ne seront plus affichés. Donnez à chaque personne son identifiant et son mot de passe ; en cas d'oubli, créez-en un nouveau depuis son profil.</span></div>
+
+<section class="carte sans-marge">
+    <div class="tableau-defilant">
+    <table>
+        <thead><tr><th>Personne</th><th>Identifiant</th><th>Mot de passe</th><th>Rôle</th><th></th></tr></thead>
+        <tbody>
+        {% for c in crees %}
+        <tr>
+            <td><strong>{{ c.compte }}</strong></td>
+            <td><code style="font-size:1.05rem">{{ c.compte.username }}</code></td>
+            <td>{% if c.affiche %}<code style="font-size:1.05rem">{{ c.mot_de_passe }}</code>{% else %}<span class="discret">celui que vous avez saisi</span>{% endif %}</td>
+            <td>{% for a in c.compte.affectations.all %}{% if a.centre_id == centre_actif.pk %}{{ a.groupe.name|default:a.get_role_display }}{% endif %}{% endfor %}</td>
+            <td><a class="bouton petit" href="{% url 'comptes:profil' c.compte.pk %}">{% icone "utilisateur" %}Profil</a></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</section>
+{% endblock %}
