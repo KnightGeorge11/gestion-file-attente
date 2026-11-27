@@ -28,7 +28,7 @@
         <tr>
             <td><strong>{% icone s.parcours|icone_service %} {{ s.parcours.libelle_borne }}</strong>{% if s.parcours.soumis_quota %} <span class="etiquette">places limitées</span>{% endif %}</td>
             <td><strong>{{ s.parcours.prefixe }}</strong></td>
-            <td>{{ s.circuit|default:"—" }}</td>
+            <td>{% if s.circuit %}{{ s.circuit }}{% else %}<span class="etiquette alerte">Absent de la borne : chemin pas encore publié</span>{% endif %}</td>
             <td style="text-align:right">
                 {% if peut_modifier %}
                 <form method="post" action="{% url 'circuit:borne_service_basculer' s.parcours.pk %}" style="display:inline">
@@ -90,7 +90,20 @@
                 </form>
             </details>
             {% endif %}
+            {% if peut_modifier %}
+            {# Imprimante choisie ici, sans l'administration (27/11/2026). #}
+            <form method="post" action="{% url 'circuit:borne_imprimante' b.pk %}" class="ligne" style="align-items:center">
+                {% csrf_token %}
+                <label for="imp-{{ b.pk }}" style="margin:0">{% icone "imprimante" %}<span class="visuellement-cache">Imprimante de {{ b.libelle }}</span></label>
+                <select id="imp-{{ b.pk }}" name="imprimante" onchange="this.form.requestSubmit()" style="flex:1;min-width:0">
+                    <option value="">Impression par la tablette</option>
+                    {% for i in imprimantes %}<option value="{{ i.pk }}" {% if b.imprimante_id == i.pk %}selected{% endif %}>{{ i.libelle }}</option>{% endfor %}
+                </select>
+                <noscript><button class="petit">OK</button></noscript>
+            </form>
+            {% else %}
             <p class="discret">{% icone "imprimante" %} {% if b.imprimante %}{{ b.imprimante }}{% else %}Impression par le navigateur{% endif %}</p>
+            {% endif %}
             <div class="ligne">
                 {# Borne ouverte dans un nouvel onglet (décision du 23/11/2026). #}
                 {% if b == borne_de_l_appareil %}
@@ -126,6 +139,6 @@
         </form>
     </details>
     {% endif %}
-    {% if est_admin_plateforme %}<p class="discret" style="margin-bottom:0">Imprimante de chaque borne : <a href="{% url 'admin:centres_borne_changelist' %}" hx-boost="false">administration des bornes</a>.</p>{% endif %}
+    {% if peut_modifier %}<p class="discret" style="margin-bottom:0">Pour ajouter une imprimante : onglet <a href="{% url 'centres:reglages' %}">Réglages</a>.</p>{% endif %}
 </section>
 {% endblock %}

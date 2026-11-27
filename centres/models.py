@@ -584,7 +584,12 @@ class Borne(ModeleCentre):
         """Services que cette borne peut proposer (ceux du centre, actifs et visibles à la borne)."""
         from parcours.models import Parcours
 
-        tous = Parcours.objects.filter(centre_id=self.centre_id, actif=True, visible_borne=True)
+        # Seulement les services prêts : un parcours créé dans l'administration
+        # sans version publiée apparaissait sur la borne, et le patient recevait
+        # « Ce parcours n'a pas de version publiée » (27/11/2026).
+        tous = Parcours.objects.filter(
+            centre_id=self.centre_id, actif=True, visible_borne=True, versions__statut="PUBLIEE",
+        ).distinct()
         if not self.centre.accueil_delivre_tickets:
             # Borne en libre-service : jamais le médecin en chef (décision du 22/11/2026).
             tous = tous.filter(reserve_accueil=False)

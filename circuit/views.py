@@ -115,6 +115,7 @@ def bornes(request):
         ]
         borne.tous_les_services = not choisis
     appareil = _borne_de_l_appareil(request)
+    from centres.models import ImprimanteTicket
     from parcours.models import Parcours
     from parcours.simple import circuit, lettre_proposee, service_infirmerie
 
@@ -131,6 +132,7 @@ def bornes(request):
         "services_borne": services_borne,
         "a_une_infirmerie": service_infirmerie(request.centre_actif) is not None,
         "lettre_exemple": lettre_proposee(request.centre_actif, "K"),
+        "imprimantes": ImprimanteTicket.objects.filter(centre=request.centre_actif, actif=True).order_by("libelle"),
     })
 
 
@@ -157,6 +159,24 @@ def borne_ajouter(request):
         rang += 1
     Borne.objects.create(centre=request.centre_actif, code=f"B{rang}", libelle=libelle)
     messages.success(request, f"Borne « {libelle} » ajoutée. Sur sa tablette, cliquez sur « Activer sur cet appareil ».")
+    return redirect("circuit:bornes")
+
+
+@require_POST
+@centre_actif_requis
+def borne_imprimante(request, borne_id):
+    """Imprimante d'une borne, choisie sur la page Borne (27/11/2026). Vide : impression par la tablette."""
+    from centres.models import ImprimanteTicket
+
+    _exiger_reglage_borne(request)
+    borne = get_object_or_404(_bornes_administrees(request), pk=borne_id)
+    choix = entier(request.POST.get("imprimante"))
+    borne.imprimante = get_object_or_404(
+        ImprimanteTicket.objects.filter(centre=request.centre_actif, actif=True), pk=choix
+    ) if choix else None
+    borne.save(update_fields=["imprimante"])
+    messages.success(request, f"Borne « {borne.libelle} » : "
+                              f"{borne.imprimante.libelle if borne.imprimante else 'impression par la tablette'}.")
     return redirect("circuit:bornes")
 
 

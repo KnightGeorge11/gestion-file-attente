@@ -27,6 +27,7 @@ PAGES = {
     "comptes:modifier": ("Modifier", "comptes:profil"),
     "comptes:action": ("Mot de passe", "comptes:profil"),
     "centres:selection": ("Choisir le centre", None),
+    "centres:reglages": ("Réglages", None),
 }
 
 

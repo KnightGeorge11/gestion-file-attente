@@ -40,6 +40,8 @@ def _menus(utilisateur, centre, a_droit, nombre_notifications, services_operatio
             "est_admin_plateforme": _est_admin_plateforme(utilisateur),
             # Onglet « Comptes » pour l'administrateur de centre (27/11/2026).
             "peut_gerer_comptes": _peut_gerer_comptes(utilisateur, centre),
+            # Onglet « Réglages » : motifs, imprimantes, places, centre (27/11/2026).
+            "peut_regler": _peut_regler(utilisateur, centre),
         }
     )
 
@@ -64,6 +66,12 @@ def _peut_orienter(utilisateur, centre):
 
     accueil = Service.objects.filter(centre=centre, est_accueil=True).first()
     return a_droit(utilisateur, "circuit.orienter_demande", centre, accueil)
+
+
+def _peut_regler(utilisateur, centre):
+    from centres.reglages import peut_regler
+
+    return peut_regler(utilisateur, centre)
 
 
 def _peut_gerer_comptes(utilisateur, centre):

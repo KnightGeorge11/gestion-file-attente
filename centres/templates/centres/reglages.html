@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% load interface %}
+{% block titre %}Réglages{% endblock %}
+{% block contenu %}
+{# Réglages en formulaires courts (décision du 27/11/2026) : plus besoin de l'administration pour créer. #}
+<div class="entete-page">
+    <div>
+        <h1>Réglages</h1>
+        <p class="sous-titre">{{ centre_actif.nom }} · motifs « Autre », imprimantes, places du dentiste{% if plateforme %}, centre{% endif %}</p>
+    </div>
+</div>
+
+<div class="encart">{% icone "info" %}<span>Les <strong>comptes</strong> se créent dans l'onglet Comptes ; les <strong>services de la borne</strong> et les <strong>bornes</strong> dans l'onglet Borne ; les <strong>écrans</strong> dans l'onglet Écran.</span></div>
+
+<div class="grille" style="align-items:start">
+
+{# --- Motifs « Autre » ----------------------------------------------------- #}
+<section class="carte">
+    <div class="carte-entete"><h2><span class="titre-icone">{% icone "autre" %}</span>Motifs « Autre » de la borne</h2></div>
+    <p class="discret">Raisons proposées au visiteur qui ne vient pas pour un soin (rendez-vous, cotisation…). L'accueil oriente ensuite la demande.</p>
+    <ul class="chronologie">
+    {% for m in motifs %}
+        <li class="ligne">
+            <span {% if not m.actif %}class="discret"{% endif %}>{{ m.libelle }}{% if not m.actif %} · retiré{% endif %}</span>
+            <form method="post" action="{% url 'centres:reglages_motif' %}" style="margin-left:auto">
+                {% csrf_token %}<input type="hidden" name="motif" value="{{ m.pk }}">
+                {% if m.actif %}<button class="petit">{% icone "croix" %}Retirer</button>{% else %}<button class="petit">{% icone "check" %}Remettre</button>{% endif %}
+            </form>
+        </li>
+    {% empty %}<li class="vide">Aucun motif.</li>{% endfor %}
+    </ul>
+    <form method="post" action="{% url 'centres:reglages_motif' %}" class="ligne" style="align-items:flex-end;margin-top:12px">
+        {% csrf_token %}
+        <div style="flex:1"><label for="nouveau-motif">Nouveau motif</label>
+        <input id="nouveau-motif" name="libelle" maxlength="150" placeholder="ex. Retrait de résultats" required></div>
+        <button class="principal">{% icone "check" %}Ajouter</button>
+    </form>
+</section>
+
+{# --- Imprimantes ---------------------------------------------------------- #}
+<section class="carte">
+    <div class="carte-entete"><h2><span class="titre-icone">{% icone "imprimante" %}</span>Imprimantes de tickets</h2></div>
+    <p class="discret">Imprimantes thermiques branchées au réseau du centre. Une borne sans imprimante imprime par la tablette.</p>
+    <ul class="chronologie">
+    {% for i in imprimantes %}
+        <li style="display:block">
+            <div class="ligne"><strong {% if not i.actif %}class="discret"{% endif %}>{{ i.libelle }}</strong>
+                <span class="etiquette {% if i.actif %}ok{% endif %} pousse">{% if i.actif %}En service{% else %}Retirée{% endif %}</span></div>
+            <div class="discret">{{ i.adresse_ip }}:{{ i.port }} · papier {% if i.largeur_caracteres <= 32 %}58{% else %}80{% endif %} mm{% with bornes=i.bornes.all %}{% if bornes %} · bornes : {{ bornes|join:", " }}{% endif %}{% endwith %}</div>
+            <form method="post" action="{% url 'centres:reglages_imprimante' %}" class="ligne" style="margin-top:6px">
+                {% csrf_token %}<input type="hidden" name="imprimante" value="{{ i.pk }}">
+                {% if i.actif %}<button class="petit" name="action" value="tester">{% icone "imprimante" %}Tester</button>{% endif %}
+                <button class="petit" name="action" value="basculer">{% if i.actif %}{% icone "croix" %}Retirer{% else %}{% icone "check" %}Remettre en service{% endif %}</button>
+            </form>
+        </li>
+    {% empty %}<li class="vide">Aucune imprimante : les bornes impriment par la tablette.</li>{% endfor %}
+    </ul>
+    <details style="margin-top:12px" {% if not imprimantes %}open{% endif %}>
+        <summary>{% icone "imprimante" %}Ajouter une imprimante</summary>
+        <form method="post" action="{% url 'centres:reglages_imprimante' %}">
+            {% csrf_token %}
+            <label for="imp-nom">Nom</label>
+            <input id="imp-nom" name="libelle" maxlength="100" placeholder="ex. Imprimante de l'accueil" required>
+            <div class="ligne" style="align-items:flex-end">
+                <div style="flex:2"><label for="imp-ip">Adresse IP</label><input id="imp-ip" name="adresse_ip" placeholder="ex. 192.168.1.50" required></div>
+                <div style="flex:1"><label for="imp-port">Port</label><input id="imp-port" name="port" type="number" value="9100" min="1" max="65535"></div>
+            </div>
+            <label for="imp-papier">Papier</label>
+            <select id="imp-papier" name="papier"><option value="80">80 mm (le plus courant)</option><option value="58">58 mm</option></select>
+            <p class="discret" style="margin:6px 0 10px">L'adresse IP est affichée sur la page de test de l'imprimante (bouton FEED maintenu à l'allumage).</p>
+            <button class="principal">{% icone "check" %}Ajouter</button>
+        </form>
+    </details>
+</section>
+
+</div>
+
+{# --- Places du dentiste ---------------------------------------------------- #}
+{% for q in quotas %}
+<section class="carte" style="margin-top:var(--espace-5)">
+    <div class="carte-entete"><h2><span class="titre-icone">{% icone "calendrier" %}</span>Places « {{ q.parcours.libelle_borne }} » par demi-journée</h2></div>
+    <p class="discret">Nombre de patients acceptés chaque matin et chaque après-midi. Case vide ou 0 : fermé (aucun ticket). Les changements valent dès aujourd'hui.</p>
+    <form method="post" action="{% url 'centres:reglages_quotas' q.parcours.pk %}">
+        {% csrf_token %}
+        <div class="tableau-defilant">
+        <table>
+            <thead><tr><th>Jour</th>{% for code, nom in periodes %}<th>{{ nom }}</th>{% endfor %}</tr></thead>
+            <tbody>
+            {% for j in q.grille %}
+            <tr><td><strong>{{ j.nom }}</strong></td>
+                <td><input type="number" min="0" max="500" name="q-{{ j.jour }}-MATIN" value="{{ j.MATIN|default_if_none:'' }}" placeholder="fermé" aria-label="{{ j.nom }} matin" style="width:110px;min-width:0"></td>
+                <td><input type="number" min="0" max="500" name="q-{{ j.jour }}-APRES_MIDI" value="{{ j.APRES_MIDI|default_if_none:'' }}" placeholder="fermé" aria-label="{{ j.nom }} après-midi" style="width:110px;min-width:0"></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        <p style="margin:12px 0 0"><button class="principal">{% icone "check" %}Enregistrer les places</button></p>
+    </form>
+</section>
+{% endfor %}
+
+{% if plateforme %}
+<div class="grille" style="align-items:start;margin-top:var(--espace-5)">
+{# --- Le centre (plateforme) ------------------------------------------------- #}
+<section class="carte">
+    <div class="carte-entete"><h2><span class="titre-icone">{% icone "centre" %}</span>Le centre</h2><span class="etiquette">code {{ centre_actif.code }}</span></div>
+    <form method="post" action="{% url 'centres:reglages_centre' %}">
+        {% csrf_token %}
+        <label for="centre-nom">Nom</label>
+        <input id="centre-nom" name="nom" maxlength="200" value="{{ centre_actif.nom }}" required>
+        <label class="case"><input type="checkbox" name="accueil_delivre_tickets" value="1" {% if centre_actif.accueil_delivre_tickets %}checked{% endif %}> L'accueil délivre les tickets (sinon : borne en libre-service)</label>
+        <div class="ligne">
+            <div style="flex:1"><label for="centre-coupure">Fin du matin</label><input id="centre-coupure" type="time" name="heure_coupure_matin" value="{{ centre_actif.heure_coupure_matin|time:'H:i' }}"></div>
+            <div style="flex:1"><label for="centre-cloture">Clôture des tickets</label><input id="centre-cloture" type="time" name="heure_cloture_tickets" value="{{ centre_actif.heure_cloture_tickets|time:'H:i' }}"></div>
+        </div>
+        <p style="margin:12px 0 0"><button class="principal">{% icone "check" %}Enregistrer</button></p>
+    </form>
+</section>
+
+{# --- Nouveau centre (plateforme) ------------------------------------------ #}
+<section class="carte">
+    <div class="carte-entete"><h2><span class="titre-icone">{% icone "centre" %}</span>Nouveau centre</h2></div>
+    <p class="discret">Créé prêt à l'emploi : accueil, infirmerie, médecin, dentiste, échographie, pharmacie ; la borne (Médecin, Dentiste, Infirmerie, Échographie) ; les places du dentiste ; les motifs « Autre ». Il reste à créer ses comptes et sa borne.</p>
+    <form method="post" action="{% url 'centres:reglages_nouveau_centre' %}" onsubmit="return confirm('Créer ce centre ?')">
+        {% csrf_token %}
+        <label for="nc-nom">Nom du centre</label>
+        <input id="nc-nom" name="nom" maxlength="200" placeholder="ex. Tamatave" required>
+        <div class="ligne">
+            <div style="flex:1"><label for="nc-code">Code (2 à 10 lettres)</label><input id="nc-code" name="code" maxlength="10" placeholder="ex. TAM" required style="text-transform:uppercase"></div>
+            <div style="flex:1"><label for="nc-med">Médecins en même temps</label><input id="nc-med" name="medecins" type="number" min="2" max="20" value="2"></div>
+        </div>
+        <p style="margin:12px 0 0"><button class="principal">{% icone "check" %}Créer le centre</button></p>
+    </form>
+</section>
+</div>
+{% endif %}
+{% endblock %}

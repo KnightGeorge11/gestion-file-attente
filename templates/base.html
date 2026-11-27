@@ -35,6 +35,7 @@
         <a href="{% url 'circuit:ecran_connexion' %}" class="{% if page == 'ecran_connexion' %}actif{% endif %}" title="Afficher les appels sur l'écran de la salle">{% icone "ecran" %}Écran</a>
         {# Bornes du centre : services proposés, activation (administrateurs, décision du 23/11/2026). #}
         {% if administre_bornes %}<a href="{% url 'circuit:bornes' %}" class="{% if page == 'bornes' %}actif{% endif %}" title="Activer une borne sur cet appareil">{% icone "imprimante" %}Borne</a>{% endif %}
+        {% if peut_regler %}<a href="{% url 'centres:reglages' %}" class="{% if page == 'reglages' %}actif{% endif %}">{% icone "reglages" %}Réglages</a>{% endif %}
         {% if est_admin_plateforme or peut_gerer_comptes %}<a href="{% url 'comptes:comptes' %}" class="{% if espace == 'comptes' %}actif{% endif %}">{% icone "groupe" %}Comptes</a>{% endif %}
         {# Onglet « Administration » : administrateur de la plateforme seulement (décision du 24/11/2026). #}
         {% if est_admin_plateforme %}<a href="{% url 'admin:index' %}" hx-boost="false">{% icone "reglages" %}Administration</a>{% endif %}

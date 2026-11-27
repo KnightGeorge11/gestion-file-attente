@@ -35,6 +35,7 @@ urlpatterns = [
     path("bornes/", views.bornes, name="bornes"),
     path("bornes/<int:borne_id>/basculer/", views.borne_basculer, name="borne_basculer"),
     path("bornes/ajouter/", views.borne_ajouter, name="borne_ajouter"),
+    path("bornes/<int:borne_id>/imprimante/", views.borne_imprimante, name="borne_imprimante"),
     path("bornes/services/ajouter/", views.borne_service_ajouter, name="borne_service_ajouter"),
     path("bornes/services/<int:parcours_id>/basculer/", views.borne_service_basculer,
          name="borne_service_basculer"),
